@@ -385,76 +385,59 @@ function DiscoveryActions({
 
   if (!leadStatus) return null
 
-  // Follow Up — calendar reminder button
+  // Follow Up — open Google Calendar with pre-filled event
   if (leadStatus.includes('Follow Up')) {
-    const [settingReminder, setSettingReminder] = useState(false)
-    const [reminderSet, setReminderSet] = useState(false)
-    const [reminderInfo, setReminderInfo] = useState<{ date: string; link: string } | null>(null)
+    const handleOpenCalendar = () => {
+      const followUp = new Date()
+      followUp.setDate(followUp.getDate() + 14)
+      // Format dates for Google Calendar URL (YYYYMMDDTHHMMSS)
+      const startStr = followUp.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')
+      const endDate = new Date(followUp)
+      endDate.setMinutes(endDate.getMinutes() + 30)
+      const endStr = endDate.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')
 
-    const handleSetReminder = async () => {
-      setSettingReminder(true)
-      try {
-        const res = await fetch('/api/calendar-reminder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clientName: client.name,
-            brandName: client.brand,
-            email: client.email,
-            notes: fieldValues.get('discovery:what_they_need') || '',
-          }),
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error)
-        setReminderSet(true)
-        setReminderInfo({ date: data.message, link: data.eventLink })
-      } catch (err) {
-        alert(`Failed to set reminder: ${err instanceof Error ? err.message : 'Unknown error'}`)
-      }
-      setSettingReminder(false)
+      const title = encodeURIComponent(`Follow Up: ${client.brand || client.name}`)
+      const details = encodeURIComponent(
+        `Follow-up call with ${client.name}${client.brand ? ` (${client.brand})` : ''}\n` +
+        `${client.email ? `Email: ${client.email}\n` : ''}` +
+        `${client.phone ? `Phone: ${client.phone}\n` : ''}` +
+        `\nNotes:\n${fieldValues.get('discovery:what_they_need') || client.needs || 'N/A'}\n\n— Created by ClubSheIs Client Flow`
+      )
+
+      const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&ctz=Africa/Johannesburg`
+      window.open(url, '_blank')
     }
 
-    return reminderSet && reminderInfo ? (
-      <div className="w-full space-y-1">
-        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2.5 rounded-lg text-sm font-semibold text-center">
-          ✓ {reminderInfo.date}
-        </div>
-        <a
-          href={reminderInfo.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block text-center text-xs text-blue-500 hover:text-blue-700 underline"
-        >
-          View in Google Calendar →
-        </a>
-      </div>
-    ) : (
+    return (
       <button
-        onClick={handleSetReminder}
-        disabled={settingReminder}
-        className="w-full bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50"
+        onClick={handleOpenCalendar}
+        className="w-full bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer"
       >
-        {settingReminder ? 'Setting reminder...' : '📅 Set 2-Week Follow-Up Reminder'}
+        📅 Set 2-Week Follow-Up Reminder
       </button>
     )
   }
 
-  // Not a Fit — button to generate thank-you email in Stage 2
+  // Not a Fit — button to prepare thank-you email in Stage 2
   if (leadStatus.includes('Not a Fit')) {
-    const thankYouGenerated = !!fieldValues.get('proposal:thankyou_text')
+    const handlePrepareThankYou = async () => {
+      const thankYouText = `Hi ${client.name},\n\nThank you so much for taking the time to chat with us. We really enjoyed learning about ${client.brand || 'your business'}.\n\nAfter our conversation, we don't think we're the best fit for what you need right now — but we genuinely wish you all the best with your next steps.\n\nIf things change in the future, our door is always open.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
+      await onSaveField('proposal', 'thankyou_text', thankYouText)
+      await onSaveField('proposal', 'email_type', 'not-a-fit')
+      await onSaveField('proposal', 'proposal_status', 'Draft')
+      onAdvance() // Move to Stage 2
+      // Scroll to Stage 2 after a short delay
+      setTimeout(() => {
+        document.getElementById('stage-proposal')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 300)
+    }
+
     return (
       <button
-        onClick={() => {
-          // Pre-generate the thank-you email text and save it
-          const thankYouText = `Hi ${client.name},\n\nThank you so much for taking the time to chat with us. We really enjoyed learning about ${client.brand || 'your business'}.\n\nAfter our conversation, we don't think we're the best fit for what you need right now — but we genuinely wish you all the best with your next steps.\n\nIf things change in the future, our door is always open.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
-          onSaveField('proposal', 'thankyou_text', thankYouText)
-          onSaveField('proposal', 'email_type', 'not-a-fit')
-          onSaveField('proposal', 'proposal_status', 'Draft')
-          onAdvance() // Move to Stage 2
-        }}
+        onClick={handlePrepareThankYou}
         className="w-full bg-rose-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-rose-700 transition-colors cursor-pointer"
       >
-        {thankYouGenerated ? 'Go to Thank You Email →' : 'Prepare Thank You Email →'}
+        Prepare Thank You Email →
       </button>
     )
   }
@@ -1055,7 +1038,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
           const nextStage = STAGES.find(s => s.key === nextStageKey)
 
           return (
-            <div key={stage.key}>
+            <div key={stage.key} id={`stage-${stage.key}`}>
               <StagePanel
                 stage={stage}
                 isActive={isActive}
