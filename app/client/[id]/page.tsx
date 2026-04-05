@@ -243,12 +243,11 @@ function StagePanel({
                     />
                   </div>
                 ))}
+                {/* Inline action slot — sits inside the grid as an extra cell */}
+                {actionSlot && <div className="flex items-end">{actionSlot}</div>}
               </div>
             </div>
           )}
-
-          {/* Action slot (contextual buttons) — placed right after data fields */}
-          {actionSlot}
 
           {/* Conditional logic */}
           {stage.conditionalLogic.length > 0 && (
@@ -362,53 +361,44 @@ function DiscoveryActions({
 
   if (!leadStatus) return null
 
-  // Not a Fit
+  // Not a Fit — inline button
   if (leadStatus.includes('Not a Fit')) {
     return (
-      <div className="bg-[rgba(225,29,72,0.04)] border border-[rgba(225,29,72,0.15)] rounded-lg p-4">
-        <div className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-1">Action Required</div>
-        <p className="text-sm text-stone-700 mb-3">This lead isn't the right fit. Send a polite thank-you email and archive.</p>
-        <button
-          onClick={handleSendThankYou}
-          className="bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-rose-700 transition-colors cursor-pointer"
-        >
-          Send Thank You Email
-        </button>
-      </div>
+      <button
+        onClick={handleSendThankYou}
+        className="w-full bg-rose-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-rose-700 transition-colors cursor-pointer"
+      >
+        Send Thank You Email
+      </button>
     )
   }
 
-  // Follow Up
+  // Follow Up — inline label
   if (leadStatus.includes('Follow Up')) {
     return (
-      <div className="bg-[rgba(37,99,235,0.04)] border border-[rgba(37,99,235,0.15)] rounded-lg p-4">
-        <div className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Follow Up Scheduled</div>
-        <p className="text-sm text-stone-700">This lead needs more time. Follow up in two weeks — a reminder will be set.</p>
+      <div className="text-sm text-blue-600 font-medium pt-2">
+        Follow up in 2 weeks
       </div>
     )
   }
 
-  // Good Fit — Proposal flow
-  return (
-    <div className="space-y-4">
-      {/* Generate button */}
-      {!proposal && (
-        <div className="bg-[rgba(22,163,74,0.04)] border border-[rgba(22,163,74,0.15)] rounded-lg p-4">
-          <div className="text-xs font-bold text-green-600 uppercase tracking-wider mb-1">Good Fit — Generate Proposal</div>
-          <p className="text-sm text-stone-700 mb-3">AI will create a tailored proposal based on the discovery call notes and client information. You'll review and edit before sending.</p>
-          <button
-            onClick={handleGenerateProposal}
-            disabled={generating}
-            className="bg-[#16A34A] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
-          >
-            {generating ? 'Generating Proposal...' : 'Generate Proposal'}
-          </button>
-        </div>
-      )}
+  // Good Fit — inline generate button (no proposal yet) or full proposal panel
+  if (!proposal) {
+    return (
+      <button
+        onClick={handleGenerateProposal}
+        disabled={generating}
+        className="w-full bg-[#16A34A] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
+      >
+        {generating ? 'Generating...' : 'Generate Proposal'}
+      </button>
+    )
+  }
 
-      {/* Proposal review/edit */}
-      {proposal && (
-        <div className="border border-stone-200 rounded-lg overflow-hidden">
+  // Good Fit — Proposal already generated, show full panel
+  return (
+    <div className="sm:col-span-2 mt-2">
+      <div className="border border-stone-200 rounded-lg overflow-hidden">
           <div className="bg-stone-50 px-4 py-3 flex items-center justify-between border-b border-stone-200">
             <div>
               <h4 className="text-sm font-semibold text-stone-900">Proposal for {client.brand || client.name}</h4>
@@ -481,7 +471,6 @@ function DiscoveryActions({
             </div>
           </div>
         </div>
-      )}
     </div>
   )
 }
