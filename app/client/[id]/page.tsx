@@ -247,6 +247,9 @@ function StagePanel({
             </div>
           )}
 
+          {/* Action slot (contextual buttons) — placed right after data fields */}
+          {actionSlot}
+
           {/* Conditional logic */}
           {stage.conditionalLogic.length > 0 && (
             <div className="bg-[rgba(147,51,234,0.04)] border border-[rgba(147,51,234,0.12)] rounded-lg p-4">
@@ -260,9 +263,6 @@ function StagePanel({
               ))}
             </div>
           )}
-
-          {/* Action slot (contextual buttons) */}
-          {actionSlot}
 
           {/* Next action / advance */}
           {isCurrent && (
