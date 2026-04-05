@@ -423,6 +423,94 @@ function DiscoveryActions({
   )
 }
 
+// ── Awaiting Review actions — shows when proposal is accepted ──
+function AwaitingReviewActions({
+  client,
+  fieldValues,
+  onAdvance,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onAdvance: () => Promise<void>
+}) {
+  const [creating, setCreating] = useState(false)
+  const [done, setDone] = useState(false)
+  const proposalStatus = fieldValues.get('awaiting-review:proposal_status') || ''
+  const isAccepted = proposalStatus === 'Accepted'
+
+  const handleAcceptAndSetup = async () => {
+    setCreating(true)
+    try {
+      // Create Google Drive folder
+      await fetch('/api/create-client-folder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: client.name,
+          brandName: client.brand,
+        }),
+      })
+    } catch {
+      // Continue even if folder creation fails — can be done manually
+    }
+
+    try {
+      // Create ClickUp task
+      await fetch('/api/create-clickup-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: client.name,
+          brandName: client.brand,
+          email: client.email,
+          phone: client.phone,
+          package: client.package,
+        }),
+      })
+    } catch {
+      // Continue even if ClickUp creation fails — can be done manually
+    }
+
+    setDone(true)
+    await onAdvance()
+    setCreating(false)
+  }
+
+  if (!isAccepted) return null
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-green-600 text-lg">🎉</span>
+          <h4 className="text-sm font-bold text-green-800">Proposal Accepted!</h4>
+        </div>
+        <p className="text-sm text-green-700 mb-3">
+          {client.brand || client.name} has accepted the proposal. Clicking below will:
+        </p>
+        <ul className="text-sm text-green-700 space-y-1 mb-4">
+          <li className="flex items-center gap-2">
+            <span className="text-green-500">📁</span> Create a client folder in Google Drive
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="text-green-500">✅</span> Create a client task in ClickUp
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="text-green-500">→</span> Move to Client Onboarding
+          </li>
+        </ul>
+        <button
+          onClick={handleAcceptAndSetup}
+          disabled={creating || done}
+          className="w-full bg-[#16A34A] text-white px-5 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {done ? '✓ Client Set Up — Moving to Onboarding...' : creating ? 'Setting up client...' : 'Accept & Set Up Client →'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Shared email editor for proposals and thank-you emails ──
 function EmailContentEditor({ content, onChange, readOnly }: { content: string; onChange: (v: string) => void; readOnly: boolean }) {
   if (!readOnly) {
@@ -1028,9 +1116,15 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       onSaveField={handleSaveField}
                       onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
                     />
+                  ) : stage.key === 'awaiting-review' ? (
+                    <AwaitingReviewActions
+                      client={client}
+                      fieldValues={fieldValues}
+                      onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
+                    />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">
