@@ -505,7 +505,7 @@ function ProposalReview({
           <p className="text-xs text-stone-400">PDF attachment — will be included with the proposal email</p>
         </div>
         <a
-          href="https://drive.google.com/file/d/REPLACE_WITH_DRIVE_FILE_ID/view"
+          href="/ClubSheIs-About-Us.pdf"
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
@@ -532,7 +532,7 @@ function ProposalReview({
 
       {sent && (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
-          Remember to attach the <strong>ClubSheIs About Us PDF</strong> to the email before sending. You can <a href="https://drive.google.com/file/d/REPLACE_WITH_DRIVE_FILE_ID/view" target="_blank" className="underline">download it here</a>.
+          Remember to attach the <strong>ClubSheIs About Us PDF</strong> to the email before sending. You can <a href="/ClubSheIs-About-Us.pdf" target="_blank" className="underline">download it here</a>.
         </p>
       )}
     </div>
