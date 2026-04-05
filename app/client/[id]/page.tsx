@@ -348,31 +348,52 @@ function DiscoveryActions({
     setEditing(false)
   }
 
+  const [sendingThankYou, setSendingThankYou] = useState(false)
+  const [thankYouSent, setThankYouSent] = useState(false)
+
   const handleSendProposal = () => {
-    const subject = encodeURIComponent(`ClubSheIs Proposal for ${client.brand || client.name}`)
-    const body = encodeURIComponent(proposal.replace(/[#*_`]/g, '').replace(/\n/g, '\n'))
-    window.open(`mailto:${client.email}?subject=${subject}&body=${body}`, '_blank')
+    // Proposal sending is handled in ProposalReview component
     setSendingEmail(true)
   }
 
-  const handleSendThankYou = () => {
-    const subject = encodeURIComponent(`Thank you for chatting with ClubSheIs`)
-    const body = encodeURIComponent(
-      `Hi ${client.name},\n\nThank you so much for taking the time to chat with us. We really enjoyed learning about ${client.brand || 'your business'}.\n\nAfter our conversation, we don't think we're the best fit for what you need right now — but we genuinely wish you all the best with your next steps.\n\nIf things change in the future, our door is always open.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
-    )
-    window.open(`mailto:${client.email}?subject=${subject}&body=${body}`, '_blank')
+  const handleSendThankYou = async () => {
+    if (!client.email) { alert('No email address for this client.'); return }
+    setSendingThankYou(true)
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: client.email,
+          subject: `Thank you for chatting with ClubSheIs`,
+          body: `Hi ${client.name},\n\nThank you so much for taking the time to chat with us. We really enjoyed learning about ${client.brand || 'your business'}.\n\nAfter our conversation, we don't think we're the best fit for what you need right now — but we genuinely wish you all the best with your next steps.\n\nIf things change in the future, our door is always open.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`,
+          attachAboutUs: false,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setThankYouSent(true)
+    } catch (err) {
+      alert(`Failed to send email: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
+    setSendingThankYou(false)
   }
 
   if (!leadStatus) return null
 
   // Not a Fit — inline button
   if (leadStatus.includes('Not a Fit')) {
-    return (
+    return thankYouSent ? (
+      <div className="w-full bg-green-50 border border-green-200 text-green-700 px-4 py-2.5 rounded-lg text-sm font-semibold text-center">
+        ✓ Thank you email sent to {client.email}
+      </div>
+    ) : (
       <button
         onClick={handleSendThankYou}
-        className="w-full bg-rose-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-rose-700 transition-colors cursor-pointer"
+        disabled={sendingThankYou}
+        className="w-full bg-rose-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-rose-700 transition-colors cursor-pointer disabled:opacity-50"
       >
-        Send Thank You Email
+        {sendingThankYou ? 'Sending...' : 'Send Thank You Email'}
       </button>
     )
   }
@@ -417,7 +438,9 @@ function ProposalReview({
   const savedProposal = fieldValues.get('proposal:generated_text') || ''
   const [proposal, setProposal] = useState(savedProposal)
   const [editing, setEditing] = useState(false)
+  const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [sendError, setSendError] = useState('')
 
   useEffect(() => {
     const saved = fieldValues.get('proposal:generated_text')
@@ -429,15 +452,31 @@ function ProposalReview({
     setEditing(false)
   }
 
-  const handleSendEmail = () => {
-    const proposalPlain = proposal.replace(/[#*_`]/g, '').replace(/\n/g, '\n')
-    const subject = encodeURIComponent(`ClubSheIs Proposal for ${client.brand || client.name}`)
-    const body = encodeURIComponent(
-      `Hi ${client.name},\n\nPlease find our proposal below. We've also attached our About Us document for your reference.\n\n---\n\n${proposalPlain}\n\n---\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
-    )
-    window.open(`mailto:${client.email}?subject=${subject}&body=${body}`, '_blank')
-    setSent(true)
-    onSaveField('proposal', 'proposal_status', 'Sent')
+  const handleSendEmail = async () => {
+    if (!client.email) { alert('No email address for this client.'); return }
+    setSending(true)
+    setSendError('')
+    try {
+      const emailBody = `Hi ${client.name},\n\nPlease find our proposal below. We've also attached our About Us document for your reference.\n\n---\n\n${proposal}\n\n---\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
+
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: client.email,
+          subject: `ClubSheIs Proposal for ${client.brand || client.name}`,
+          body: emailBody,
+          attachAboutUs: true,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setSent(true)
+      onSaveField('proposal', 'proposal_status', 'Sent')
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Failed to send email')
+    }
+    setSending(false)
   }
 
   if (!proposal) {
@@ -515,25 +554,29 @@ function ProposalReview({
       </div>
 
       {/* Send button */}
-      <div className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-4 py-3">
-        <p className="text-xs text-stone-400">
-          {sent
-            ? 'Email opened — send from your email client with the About Us PDF attached.'
-            : 'When you\'re happy with the proposal, send it to the client.'}
-        </p>
-        <button
-          onClick={handleSendEmail}
-          disabled={!client.email || editing}
-          className="bg-[#B45309] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-amber-800 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-        >
-          Send Proposal via Email
-        </button>
-      </div>
-
-      {sent && (
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
-          Remember to attach the <strong>ClubSheIs About Us PDF</strong> to the email before sending. You can <a href="/ClubSheIs-About-Us.pdf" target="_blank" className="underline">download it here</a>.
-        </p>
+      {sent ? (
+        <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-4 text-center">
+          <p className="text-sm font-semibold text-green-700">✓ Proposal sent to {client.email}</p>
+          <p className="text-xs text-green-600 mt-1">Sent from info@clubsheis.com with About Us PDF attached</p>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-4 py-3">
+          <div className="flex-1">
+            <p className="text-xs text-stone-500">
+              Sends from <strong>info@clubsheis.com</strong> with the About Us PDF attached.
+            </p>
+            {sendError && (
+              <p className="text-xs text-red-600 mt-1">{sendError}</p>
+            )}
+          </div>
+          <button
+            onClick={handleSendEmail}
+            disabled={!client.email || editing || sending}
+            className="bg-[#B45309] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-amber-800 transition-colors cursor-pointer disabled:opacity-50 shrink-0 ml-4"
+          >
+            {sending ? 'Sending...' : 'Send Proposal via Email'}
+          </button>
+        </div>
       )}
     </div>
   )
