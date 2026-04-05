@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
@@ -11,23 +11,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields: to, subject, body' }, { status: 400 })
     }
 
-    const gmailUser = process.env.GMAIL_USER || 'info@clubsheis.com'
-    const gmailPass = process.env.GMAIL_APP_PASSWORD
-
-    if (!gmailPass) {
+    const resendKey = process.env.RESEND_API_KEY
+    if (!resendKey) {
       return NextResponse.json(
-        { error: 'Gmail App Password not configured. Add GMAIL_APP_PASSWORD to your environment variables.' },
+        { error: 'Resend API key not configured. Add RESEND_API_KEY to your environment variables.' },
         { status: 500 }
       )
     }
 
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: gmailUser,
-        pass: gmailPass,
-      },
-    })
+    const resend = new Resend(resendKey)
+
+    // Determine sender — use custom domain if verified, otherwise Resend default
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'ClubSheIs <onboarding@resend.dev>'
 
     // Convert body to HTML
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://clubsheis-client-flow.vercel.app'
@@ -49,33 +44,33 @@ export async function POST(req: NextRequest) {
       htmlBody += `<img src="${appUrl}/api/track?id=${trackingId}" width="1" height="1" style="display:none" alt="" />`
     }
 
-    // Build email options
-    const mailOptions: nodemailer.SendMailOptions = {
-      from: `"Nyaki & Kopano — ClubSheIs" <${gmailUser}>`,
-      to,
-      subject,
-      text: body,
-      html: htmlBody,
-    }
-
-    // Attach About Us PDF if requested
+    // Build attachments
+    const attachments: { filename: string; content: Buffer }[] = []
     if (attachAboutUs) {
       try {
         const pdfPath = join(process.cwd(), 'public', 'ClubSheIs-About-Us.pdf')
         const pdfBuffer = readFileSync(pdfPath)
-        mailOptions.attachments = [
-          {
-            filename: 'ClubSheIs-About-Us.pdf',
-            content: pdfBuffer,
-            contentType: 'application/pdf',
-          },
-        ]
+        attachments.push({
+          filename: 'ClubSheIs-About-Us.pdf',
+          content: pdfBuffer,
+        })
       } catch {
         console.warn('About Us PDF not found, sending without attachment')
       }
     }
 
-    await transporter.sendMail(mailOptions)
+    const { error } = await resend.emails.send({
+      from: fromEmail,
+      to: [to],
+      subject,
+      text: body,
+      html: htmlBody,
+      ...(attachments.length > 0 ? { attachments } : {}),
+    })
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true, message: `Email sent to ${to}` })
   } catch (error) {
