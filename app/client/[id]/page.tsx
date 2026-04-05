@@ -381,12 +381,57 @@ function DiscoveryActions({
 
   if (!leadStatus) return null
 
-  // Follow Up — inline label
+  // Follow Up — calendar reminder button
   if (leadStatus.includes('Follow Up')) {
-    return (
-      <div className="text-sm text-blue-600 font-medium pt-2">
-        Follow up in 2 weeks
+    const [settingReminder, setSettingReminder] = useState(false)
+    const [reminderSet, setReminderSet] = useState(false)
+    const [reminderInfo, setReminderInfo] = useState<{ date: string; link: string } | null>(null)
+
+    const handleSetReminder = async () => {
+      setSettingReminder(true)
+      try {
+        const res = await fetch('/api/calendar-reminder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientName: client.name,
+            brandName: client.brand,
+            email: client.email,
+            notes: fieldValues.get('discovery:what_they_need') || '',
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error)
+        setReminderSet(true)
+        setReminderInfo({ date: data.message, link: data.eventLink })
+      } catch (err) {
+        alert(`Failed to set reminder: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      }
+      setSettingReminder(false)
+    }
+
+    return reminderSet && reminderInfo ? (
+      <div className="w-full space-y-1">
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2.5 rounded-lg text-sm font-semibold text-center">
+          ✓ {reminderInfo.date}
+        </div>
+        <a
+          href={reminderInfo.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block text-center text-xs text-blue-500 hover:text-blue-700 underline"
+        >
+          View in Google Calendar →
+        </a>
       </div>
+    ) : (
+      <button
+        onClick={handleSetReminder}
+        disabled={settingReminder}
+        className="w-full bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50"
+      >
+        {settingReminder ? 'Setting reminder...' : '📅 Set 2-Week Follow-Up Reminder'}
+      </button>
     )
   }
 
