@@ -1,69 +1,66 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest } from 'next/server'
 
-export const maxDuration = 60
+export const runtime = 'edge'
 
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
-      return Response.json({ error: 'ANTHROPIC_API_KEY not set. Add it to your Vercel environment variables.' }, { status: 500 })
+      return Response.json({ error: 'ANTHROPIC_API_KEY not set.' }, { status: 500 })
     }
 
     const { clientName, brandName, email, needs, transcriptNotes, budgetRange } = await req.json()
 
-    const anthropic = new Anthropic({ apiKey })
+    const prompt = `You are writing a proposal for ClubSheIs, a digital marketing and content production agency based in South Africa. Generate a professional, warm, and clear proposal.
 
-    const prompt = `You are writing a proposal for ClubSheIs, a digital marketing and content production agency based in South Africa. Generate a professional, warm, and clear proposal based on the discovery call information below.
+CLIENT: ${clientName}${brandName ? ` (${brandName})` : ''} | Email: ${email || 'N/A'} | Budget: ${budgetRange || 'N/A'}
 
-CLIENT INFORMATION:
-- Name: ${clientName}
-- Brand: ${brandName || 'Not specified'}
-- Email: ${email || 'Not specified'}
-- Budget Range: ${budgetRange || 'Not specified'}
+WHAT THEY NEED:
+${needs || 'No notes'}
 
-DISCOVERY CALL NOTES / WHAT THEY NEED:
-${needs || 'No notes provided'}
+TRANSCRIPT:
+${(transcriptNotes || '').slice(0, 2000)}
 
-TRANSCRIPT NOTES:
-${transcriptNotes || 'No transcript provided'}
+Structure:
+1. **Opening** — Personalised greeting. Show you listened.
+2. **Understanding Your Needs** — Reflect their goals back.
+3. **What We Recommend** — Our packages:
+   - Ghutte Only (R3,800/mo) — Platform onboarding, training, monthly strategy
+   - New Page Build (from R5,000) — Single page in Ghutte
+   - Content Day (from R8,500) — Long/short form video in studio
+   - Ads + Email + Social (from R12,500/mo) — META ads, email, social (any combo)
+   - Full Build (from R32,500) — 3-step funnel: Lead Magnet, OTO, Main Product
+4. **Scope & Deliverables** — Bullet list.
+5. **Investment** — Pricing + payment terms.
+6. **Timeline** — Start date + milestones.
+7. **Next Steps** — Clear CTA.
 
-Write the proposal in this structure:
-1. **Opening** — Personalised greeting referencing something specific from the call. Show you listened.
-2. **Understanding Your Needs** — Summarise what they told us they need, in our words. Reflect their goals back to them.
-3. **What We Recommend** — Based on their needs, recommend the right ClubSheIs package(s). Our packages are:
-   - Ghutte Only (R3,800/month) — Platform onboarding, training, monthly strategy session
-   - New Page Build (from R5,000) — Single landing/sales/opt-in page connected inside Ghutte
-   - Content Day (from R8,500) — Long and short form videos shot in studio, full pre-production pipeline
-   - Ads + Email + Social (from R12,500/month) — META ads, email newsletters, social content management (can be any combination)
-   - Full Build (from R32,500) — 3-step funnel: Lead Magnet, OTO, Main Product page
-4. **Scope & Deliverables** — Bullet list of exactly what they'll receive.
-5. **Investment** — Pricing (suggest based on their budget range and needs). Include payment terms.
-6. **Timeline** — When we can start and key milestones.
-7. **Next Steps** — Clear call to action.
+Tone: professional but human. Not corporate. Keep it under 500 words. Output ONLY the proposal in markdown. No preamble.`
 
-Keep the tone professional but human — like a smart friend who happens to be great at marketing. Not corporate. Not salesy. Just clear and confident. Keep it concise — no longer than 600 words.
-
-Output ONLY the proposal text in clean markdown format. No preamble.`
-
-    // Use streaming to avoid Vercel timeout
-    const stream = await anthropic.messages.stream({
-      model: 'claude-3-haiku-20240307',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }],
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1200,
+        messages: [{ role: 'user', content: prompt }],
+      }),
     })
 
-    // Collect the full response from the stream
-    let proposalText = ''
-    for await (const event of stream) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        proposalText += event.delta.text
-      }
+    if (!res.ok) {
+      const err = await res.text()
+      return Response.json({ error: `${res.status} ${err}` }, { status: res.status })
     }
+
+    const data = await res.json()
+    const proposalText = data.content?.[0]?.text || ''
 
     return Response.json({ proposal: proposalText })
   } catch (error) {
-    console.error('Proposal generation error:', error)
     const msg = error instanceof Error ? error.message : 'Unknown error'
     return Response.json({ error: `Failed to generate proposal: ${msg}` }, { status: 500 })
   }
