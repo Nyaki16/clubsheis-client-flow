@@ -253,20 +253,6 @@ function StagePanel({
             </div>
           )}
 
-          {/* Conditional logic */}
-          {stage.conditionalLogic.length > 0 && (
-            <div className="bg-[rgba(147,51,234,0.04)] border border-[rgba(147,51,234,0.12)] rounded-lg p-4">
-              <h4 className="text-xs font-bold text-purple-600 uppercase tracking-wider mb-2">Conditional Logic</h4>
-              {stage.conditionalLogic.map((rule, i) => (
-                <div key={i} className="flex gap-2 py-1 text-sm">
-                  <span className="font-semibold text-purple-600 shrink-0">IF</span>
-                  <span className="text-stone-600">{rule.condition}</span>
-                  <span className="font-semibold text-stone-800">→ {rule.result}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
           {/* Next action / advance */}
           {isCurrent && (
             <div className="bg-[rgba(22,163,74,0.05)] border border-[rgba(22,163,74,0.15)] rounded-lg p-4">
@@ -283,6 +269,20 @@ function StagePanel({
               {!allDone && totalSubsteps > 0 && (
                 <p className="mt-2 text-xs text-stone-400">Complete all substeps to advance to the next stage.</p>
               )}
+            </div>
+          )}
+
+          {/* Conditional logic — always last */}
+          {stage.conditionalLogic.length > 0 && (
+            <div className="bg-[rgba(147,51,234,0.04)] border border-[rgba(147,51,234,0.12)] rounded-lg p-4">
+              <h4 className="text-xs font-bold text-purple-600 uppercase tracking-wider mb-2">Conditional Logic</h4>
+              {stage.conditionalLogic.map((rule, i) => (
+                <div key={i} className="flex gap-2 py-1 text-sm">
+                  <span className="font-semibold text-purple-600 shrink-0">IF</span>
+                  <span className="text-stone-600">{rule.condition}</span>
+                  <span className="font-semibold text-stone-800">→ {rule.result}</span>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -358,7 +358,7 @@ function DiscoveryActions({
   const handleSendThankYou = () => {
     const subject = encodeURIComponent(`Thank you for chatting with ClubSheIs`)
     const body = encodeURIComponent(
-      `Hi ${client.name},\n\nThank you so much for taking the time to chat with us. We really enjoyed learning about ${client.brand || 'your business'}.\n\nAfter our conversation, we don't think we're the best fit for what you need right now — but we genuinely wish you all the best with your next steps.\n\nIf things change in the future, our door is always open.\n\nWarm regards,\nThe ClubSheIs Team`
+      `Hi ${client.name},\n\nThank you so much for taking the time to chat with us. We really enjoyed learning about ${client.brand || 'your business'}.\n\nAfter our conversation, we don't think we're the best fit for what you need right now — but we genuinely wish you all the best with your next steps.\n\nIf things change in the future, our door is always open.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
     )
     window.open(`mailto:${client.email}?subject=${subject}&body=${body}`, '_blank')
   }
