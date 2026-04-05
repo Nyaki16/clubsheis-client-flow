@@ -438,25 +438,33 @@ function AwaitingReviewActions({
   const proposalStatus = fieldValues.get('awaiting-review:proposal_status') || ''
   const isAccepted = proposalStatus === 'Accepted'
 
+  const [driveResult, setDriveResult] = useState('')
+  const [clickupResult, setClickupResult] = useState('')
+
   const handleAcceptAndSetup = async () => {
     setCreating(true)
+
+    // 1. Try creating Google Drive folder
     try {
-      // Create Google Drive folder
-      await fetch('/api/create-client-folder', {
+      const driveRes = await fetch('/api/create-client-folder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientName: client.name,
-          brandName: client.brand,
-        }),
+        body: JSON.stringify({ clientName: client.name, brandName: client.brand }),
       })
+      const driveData = await driveRes.json()
+      if (driveRes.ok && driveData.folderLink) {
+        setDriveResult(driveData.folderLink)
+      } else {
+        // Fallback: open the parent folder directly
+        setDriveResult('https://drive.google.com/drive/folders/13opmLtB2CkiJQtKpxMPrtfza8C0FaJk6')
+      }
     } catch {
-      // Continue even if folder creation fails — can be done manually
+      setDriveResult('https://drive.google.com/drive/folders/13opmLtB2CkiJQtKpxMPrtfza8C0FaJk6')
     }
 
+    // 2. Try creating ClickUp task
     try {
-      // Create ClickUp task
-      await fetch('/api/create-clickup-client', {
+      const cuRes = await fetch('/api/create-clickup-client', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -467,8 +475,14 @@ function AwaitingReviewActions({
           package: client.package,
         }),
       })
+      const cuData = await cuRes.json()
+      if (cuRes.ok && cuData.taskUrl) {
+        setClickupResult(cuData.taskUrl)
+      } else {
+        setClickupResult('https://app.clickup.com/90121487936/v/li/901215945043')
+      }
     } catch {
-      // Continue even if ClickUp creation fails — can be done manually
+      setClickupResult('https://app.clickup.com/90121487936/v/li/901215945043')
     }
 
     setDone(true)
@@ -499,13 +513,33 @@ function AwaitingReviewActions({
             <span className="text-green-500">→</span> Move to Client Onboarding
           </li>
         </ul>
-        <button
-          onClick={handleAcceptAndSetup}
-          disabled={creating || done}
-          className="w-full bg-[#16A34A] text-white px-5 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
-        >
-          {done ? '✓ Client Set Up — Moving to Onboarding...' : creating ? 'Setting up client...' : 'Accept & Set Up Client →'}
-        </button>
+        {!done ? (
+          <button
+            onClick={handleAcceptAndSetup}
+            disabled={creating}
+            className="w-full bg-[#16A34A] text-white px-5 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {creating ? 'Setting up client...' : 'Accept & Set Up Client →'}
+          </button>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-green-700 text-center">✓ Client set up — moved to Onboarding</p>
+            <div className="flex gap-3">
+              {driveResult && (
+                <a href={driveResult} target="_blank" rel="noopener noreferrer"
+                  className="flex-1 text-center bg-white border border-green-200 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-50 transition-colors">
+                  📁 Open Drive Folder
+                </a>
+              )}
+              {clickupResult && (
+                <a href={clickupResult} target="_blank" rel="noopener noreferrer"
+                  className="flex-1 text-center bg-white border border-green-200 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-50 transition-colors">
+                  ✅ Open ClickUp Task
+                </a>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
