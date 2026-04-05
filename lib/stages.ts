@@ -65,13 +65,40 @@ export const STAGES: StageDefinition[] = [
     substeps: [],
     dataFields: [],
     conditionalLogic: [
-      { condition: 'Proposal status = "Accepted"', result: 'Move to Stage 3: Onboarding' },
-      { condition: 'Proposal status = "Revising"', result: 'Stay in Stage 2, update and re-send' },
-      { condition: 'Proposal status = "Declined"', result: 'Log reason, archive client' },
+      { condition: 'Proposal sent', result: 'Move to Stage 2B: Proposal Awaiting Review' },
       { condition: 'Email type = "Not a Fit"', result: 'Send thank-you email, archive client' },
-      { condition: 'No response after 7 days', result: 'Auto-send follow-up, flag as "Going Cold"' },
     ],
-    nextActionPrompt: 'Review and send the email. Track the client response.',
+    nextActionPrompt: 'Review and send the email, then move to Awaiting Review.',
+  },
+  {
+    key: 'awaiting-review',
+    num: '2B',
+    name: 'Proposal Awaiting Review',
+    summary: 'The proposal has been sent to the client. Track their response, follow up if needed, and update the status when they reply.',
+    color: '#7C3AED',
+    colorSoft: 'rgba(124,58,237,0.06)',
+    triggerLabel: 'Trigger: Proposal sent',
+    triggerColor: 'purple',
+    substeps: [],
+    dataFields: [
+      { key: 'proposal_status', label: 'Proposal status', placeholder: 'Select status', type: 'select', options: ['Sent', 'Viewed', 'Accepted', 'Declined', 'Revising'] },
+      { key: 'follow_up_date', label: 'Next follow-up date', placeholder: '', type: 'date' },
+      { key: 'client_feedback', label: 'Client feedback / notes', placeholder: 'Any feedback or questions from the client...', type: 'textarea' },
+    ],
+    guide: [
+      'Check if the proposal has been viewed (tracking pixel updates automatically).',
+      'If no response after 3 days, send a friendly follow-up.',
+      'If they have questions, note them here and schedule a call.',
+      'Once they confirm, update status to "Accepted" and move to Onboarding.',
+      'If they decline, log the reason and archive the client.',
+    ],
+    conditionalLogic: [
+      { condition: 'Proposal status = "Accepted"', result: 'Move to Stage 3: Client Onboarding' },
+      { condition: 'Proposal status = "Revising"', result: 'Go back to Stage 2, update and re-send' },
+      { condition: 'Proposal status = "Declined"', result: 'Log reason, archive client' },
+      { condition: 'No response after 7 days', result: 'Send follow-up email, flag as "Going Cold"' },
+    ],
+    nextActionPrompt: 'Waiting for client response. Follow up if no reply within 3-5 days.',
   },
   {
     key: 'onboarding',
@@ -466,7 +493,7 @@ export const STAGES: StageDefinition[] = [
 ]
 
 export function getActiveStagesForPackage(pkg: string): string[] {
-  const core = ['discovery', 'proposal', 'onboarding', 'strategy']
+  const core = ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'strategy']
   const closing = ['review', 'delivery']
   const branches = PACKAGE_BRANCHES[pkg] || []
 
