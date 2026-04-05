@@ -724,7 +724,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                 canAdvance={allDone && !!nextStageKey}
                 nextStageName={nextStage?.name || 'Next'}
                 actionSlot={
-                  stage.key === 'discovery' && isCurrent ? (
+                  stage.key === 'discovery' ? (
                     <DiscoveryActions
                       leadStatus={fieldValues.get('discovery:lead_status') || ''}
                       client={client}
