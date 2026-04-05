@@ -248,9 +248,15 @@ function StagePanel({
                 {/* Inline action slot — for small buttons like Generate Proposal */}
                 {actionSlot && !actionSlotFullWidth && <div className="flex items-end">{actionSlot}</div>}
               </div>
-              {/* Full-width action slot — for proposal review panel */}
-              {actionSlot && actionSlotFullWidth && <div className="mt-4">{actionSlot}</div>}
             </div>
+          )}
+
+          {/* Action slot — always renders even without data fields */}
+          {actionSlot && actionSlotFullWidth && (
+            <div>{actionSlot}</div>
+          )}
+          {actionSlot && !actionSlotFullWidth && stage.dataFields.length === 0 && (
+            <div>{actionSlot}</div>
           )}
 
           {/* Next action / advance */}
