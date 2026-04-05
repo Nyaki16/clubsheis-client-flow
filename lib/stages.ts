@@ -1,17 +1,26 @@
 import { StageDefinition } from './types'
 
 export const PACKAGES = [
-  { value: 'page-build', label: 'New Page Build', icon: '🔨' },
-  { value: 'content-production', label: 'Content Production', icon: '🎬' },
-  { value: 'ads-email-social', label: 'Ads + Email + Social', icon: '📣' },
-  { value: 'full-stack', label: 'Full Stack', icon: '🚀' },
+  { value: 'ghutte-only', label: 'Ghutte Only', icon: '⚡', description: 'Onboarding onto Ghutte — platform setup, training, and monthly strategy support.' },
+  { value: 'page-build', label: 'New Page Build', icon: '🔨', description: 'A single page build (landing, sales, or opt-in) connected inside Ghutte.' },
+  { value: 'content-day', label: 'Content Day', icon: '🎬', description: 'Long and short form videos shot in studio — full pre-production pipeline included.' },
+  { value: 'ads-email-social', label: 'Ads + Email + Social', icon: '📣', description: 'Choose any combination: META ads management, email newsletters & automation, and/or social content.' },
+  { value: 'full-build', label: 'Full Build', icon: '🚀', description: '3-step funnel: Lead Magnet page, OTO (One Time Offer) page, and Main Product page (course, coaching, etc.).' },
+] as const
+
+// Sub-tracks for the Ads + Email + Social package
+export const ADS_EMAIL_SOCIAL_TRACKS = [
+  { value: 'ads', label: 'Paid Ads', icon: '📣', description: 'META ads management, audience targeting, campaign optimisation' },
+  { value: 'email', label: 'Email', icon: '📧', description: 'Newsletters, automations, sequences, deliverability' },
+  { value: 'social', label: 'Social Content', icon: '📱', description: 'Content calendar, captions, visuals, scheduling, engagement' },
 ] as const
 
 export const PACKAGE_BRANCHES: Record<string, string[]> = {
+  'ghutte-only': [],
   'page-build': ['page-build'],
-  'content-production': ['content-production'],
+  'content-day': ['content-production'],
   'ads-email-social': ['ads-email-social'],
-  'full-stack': ['page-build', 'content-production', 'ads-email-social'],
+  'full-build': ['page-build'],
 }
 
 export const STAGES: StageDefinition[] = [
@@ -168,7 +177,7 @@ export const STAGES: StageDefinition[] = [
     triggerLabel: 'Conditional: Package includes page build',
     triggerColor: 'orange',
     conditional: true,
-    conditionPackages: ['page-build', 'full-stack'],
+    conditionPackages: ['page-build', 'full-build'],
     guide: [
       'Always start with copy before design — messaging drives the layout.',
       'Use the Research Bible and client voice to write in their tone.',
@@ -207,7 +216,7 @@ export const STAGES: StageDefinition[] = [
     triggerLabel: 'Conditional: Package includes content',
     triggerColor: 'teal',
     conditional: true,
-    conditionPackages: ['content-production', 'full-stack'],
+    conditionPackages: ['content-day'],
     guide: [
       'Brief first, then plan, then scripts — never skip a step or work out of order.',
       'Every gate checkpoint needs Creative Director approval before moving on.',
@@ -258,7 +267,7 @@ export const STAGES: StageDefinition[] = [
       'Generate a consolidated monthly performance report across all three tracks.',
     ],
     conditional: true,
-    conditionPackages: ['ads-email-social', 'full-stack'],
+    conditionPackages: ['ads-email-social'],
     parallelTracks: [
       {
         name: 'Paid Ads Track',
@@ -417,7 +426,7 @@ export const STAGES: StageDefinition[] = [
     triggerLabel: 'Trigger: Month-end for retainer clients',
     triggerColor: 'purple',
     conditional: true,
-    conditionPackages: ['content-production', 'ads-email-social', 'full-stack'],
+    conditionPackages: ['content-day', 'ads-email-social'],
     substeps: [
       { label: 'Month-end review', description: 'What was delivered, what performed well, what needs adjustment.' },
       { label: 'Performance report', description: 'Content metrics, ad performance, email stats, social growth.' },
@@ -477,16 +486,27 @@ export const STAGES: StageDefinition[] = [
 ]
 
 export function getActiveStagesForPackage(pkg: string): string[] {
-  const always = ['discovery', 'proposal', 'onboarding', 'strategy', 'review', 'delivery', 'wrapup']
+  const core = ['discovery', 'proposal', 'onboarding', 'strategy']
+  const closing = ['review', 'delivery']
   const branches = PACKAGE_BRANCHES[pkg] || []
 
-  const retainerPackages = ['content-production', 'ads-email-social', 'full-stack']
+  const retainerPackages = ['content-day', 'ads-email-social']
   const hasRetainer = retainerPackages.includes(pkg)
 
+  // Ghutte Only: just core stages + onboarding-focused, no production branches
+  if (pkg === 'ghutte-only') {
+    return [...core, ...closing, 'wrapup']
+  }
+
+  // Full Build: page build branch (3 pages), no retainer
+  if (pkg === 'full-build') {
+    return [...core, 'page-build', ...closing, 'wrapup']
+  }
+
   return [
-    ...always.slice(0, 4),
+    ...core,
     ...branches,
-    ...always.slice(4, 6),
+    ...closing,
     ...(hasRetainer ? ['retainer'] : []),
     'wrapup',
   ]

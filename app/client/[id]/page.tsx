@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { getClient, getCompletions, getStageData, updateClient, toggleSubstep, saveStageField, deleteClient } from '@/lib/actions'
 import { Client, StageCompletion, StageFieldValue } from '@/lib/types'
-import { STAGES, getActiveStagesForPackage, PACKAGES } from '@/lib/stages'
+import { STAGES, getActiveStagesForPackage, PACKAGES, ADS_EMAIL_SOCIAL_TRACKS } from '@/lib/stages'
 import { StageDefinition, DataField } from '@/lib/types'
 
 // ── Data field input component ──
@@ -293,6 +293,9 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
   const [fieldValues, setFieldValues] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [showDelete, setShowDelete] = useState(false)
+  const [showTrackSelector, setShowTrackSelector] = useState(false)
+  const [selectedTracks, setSelectedTracks] = useState<string[]>(['ads', 'email', 'social'])
+  const activeTracks = (fieldValues.get('_config:active_tracks') || '').split(',').filter(Boolean)
 
   const loadData = useCallback(async () => {
     try {
@@ -395,31 +398,94 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
         <div className="bg-[rgba(180,83,9,0.04)] border border-[rgba(180,83,9,0.2)] rounded-xl p-5 mb-8">
           <h3 className="font-semibold text-stone-900 mb-2">Select a package to activate the right flow</h3>
           <p className="text-sm text-stone-500 mb-4">This determines which stages and branches appear in the timeline below.</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {PACKAGES.map(pkg => (
               <button
                 key={pkg.value}
-                onClick={() => handlePackageChange(pkg.value)}
-                className="border-2 border-stone-200 rounded-lg p-3 text-sm font-medium hover:border-[#B45309] transition-colors text-left cursor-pointer"
+                onClick={() => {
+                  if (pkg.value === 'ads-email-social') {
+                    setShowTrackSelector(true)
+                  } else {
+                    handlePackageChange(pkg.value)
+                  }
+                }}
+                className="border-2 border-stone-200 rounded-lg p-4 text-left hover:border-[#B45309] transition-colors cursor-pointer bg-white"
               >
-                <div className="text-lg mb-1">{pkg.icon}</div>
-                {pkg.label}
+                <div className="text-lg mb-1.5">{pkg.icon}</div>
+                <div className="font-semibold text-sm text-stone-900">{pkg.label}</div>
+                <p className="text-xs text-stone-500 mt-1 leading-relaxed">{pkg.description}</p>
               </button>
             ))}
           </div>
+
+          {/* Track selector for Ads + Email + Social */}
+          {showTrackSelector && (
+            <div className="mt-4 border border-[rgba(225,29,72,0.2)] bg-[rgba(225,29,72,0.03)] rounded-lg p-4">
+              <h4 className="font-semibold text-sm text-stone-900 mb-1">Which tracks does this client need?</h4>
+              <p className="text-xs text-stone-500 mb-3">Select at least one. These will appear as parallel tracks in the flow.</p>
+              <div className="space-y-2">
+                {ADS_EMAIL_SOCIAL_TRACKS.map(track => (
+                  <label key={track.value} className="flex items-start gap-3 cursor-pointer p-2 rounded-lg hover:bg-white transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={selectedTracks.includes(track.value)}
+                      onChange={() => {
+                        setSelectedTracks(prev =>
+                          prev.includes(track.value)
+                            ? prev.filter(t => t !== track.value)
+                            : [...prev, track.value]
+                        )
+                      }}
+                      className="mt-0.5 h-4 w-4 rounded border-stone-300 accent-[#E11D48] cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-stone-900">{track.icon} {track.label}</span>
+                      <p className="text-xs text-stone-500">{track.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={async () => {
+                    await handlePackageChange('ads-email-social')
+                    await saveStageField(id, '_config', 'active_tracks', selectedTracks.join(','))
+                    setShowTrackSelector(false)
+                  }}
+                  disabled={selectedTracks.length === 0}
+                  className="bg-[#E11D48] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-rose-700 transition-colors disabled:opacity-40 cursor-pointer"
+                >
+                  Confirm Tracks
+                </button>
+                <button
+                  onClick={() => { setShowTrackSelector(false); setSelectedTracks([]) }}
+                  className="border border-stone-200 text-stone-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-white transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {client.package && (
-        <div className="flex items-center gap-3 mb-8 text-sm">
-          <span className="text-stone-400">Package:</span>
-          <span className="font-semibold text-stone-700 capitalize">{client.package.replace(/-/g, ' ')}</span>
-          <button
-            onClick={() => handlePackageChange('')}
-            className="text-xs text-stone-400 hover:text-stone-600 underline cursor-pointer"
-          >
-            Change
-          </button>
+        <div className="mb-8">
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-stone-400">Package:</span>
+            <span className="font-semibold text-stone-700">{PACKAGES.find(p => p.value === client.package)?.label || client.package.replace(/-/g, ' ')}</span>
+            {client.package === 'ads-email-social' && activeTracks.length > 0 && (
+              <span className="text-xs text-stone-400">
+                ({activeTracks.map(t => ADS_EMAIL_SOCIAL_TRACKS.find(tr => tr.value === t)?.label).filter(Boolean).join(' + ')})
+              </span>
+            )}
+            <button
+              onClick={() => handlePackageChange('')}
+              className="text-xs text-stone-400 hover:text-stone-600 underline cursor-pointer"
+            >
+              Change
+            </button>
+          </div>
         </div>
       )}
 
