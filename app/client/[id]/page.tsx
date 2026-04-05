@@ -306,12 +306,10 @@ function DiscoveryActions({
   onSaveField: (stageKey: string, fieldKey: string, value: string) => void
   onAdvance: () => void
 }) {
+  // ALL hooks must be at the top — before any conditional returns
   const [generating, setGenerating] = useState(false)
   const [proposal, setProposal] = useState(fieldValues.get('proposal:generated_text') || '')
-  const [editing, setEditing] = useState(false)
-  const [sendingEmail, setSendingEmail] = useState(false)
 
-  // Sync proposal from fieldValues when they change
   useEffect(() => {
     const saved = fieldValues.get('proposal:generated_text')
     if (saved && !proposal) setProposal(saved)
@@ -347,64 +345,38 @@ function DiscoveryActions({
     setGenerating(false)
   }
 
-  const handleSaveProposal = async () => {
-    await onSaveField('proposal', 'generated_text', proposal)
-    setEditing(false)
+  const handlePrepareThankYou = async () => {
+    const thankYouText = `Hi ${client.name},\n\nThank you so much for taking the time to chat with us. We really enjoyed learning about ${client.brand || 'your business'}.\n\nAfter our conversation, we don't think we're the best fit for what you need right now — but we genuinely wish you all the best with your next steps.\n\nIf things change in the future, our door is always open.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
+    await Promise.all([
+      onSaveField('proposal', 'thankyou_text', thankYouText),
+      onSaveField('proposal', 'email_type', 'not-a-fit'),
+      onSaveField('proposal', 'proposal_status', 'Draft'),
+    ])
+    await onAdvance()
+    setTimeout(() => {
+      document.getElementById('stage-proposal')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 500)
   }
 
-  const [sendingThankYou, setSendingThankYou] = useState(false)
-  const [thankYouSent, setThankYouSent] = useState(false)
-
-  const handleSendProposal = () => {
-    // Proposal sending is handled in ProposalReview component
-    setSendingEmail(true)
-  }
-
-  const handleSendThankYou = async () => {
-    if (!client.email) { alert('No email address for this client.'); return }
-    setSendingThankYou(true)
-    try {
-      const res = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: client.email,
-          subject: `Thank you for chatting with ClubSheIs`,
-          body: `Hi ${client.name},\n\nThank you so much for taking the time to chat with us. We really enjoyed learning about ${client.brand || 'your business'}.\n\nAfter our conversation, we don't think we're the best fit for what you need right now — but we genuinely wish you all the best with your next steps.\n\nIf things change in the future, our door is always open.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`,
-          attachAboutUs: false,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setThankYouSent(true)
-    } catch (err) {
-      alert(`Failed to send email: ${err instanceof Error ? err.message : 'Unknown error'}`)
-    }
-    setSendingThankYou(false)
+  const handleOpenCalendar = () => {
+    const followUp = new Date()
+    followUp.setDate(followUp.getDate() + 14)
+    followUp.setHours(9, 0, 0, 0)
+    const startStr = followUp.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')
+    const endDate = new Date(followUp)
+    endDate.setMinutes(endDate.getMinutes() + 30)
+    const endStr = endDate.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')
+    const title = encodeURIComponent(`Follow Up: ${client.brand || client.name}`)
+    const detailsRaw = `Follow-up with ${client.name}${client.email ? ` (${client.email})` : ''}${client.phone ? ` | ${client.phone}` : ''}`
+    const details = encodeURIComponent(detailsRaw.slice(0, 500))
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&ctz=Africa/Johannesburg`
+    window.open(url, '_blank')
   }
 
   if (!leadStatus) return null
 
-  // Follow Up — open Google Calendar with pre-filled event
+  // Follow Up — open Google Calendar
   if (leadStatus.includes('Follow Up')) {
-    const handleOpenCalendar = () => {
-      const followUp = new Date()
-      followUp.setDate(followUp.getDate() + 14)
-      followUp.setHours(9, 0, 0, 0)
-      const startStr = followUp.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')
-      const endDate = new Date(followUp)
-      endDate.setMinutes(endDate.getMinutes() + 30)
-      const endStr = endDate.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')
-
-      const title = encodeURIComponent(`Follow Up: ${client.brand || client.name}`)
-      // Keep details SHORT to avoid 413 error
-      const detailsRaw = `Follow-up with ${client.name}${client.email ? ` (${client.email})` : ''}${client.phone ? ` | ${client.phone}` : ''}`
-      const details = encodeURIComponent(detailsRaw.slice(0, 500))
-
-      const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&ctz=Africa/Johannesburg`
-      window.open(url, '_blank')
-    }
-
     return (
       <button
         onClick={handleOpenCalendar}
@@ -415,23 +387,8 @@ function DiscoveryActions({
     )
   }
 
-  // Not a Fit — button to prepare thank-you email in Stage 2
+  // Not a Fit — prepare thank-you email in Stage 2
   if (leadStatus.includes('Not a Fit')) {
-    const handlePrepareThankYou = async () => {
-      const thankYouText = `Hi ${client.name},\n\nThank you so much for taking the time to chat with us. We really enjoyed learning about ${client.brand || 'your business'}.\n\nAfter our conversation, we don't think we're the best fit for what you need right now — but we genuinely wish you all the best with your next steps.\n\nIf things change in the future, our door is always open.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
-      // Save all fields first, then advance
-      await Promise.all([
-        onSaveField('proposal', 'thankyou_text', thankYouText),
-        onSaveField('proposal', 'email_type', 'not-a-fit'),
-        onSaveField('proposal', 'proposal_status', 'Draft'),
-      ])
-      await onAdvance() // Move to Stage 2
-      // Scroll to Stage 2
-      setTimeout(() => {
-        document.getElementById('stage-proposal')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }, 500)
-    }
-
     return (
       <button
         onClick={handlePrepareThankYou}
