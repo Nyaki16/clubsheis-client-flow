@@ -390,19 +390,16 @@ function DiscoveryActions({
     const handleOpenCalendar = () => {
       const followUp = new Date()
       followUp.setDate(followUp.getDate() + 14)
-      // Format dates for Google Calendar URL (YYYYMMDDTHHMMSS)
+      followUp.setHours(9, 0, 0, 0)
       const startStr = followUp.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')
       const endDate = new Date(followUp)
       endDate.setMinutes(endDate.getMinutes() + 30)
       const endStr = endDate.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')
 
       const title = encodeURIComponent(`Follow Up: ${client.brand || client.name}`)
-      const details = encodeURIComponent(
-        `Follow-up call with ${client.name}${client.brand ? ` (${client.brand})` : ''}\n` +
-        `${client.email ? `Email: ${client.email}\n` : ''}` +
-        `${client.phone ? `Phone: ${client.phone}\n` : ''}` +
-        `\nNotes:\n${fieldValues.get('discovery:what_they_need') || client.needs || 'N/A'}\n\n— Created by ClubSheIs Client Flow`
-      )
+      // Keep details SHORT to avoid 413 error
+      const detailsRaw = `Follow-up with ${client.name}${client.email ? ` (${client.email})` : ''}${client.phone ? ` | ${client.phone}` : ''}`
+      const details = encodeURIComponent(detailsRaw.slice(0, 500))
 
       const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&ctz=Africa/Johannesburg`
       window.open(url, '_blank')
@@ -422,14 +419,17 @@ function DiscoveryActions({
   if (leadStatus.includes('Not a Fit')) {
     const handlePrepareThankYou = async () => {
       const thankYouText = `Hi ${client.name},\n\nThank you so much for taking the time to chat with us. We really enjoyed learning about ${client.brand || 'your business'}.\n\nAfter our conversation, we don't think we're the best fit for what you need right now — but we genuinely wish you all the best with your next steps.\n\nIf things change in the future, our door is always open.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
-      await onSaveField('proposal', 'thankyou_text', thankYouText)
-      await onSaveField('proposal', 'email_type', 'not-a-fit')
-      await onSaveField('proposal', 'proposal_status', 'Draft')
-      onAdvance() // Move to Stage 2
-      // Scroll to Stage 2 after a short delay
+      // Save all fields first, then advance
+      await Promise.all([
+        onSaveField('proposal', 'thankyou_text', thankYouText),
+        onSaveField('proposal', 'email_type', 'not-a-fit'),
+        onSaveField('proposal', 'proposal_status', 'Draft'),
+      ])
+      await onAdvance() // Move to Stage 2
+      // Scroll to Stage 2
       setTimeout(() => {
         document.getElementById('stage-proposal')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }, 300)
+      }, 500)
     }
 
     return (
@@ -1048,7 +1048,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                 fieldValues={fieldValues}
                 onToggleSubstep={handleToggleSubstep}
                 onSaveField={handleSaveField}
-                onAdvance={() => nextStageKey && handleAdvance(nextStageKey)}
+                onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
                 canAdvance={allDone && !!nextStageKey}
                 nextStageName={nextStage?.name || 'Next'}
                 actionSlot={
@@ -1058,14 +1058,14 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       client={client}
                       fieldValues={fieldValues}
                       onSaveField={handleSaveField}
-                      onAdvance={() => nextStageKey && handleAdvance(nextStageKey)}
+                      onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
                     />
                   ) : stage.key === 'proposal' ? (
                     <ProposalReview
                       client={client}
                       fieldValues={fieldValues}
                       onSaveField={handleSaveField}
-                      onAdvance={() => nextStageKey && handleAdvance(nextStageKey)}
+                      onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
                     />
                   ) : undefined
                 }

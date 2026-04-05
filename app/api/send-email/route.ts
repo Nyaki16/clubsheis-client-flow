@@ -3,6 +3,8 @@ import { Resend } from 'resend'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
+export const maxDuration = 30
+
 export async function POST(req: NextRequest) {
   try {
     const { to, subject, body, attachAboutUs, trackingId } = await req.json()
