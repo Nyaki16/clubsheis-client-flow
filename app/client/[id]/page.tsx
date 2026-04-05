@@ -381,23 +381,6 @@ function DiscoveryActions({
 
   if (!leadStatus) return null
 
-  // Not a Fit — inline button
-  if (leadStatus.includes('Not a Fit')) {
-    return thankYouSent ? (
-      <div className="w-full bg-green-50 border border-green-200 text-green-700 px-4 py-2.5 rounded-lg text-sm font-semibold text-center">
-        ✓ Thank you email sent to {client.email}
-      </div>
-    ) : (
-      <button
-        onClick={handleSendThankYou}
-        disabled={sendingThankYou}
-        className="w-full bg-rose-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-rose-700 transition-colors cursor-pointer disabled:opacity-50"
-      >
-        {sendingThankYou ? 'Sending...' : 'Send Thank You Email'}
-      </button>
-    )
-  }
-
   // Follow Up — inline label
   if (leadStatus.includes('Follow Up')) {
     return (
@@ -407,23 +390,70 @@ function DiscoveryActions({
     )
   }
 
-  // Good Fit — generate button or "proposal ready" confirmation
+  // Not a Fit — button to generate thank-you email in Stage 2
+  if (leadStatus.includes('Not a Fit')) {
+    const thankYouGenerated = !!fieldValues.get('proposal:thankyou_text')
+    return (
+      <button
+        onClick={() => {
+          // Pre-generate the thank-you email text and save it
+          const thankYouText = `Hi ${client.name},\n\nThank you so much for taking the time to chat with us. We really enjoyed learning about ${client.brand || 'your business'}.\n\nAfter our conversation, we don't think we're the best fit for what you need right now — but we genuinely wish you all the best with your next steps.\n\nIf things change in the future, our door is always open.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
+          onSaveField('proposal', 'thankyou_text', thankYouText)
+          onSaveField('proposal', 'email_type', 'not-a-fit')
+          onSaveField('proposal', 'proposal_status', 'Draft')
+          onAdvance() // Move to Stage 2
+        }}
+        className="w-full bg-rose-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-rose-700 transition-colors cursor-pointer"
+      >
+        {thankYouGenerated ? 'Go to Thank You Email →' : 'Prepare Thank You Email →'}
+      </button>
+    )
+  }
+
+  // Good Fit — generate proposal button
   return (
-    <button
-      onClick={handleGenerateProposal}
-      disabled={generating}
-      className={`w-full px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
-        proposal
-          ? 'bg-blue-600 text-white hover:bg-blue-700'
-          : 'bg-[#16A34A] text-white hover:bg-green-700'
-      }`}
-    >
-      {generating ? 'Generating...' : proposal ? 'Regenerate Proposal' : 'Generate Proposal'}
-    </button>
+    <div className="space-y-2">
+      <button
+        onClick={handleGenerateProposal}
+        disabled={generating}
+        className={`w-full px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
+          proposal
+            ? 'bg-blue-600 text-white hover:bg-blue-700'
+            : 'bg-[#16A34A] text-white hover:bg-green-700'
+        }`}
+      >
+        {generating ? 'Generating...' : proposal ? 'Regenerate Proposal' : 'Generate Proposal'}
+      </button>
+    </div>
   )
 }
 
-// ── Proposal review component for Stage 2 ──
+// ── Shared email editor for proposals and thank-you emails ──
+function EmailContentEditor({ content, onChange, readOnly }: { content: string; onChange: (v: string) => void; readOnly: boolean }) {
+  if (!readOnly) {
+    return (
+      <textarea
+        value={content}
+        onChange={e => onChange(e.target.value)}
+        className="w-full p-4 text-sm text-stone-700 leading-relaxed min-h-[400px] focus:outline-none resize-none font-mono"
+      />
+    )
+  }
+  return (
+    <div className="p-4 text-sm text-stone-700 leading-relaxed max-h-[500px] overflow-y-auto">
+      {content.split('\n').map((line, i) => {
+        if (line.startsWith('# ')) return <h2 key={i} className="text-lg font-bold text-stone-900 mt-4 mb-2">{line.replace('# ', '')}</h2>
+        if (line.startsWith('## ')) return <h3 key={i} className="text-base font-bold text-stone-900 mt-3 mb-1">{line.replace('## ', '')}</h3>
+        if (line.startsWith('**') && line.endsWith('**')) return <p key={i} className="font-semibold text-stone-900 mt-2">{line.replace(/\*\*/g, '')}</p>
+        if (line.startsWith('- ')) return <p key={i} className="pl-4 text-stone-600">&bull; {line.replace('- ', '')}</p>
+        if (line.trim() === '') return <br key={i} />
+        return <p key={i} className="text-stone-700">{line.replace(/\*\*/g, '').replace(/\*/g, '')}</p>
+      })}
+    </div>
+  )
+}
+
+// ── Proposal / Thank-You review component for Stage 2 ──
 function ProposalReview({
   client,
   fieldValues,
@@ -435,21 +465,34 @@ function ProposalReview({
   onSaveField: (stageKey: string, fieldKey: string, value: string) => void
   onAdvance: () => void
 }) {
+  const emailType = fieldValues.get('proposal:email_type') || 'proposal' // 'proposal' or 'not-a-fit'
+  const isThankYou = emailType === 'not-a-fit'
+
   const savedProposal = fieldValues.get('proposal:generated_text') || ''
-  const [proposal, setProposal] = useState(savedProposal)
+  const savedThankYou = fieldValues.get('proposal:thankyou_text') || ''
+  const content = isThankYou ? savedThankYou : savedProposal
+
+  const [emailContent, setEmailContent] = useState(content)
   const [editing, setEditing] = useState(false)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [sendError, setSendError] = useState('')
+  const proposalStatus = fieldValues.get('proposal:proposal_status') || 'Draft'
 
   useEffect(() => {
-    const saved = fieldValues.get('proposal:generated_text')
-    if (saved && saved !== proposal) setProposal(saved)
-  }, [fieldValues]) // eslint-disable-line react-hooks/exhaustive-deps
+    const key = isThankYou ? 'proposal:thankyou_text' : 'proposal:generated_text'
+    const saved = fieldValues.get(key)
+    if (saved && saved !== emailContent) setEmailContent(saved)
+  }, [fieldValues, isThankYou]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
-    await onSaveField('proposal', 'generated_text', proposal)
+    const key = isThankYou ? 'thankyou_text' : 'generated_text'
+    await onSaveField('proposal', key, emailContent)
     setEditing(false)
+  }
+
+  const handleStatusChange = async (status: string) => {
+    await onSaveField('proposal', 'proposal_status', status)
   }
 
   const handleSendEmail = async () => {
@@ -457,44 +500,90 @@ function ProposalReview({
     setSending(true)
     setSendError('')
     try {
-      const emailBody = `Hi ${client.name},\n\nPlease find our proposal below. We've also attached our About Us document for your reference.\n\n---\n\n${proposal}\n\n---\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
+      const subject = isThankYou
+        ? `Thank you for chatting with ClubSheIs`
+        : `ClubSheIs Proposal for ${client.brand || client.name}`
+
+      const body = isThankYou
+        ? emailContent
+        : `Hi ${client.name},\n\nPlease find our proposal below. We've also attached our About Us document for your reference.\n\n---\n\n${emailContent}\n\n---\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
 
       const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: client.email,
-          subject: `ClubSheIs Proposal for ${client.brand || client.name}`,
-          body: emailBody,
-          attachAboutUs: true,
+          subject,
+          body,
+          attachAboutUs: !isThankYou,
+          trackingId: !isThankYou ? client.id : undefined,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setSent(true)
-      onSaveField('proposal', 'proposal_status', 'Sent')
+      await onSaveField('proposal', 'proposal_status', 'Sent')
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'Failed to send email')
     }
     setSending(false)
   }
 
-  if (!proposal) {
+  if (!emailContent) {
     return (
       <div className="text-center py-8 text-stone-400">
-        <p className="text-sm">No proposal generated yet.</p>
-        <p className="text-xs mt-1">Go back to the Discovery Call stage and click "Generate Proposal" first.</p>
+        <p className="text-sm">{isThankYou ? 'No thank-you email prepared yet.' : 'No proposal generated yet.'}</p>
+        <p className="text-xs mt-1">Go back to the Discovery Call stage and click the appropriate button first.</p>
       </div>
     )
   }
 
+  const statusColors: Record<string, string> = {
+    'Draft': 'bg-stone-100 text-stone-600',
+    'Sent': 'bg-blue-100 text-blue-700',
+    'Viewed': 'bg-purple-100 text-purple-700',
+    'Accepted': 'bg-green-100 text-green-700',
+    'Declined': 'bg-red-100 text-red-700',
+    'Revising': 'bg-amber-100 text-amber-700',
+  }
+
   return (
     <div className="space-y-4">
-      {/* Proposal card */}
+      {/* Proposal status — above everything */}
+      {!isThankYou && (
+        <div className="flex items-center gap-3 bg-white border border-stone-200 rounded-lg px-4 py-3">
+          <label className="text-xs font-bold text-stone-500 uppercase tracking-wider shrink-0">Proposal Status</label>
+          <select
+            value={proposalStatus}
+            onChange={e => handleStatusChange(e.target.value)}
+            className={`text-sm font-semibold px-3 py-1.5 rounded-lg border-0 cursor-pointer ${statusColors[proposalStatus] || 'bg-stone-100 text-stone-600'}`}
+          >
+            {['Draft', 'Sent', 'Viewed', 'Accepted', 'Declined', 'Revising'].map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          {proposalStatus === 'Viewed' && (
+            <span className="text-xs text-purple-600 ml-auto">Client opened the email</span>
+          )}
+        </div>
+      )}
+
+      {/* Email type indicator */}
+      <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${isThankYou ? 'bg-rose-50 border border-rose-200' : 'bg-blue-50 border border-blue-200'}`}>
+        <span className="text-sm">{isThankYou ? '💌' : '📄'}</span>
+        <span className={`text-xs font-semibold uppercase tracking-wider ${isThankYou ? 'text-rose-600' : 'text-blue-600'}`}>
+          {isThankYou ? 'Thank You Email' : 'Proposal Email'}
+        </span>
+        <span className="text-xs text-stone-400 ml-auto">To: {client.email || 'No email set'}</span>
+      </div>
+
+      {/* Email content card */}
       <div className="border border-stone-200 rounded-lg overflow-hidden">
         <div className="bg-stone-50 px-4 py-3 flex items-center justify-between border-b border-stone-200">
           <div>
-            <h4 className="text-sm font-semibold text-stone-900">Proposal for {client.brand || client.name}</h4>
+            <h4 className="text-sm font-semibold text-stone-900">
+              {isThankYou ? 'Thank You Email' : `Proposal for ${client.brand || client.name}`}
+            </h4>
             <p className="text-xs text-stone-500">Review and edit before sending</p>
           </div>
           <div className="flex gap-2">
@@ -516,54 +605,44 @@ function ProposalReview({
           </div>
         </div>
 
-        {editing ? (
-          <textarea
-            value={proposal}
-            onChange={e => setProposal(e.target.value)}
-            className="w-full p-4 text-sm text-stone-700 leading-relaxed min-h-[400px] focus:outline-none resize-none font-mono"
-          />
-        ) : (
-          <div className="p-4 text-sm text-stone-700 leading-relaxed max-h-[500px] overflow-y-auto">
-            {proposal.split('\n').map((line, i) => {
-              if (line.startsWith('# ')) return <h2 key={i} className="text-lg font-bold text-stone-900 mt-4 mb-2">{line.replace('# ', '')}</h2>
-              if (line.startsWith('## ')) return <h3 key={i} className="text-base font-bold text-stone-900 mt-3 mb-1">{line.replace('## ', '')}</h3>
-              if (line.startsWith('**') && line.endsWith('**')) return <p key={i} className="font-semibold text-stone-900 mt-2">{line.replace(/\*\*/g, '')}</p>
-              if (line.startsWith('- ')) return <p key={i} className="pl-4 text-stone-600">&bull; {line.replace('- ', '')}</p>
-              if (line.trim() === '') return <br key={i} />
-              return <p key={i} className="text-stone-700">{line.replace(/\*\*/g, '').replace(/\*/g, '')}</p>
-            })}
-          </div>
-        )}
+        <EmailContentEditor content={emailContent} onChange={setEmailContent} readOnly={!editing} />
       </div>
 
-      {/* About Us PDF attachment */}
-      <div className="flex items-center gap-3 bg-stone-50 border border-stone-200 rounded-lg px-4 py-3">
-        <span className="text-lg">📎</span>
-        <div className="flex-1">
-          <p className="text-sm font-medium text-stone-700">ClubSheIs About Us</p>
-          <p className="text-xs text-stone-400">PDF attachment — will be included with the proposal email</p>
+      {/* About Us PDF attachment — only for proposals */}
+      {!isThankYou && (
+        <div className="flex items-center gap-3 bg-stone-50 border border-stone-200 rounded-lg px-4 py-3">
+          <span className="text-lg">📎</span>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-stone-700">ClubSheIs About Us</p>
+            <p className="text-xs text-stone-400">PDF attachment — will be included with the proposal email</p>
+          </div>
+          <a
+            href="/ClubSheIs-About-Us.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+          >
+            Preview / Download
+          </a>
         </div>
-        <a
-          href="/ClubSheIs-About-Us.pdf"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
-        >
-          Preview / Download
-        </a>
-      </div>
+      )}
 
       {/* Send button */}
       {sent ? (
         <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-4 text-center">
-          <p className="text-sm font-semibold text-green-700">✓ Proposal sent to {client.email}</p>
-          <p className="text-xs text-green-600 mt-1">Sent from info@clubsheis.com with About Us PDF attached</p>
+          <p className="text-sm font-semibold text-green-700">
+            ✓ {isThankYou ? 'Thank you email' : 'Proposal'} sent to {client.email}
+          </p>
+          <p className="text-xs text-green-600 mt-1">
+            Sent from info@clubsheis.com{!isThankYou && ' with About Us PDF attached'}
+          </p>
         </div>
       ) : (
         <div className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-4 py-3">
           <div className="flex-1">
             <p className="text-xs text-stone-500">
-              Sends from <strong>info@clubsheis.com</strong> with the About Us PDF attached.
+              Sends from <strong>info@clubsheis.com</strong> as Nyaki & Kopano
+              {!isThankYou && ' with the About Us PDF attached'}.
             </p>
             {sendError && (
               <p className="text-xs text-red-600 mt-1">{sendError}</p>
@@ -572,9 +651,11 @@ function ProposalReview({
           <button
             onClick={handleSendEmail}
             disabled={!client.email || editing || sending}
-            className="bg-[#B45309] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-amber-800 transition-colors cursor-pointer disabled:opacity-50 shrink-0 ml-4"
+            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50 shrink-0 ml-4 text-white ${
+              isThankYou ? 'bg-rose-600 hover:bg-rose-700' : 'bg-[#B45309] hover:bg-amber-800'
+            }`}
           >
-            {sending ? 'Sending...' : 'Send Proposal via Email'}
+            {sending ? 'Sending...' : isThankYou ? 'Send Thank You Email' : 'Send Proposal via Email'}
           </button>
         </div>
       )}
