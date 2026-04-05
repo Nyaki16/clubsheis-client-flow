@@ -68,6 +68,7 @@ function StagePanel({
   canAdvance,
   nextStageName,
   actionSlot,
+  actionSlotFullWidth,
 }: {
   stage: StageDefinition
   isActive: boolean
@@ -81,6 +82,7 @@ function StagePanel({
   canAdvance: boolean
   nextStageName: string
   actionSlot?: React.ReactNode
+  actionSlotFullWidth?: boolean
 }) {
   const [expanded, setExpanded] = useState(isCurrent)
 
@@ -243,9 +245,11 @@ function StagePanel({
                     />
                   </div>
                 ))}
-                {/* Inline action slot — sits inside the grid as an extra cell */}
-                {actionSlot && <div className="flex items-end">{actionSlot}</div>}
+                {/* Inline action slot — for small buttons like Generate Proposal */}
+                {actionSlot && !actionSlotFullWidth && <div className="flex items-end">{actionSlot}</div>}
               </div>
+              {/* Full-width action slot — for proposal review panel */}
+              {actionSlot && actionSlotFullWidth && <div className="mt-4">{actionSlot}</div>}
             </div>
           )}
 
@@ -382,95 +386,155 @@ function DiscoveryActions({
     )
   }
 
-  // Good Fit — inline generate button (no proposal yet) or full proposal panel
+  // Good Fit — generate button or "proposal ready" confirmation
+  return (
+    <button
+      onClick={handleGenerateProposal}
+      disabled={generating}
+      className={`w-full px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
+        proposal
+          ? 'bg-blue-600 text-white hover:bg-blue-700'
+          : 'bg-[#16A34A] text-white hover:bg-green-700'
+      }`}
+    >
+      {generating ? 'Generating...' : proposal ? 'Regenerate Proposal' : 'Generate Proposal'}
+    </button>
+  )
+}
+
+// ── Proposal review component for Stage 2 ──
+function ProposalReview({
+  client,
+  fieldValues,
+  onSaveField,
+  onAdvance,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+  onAdvance: () => void
+}) {
+  const savedProposal = fieldValues.get('proposal:generated_text') || ''
+  const [proposal, setProposal] = useState(savedProposal)
+  const [editing, setEditing] = useState(false)
+  const [sent, setSent] = useState(false)
+
+  useEffect(() => {
+    const saved = fieldValues.get('proposal:generated_text')
+    if (saved && saved !== proposal) setProposal(saved)
+  }, [fieldValues]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSave = async () => {
+    await onSaveField('proposal', 'generated_text', proposal)
+    setEditing(false)
+  }
+
+  const handleSendEmail = () => {
+    const proposalPlain = proposal.replace(/[#*_`]/g, '').replace(/\n/g, '\n')
+    const subject = encodeURIComponent(`ClubSheIs Proposal for ${client.brand || client.name}`)
+    const body = encodeURIComponent(
+      `Hi ${client.name},\n\nPlease find our proposal below. We've also attached our About Us document for your reference.\n\n---\n\n${proposalPlain}\n\n---\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
+    )
+    window.open(`mailto:${client.email}?subject=${subject}&body=${body}`, '_blank')
+    setSent(true)
+    onSaveField('proposal', 'proposal_status', 'Sent')
+  }
+
   if (!proposal) {
     return (
-      <button
-        onClick={handleGenerateProposal}
-        disabled={generating}
-        className="w-full bg-[#16A34A] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
-      >
-        {generating ? 'Generating...' : 'Generate Proposal'}
-      </button>
+      <div className="text-center py-8 text-stone-400">
+        <p className="text-sm">No proposal generated yet.</p>
+        <p className="text-xs mt-1">Go back to the Discovery Call stage and click "Generate Proposal" first.</p>
+      </div>
     )
   }
 
-  // Good Fit — Proposal already generated, show full panel
   return (
-    <div className="sm:col-span-2 mt-2">
+    <div className="space-y-4">
+      {/* Proposal card */}
       <div className="border border-stone-200 rounded-lg overflow-hidden">
-          <div className="bg-stone-50 px-4 py-3 flex items-center justify-between border-b border-stone-200">
-            <div>
-              <h4 className="text-sm font-semibold text-stone-900">Proposal for {client.brand || client.name}</h4>
-              <p className="text-xs text-stone-500">Review, edit, then send via email</p>
-            </div>
-            <div className="flex gap-2">
-              {!editing ? (
-                <button
-                  onClick={() => setEditing(true)}
-                  className="text-xs border border-stone-200 text-stone-600 px-3 py-1.5 rounded-lg hover:bg-white transition-colors cursor-pointer"
-                >
-                  Edit
-                </button>
-              ) : (
-                <button
-                  onClick={handleSaveProposal}
-                  className="text-xs bg-[#B45309] text-white px-3 py-1.5 rounded-lg hover:bg-amber-800 transition-colors cursor-pointer"
-                >
-                  Save Changes
-                </button>
-              )}
-              <button
-                onClick={handleGenerateProposal}
-                disabled={generating}
-                className="text-xs border border-stone-200 text-stone-600 px-3 py-1.5 rounded-lg hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {generating ? 'Regenerating...' : 'Regenerate'}
-              </button>
-            </div>
+        <div className="bg-stone-50 px-4 py-3 flex items-center justify-between border-b border-stone-200">
+          <div>
+            <h4 className="text-sm font-semibold text-stone-900">Proposal for {client.brand || client.name}</h4>
+            <p className="text-xs text-stone-500">Review and edit before sending</p>
           </div>
-
-          {editing ? (
-            <textarea
-              value={proposal}
-              onChange={e => setProposal(e.target.value)}
-              className="w-full p-4 text-sm text-stone-700 leading-relaxed min-h-[400px] focus:outline-none resize-none font-mono"
-            />
-          ) : (
-            <div className="p-4 text-sm text-stone-700 leading-relaxed max-h-[500px] overflow-y-auto prose prose-sm prose-stone">
-              {proposal.split('\n').map((line, i) => {
-                if (line.startsWith('# ')) return <h2 key={i} className="text-lg font-bold text-stone-900 mt-4 mb-2">{line.replace('# ', '')}</h2>
-                if (line.startsWith('## ')) return <h3 key={i} className="text-base font-bold text-stone-900 mt-3 mb-1">{line.replace('## ', '')}</h3>
-                if (line.startsWith('**') && line.endsWith('**')) return <p key={i} className="font-semibold text-stone-900 mt-2">{line.replace(/\*\*/g, '')}</p>
-                if (line.startsWith('- ')) return <p key={i} className="pl-4 text-stone-600">&bull; {line.replace('- ', '')}</p>
-                if (line.trim() === '') return <br key={i} />
-                return <p key={i} className="text-stone-700">{line.replace(/\*\*/g, '').replace(/\*/g, '')}</p>
-              })}
-            </div>
-          )}
-
-          {/* Send button */}
-          <div className="bg-stone-50 px-4 py-3 border-t border-stone-200 flex items-center justify-between">
-            <p className="text-xs text-stone-400">
-              {sendingEmail ? 'Email client opened — send the proposal from there.' : 'When you\'re happy with the proposal, send it to the client.'}
-            </p>
-            <div className="flex gap-2">
+          <div className="flex gap-2">
+            {!editing ? (
               <button
-                onClick={handleSendProposal}
-                disabled={!client.email}
-                className="bg-[#B45309] text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-amber-800 transition-colors cursor-pointer disabled:opacity-50"
+                onClick={() => setEditing(true)}
+                className="text-xs border border-stone-200 text-stone-600 px-3 py-1.5 rounded-lg hover:bg-white transition-colors cursor-pointer"
               >
-                Send Proposal via Email
+                Edit
               </button>
+            ) : (
               <button
-                onClick={() => { onAdvance() }}
-                className="border border-green-200 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-50 transition-colors cursor-pointer"
+                onClick={handleSave}
+                className="text-xs bg-[#B45309] text-white px-3 py-1.5 rounded-lg hover:bg-amber-800 transition-colors cursor-pointer"
               >
-                Move to Next Stage →
+                Save Changes
               </button>
-            </div>
+            )}
           </div>
         </div>
+
+        {editing ? (
+          <textarea
+            value={proposal}
+            onChange={e => setProposal(e.target.value)}
+            className="w-full p-4 text-sm text-stone-700 leading-relaxed min-h-[400px] focus:outline-none resize-none font-mono"
+          />
+        ) : (
+          <div className="p-4 text-sm text-stone-700 leading-relaxed max-h-[500px] overflow-y-auto">
+            {proposal.split('\n').map((line, i) => {
+              if (line.startsWith('# ')) return <h2 key={i} className="text-lg font-bold text-stone-900 mt-4 mb-2">{line.replace('# ', '')}</h2>
+              if (line.startsWith('## ')) return <h3 key={i} className="text-base font-bold text-stone-900 mt-3 mb-1">{line.replace('## ', '')}</h3>
+              if (line.startsWith('**') && line.endsWith('**')) return <p key={i} className="font-semibold text-stone-900 mt-2">{line.replace(/\*\*/g, '')}</p>
+              if (line.startsWith('- ')) return <p key={i} className="pl-4 text-stone-600">&bull; {line.replace('- ', '')}</p>
+              if (line.trim() === '') return <br key={i} />
+              return <p key={i} className="text-stone-700">{line.replace(/\*\*/g, '').replace(/\*/g, '')}</p>
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* About Us PDF attachment */}
+      <div className="flex items-center gap-3 bg-stone-50 border border-stone-200 rounded-lg px-4 py-3">
+        <span className="text-lg">📎</span>
+        <div className="flex-1">
+          <p className="text-sm font-medium text-stone-700">ClubSheIs About Us</p>
+          <p className="text-xs text-stone-400">PDF attachment — will be included with the proposal email</p>
+        </div>
+        <a
+          href="https://drive.google.com/file/d/REPLACE_WITH_DRIVE_FILE_ID/view"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+        >
+          Preview / Download
+        </a>
+      </div>
+
+      {/* Send button */}
+      <div className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-4 py-3">
+        <p className="text-xs text-stone-400">
+          {sent
+            ? 'Email opened — send from your email client with the About Us PDF attached.'
+            : 'When you\'re happy with the proposal, send it to the client.'}
+        </p>
+        <button
+          onClick={handleSendEmail}
+          disabled={!client.email || editing}
+          className="bg-[#B45309] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-amber-800 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          Send Proposal via Email
+        </button>
+      </div>
+
+      {sent && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
+          Remember to attach the <strong>ClubSheIs About Us PDF</strong> to the email before sending. You can <a href="https://drive.google.com/file/d/REPLACE_WITH_DRIVE_FILE_ID/view" target="_blank" className="underline">download it here</a>.
+        </p>
+      )}
     </div>
   )
 }
@@ -721,8 +785,16 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       onSaveField={handleSaveField}
                       onAdvance={() => nextStageKey && handleAdvance(nextStageKey)}
                     />
+                  ) : stage.key === 'proposal' ? (
+                    <ProposalReview
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                      onAdvance={() => nextStageKey && handleAdvance(nextStageKey)}
+                    />
                   ) : undefined
                 }
+                actionSlotFullWidth={stage.key === 'proposal'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">
