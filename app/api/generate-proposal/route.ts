@@ -5,20 +5,14 @@ export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
-      return Response.json({ error: 'ANTHROPIC_API_KEY not set' }, { status: 500 })
+      return Response.json({ error: 'ANTHROPIC_API_KEY not set. Add it to your Vercel environment variables.' }, { status: 500 })
     }
 
     const { clientName, brandName, email, needs, transcriptNotes, budgetRange } = await req.json()
 
     const anthropic = new Anthropic({ apiKey })
 
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      messages: [
-        {
-          role: 'user',
-          content: `You are writing a proposal for ClubSheIs, a digital marketing and content production agency based in South Africa. Generate a professional, warm, and clear proposal based on the discovery call information below.
+    const prompt = `You are writing a proposal for ClubSheIs, a digital marketing and content production agency based in South Africa. Generate a professional, warm, and clear proposal based on the discovery call information below.
 
 CLIENT INFORMATION:
 - Name: ${clientName}
@@ -48,16 +42,31 @@ Write the proposal in this structure:
 
 Keep the tone professional but human — like a smart friend who happens to be great at marketing. Not corporate. Not salesy. Just clear and confident.
 
-Output ONLY the proposal text in clean markdown format. No preamble.`,
-        },
-      ],
-    })
+Output ONLY the proposal text in clean markdown format. No preamble.`
+
+    // Try primary model, fall back to older model if needed
+    let message
+    try {
+      message = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }],
+      })
+    } catch {
+      // Fallback to older model
+      message = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }],
+      })
+    }
 
     const proposalText = message.content[0].type === 'text' ? message.content[0].text : ''
 
     return Response.json({ proposal: proposalText })
   } catch (error) {
     console.error('Proposal generation error:', error)
-    return Response.json({ error: 'Failed to generate proposal' }, { status: 500 })
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    return Response.json({ error: `Failed to generate proposal: ${msg}` }, { status: 500 })
   }
 }

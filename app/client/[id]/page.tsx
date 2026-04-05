@@ -333,12 +333,16 @@ function DiscoveryActions({
         }),
       })
       const data = await res.json()
-      if (data.proposal) {
+      if (!res.ok) {
+        alert(`Proposal error: ${data.error || 'Unknown error'}`)
+      } else if (data.proposal) {
         setProposal(data.proposal)
         await onSaveField('proposal', 'generated_text', data.proposal)
+        await onSaveField('proposal', 'proposal_status', 'Draft')
+        await onSaveField('proposal', 'email_type', 'proposal')
       }
     } catch (err) {
-      console.error('Failed to generate proposal:', err)
+      alert(`Failed to generate proposal: ${err instanceof Error ? err.message : 'Network error'}`)
     }
     setGenerating(false)
   }
