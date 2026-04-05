@@ -67,6 +67,7 @@ function StagePanel({
   onAdvance,
   canAdvance,
   nextStageName,
+  actionSlot,
 }: {
   stage: StageDefinition
   isActive: boolean
@@ -79,6 +80,7 @@ function StagePanel({
   onAdvance: () => void
   canAdvance: boolean
   nextStageName: string
+  actionSlot?: React.ReactNode
 }) {
   const [expanded, setExpanded] = useState(isCurrent)
 
@@ -259,6 +261,9 @@ function StagePanel({
             </div>
           )}
 
+          {/* Action slot (contextual buttons) */}
+          {actionSlot}
+
           {/* Next action / advance */}
           {isCurrent && (
             <div className="bg-[rgba(22,163,74,0.05)] border border-[rgba(22,163,74,0.15)] rounded-lg p-4">
@@ -277,6 +282,204 @@ function StagePanel({
               )}
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+// ── Discovery stage action buttons ──
+function DiscoveryActions({
+  leadStatus,
+  client,
+  fieldValues,
+  onSaveField,
+  onAdvance,
+}: {
+  leadStatus: string
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+  onAdvance: () => void
+}) {
+  const [generating, setGenerating] = useState(false)
+  const [proposal, setProposal] = useState(fieldValues.get('proposal:generated_text') || '')
+  const [editing, setEditing] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
+
+  // Sync proposal from fieldValues when they change
+  useEffect(() => {
+    const saved = fieldValues.get('proposal:generated_text')
+    if (saved && !proposal) setProposal(saved)
+  }, [fieldValues, proposal])
+
+  const handleGenerateProposal = async () => {
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/generate-proposal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: client.name,
+          brandName: client.brand,
+          email: client.email,
+          needs: fieldValues.get('discovery:what_they_need') || client.needs,
+          transcriptNotes: fieldValues.get('discovery:transcript_link') || '',
+          budgetRange: client.budget_range,
+        }),
+      })
+      const data = await res.json()
+      if (data.proposal) {
+        setProposal(data.proposal)
+        await onSaveField('proposal', 'generated_text', data.proposal)
+      }
+    } catch (err) {
+      console.error('Failed to generate proposal:', err)
+    }
+    setGenerating(false)
+  }
+
+  const handleSaveProposal = async () => {
+    await onSaveField('proposal', 'generated_text', proposal)
+    setEditing(false)
+  }
+
+  const handleSendProposal = () => {
+    const subject = encodeURIComponent(`ClubSheIs Proposal for ${client.brand || client.name}`)
+    const body = encodeURIComponent(proposal.replace(/[#*_`]/g, '').replace(/\n/g, '\n'))
+    window.open(`mailto:${client.email}?subject=${subject}&body=${body}`, '_blank')
+    setSendingEmail(true)
+  }
+
+  const handleSendThankYou = () => {
+    const subject = encodeURIComponent(`Thank you for chatting with ClubSheIs`)
+    const body = encodeURIComponent(
+      `Hi ${client.name},\n\nThank you so much for taking the time to chat with us. We really enjoyed learning about ${client.brand || 'your business'}.\n\nAfter our conversation, we don't think we're the best fit for what you need right now — but we genuinely wish you all the best with your next steps.\n\nIf things change in the future, our door is always open.\n\nWarm regards,\nThe ClubSheIs Team`
+    )
+    window.open(`mailto:${client.email}?subject=${subject}&body=${body}`, '_blank')
+  }
+
+  if (!leadStatus) return null
+
+  // Not a Fit
+  if (leadStatus.includes('Not a Fit')) {
+    return (
+      <div className="bg-[rgba(225,29,72,0.04)] border border-[rgba(225,29,72,0.15)] rounded-lg p-4">
+        <div className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-1">Action Required</div>
+        <p className="text-sm text-stone-700 mb-3">This lead isn't the right fit. Send a polite thank-you email and archive.</p>
+        <button
+          onClick={handleSendThankYou}
+          className="bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-rose-700 transition-colors cursor-pointer"
+        >
+          Send Thank You Email
+        </button>
+      </div>
+    )
+  }
+
+  // Follow Up
+  if (leadStatus.includes('Follow Up')) {
+    return (
+      <div className="bg-[rgba(37,99,235,0.04)] border border-[rgba(37,99,235,0.15)] rounded-lg p-4">
+        <div className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Follow Up Scheduled</div>
+        <p className="text-sm text-stone-700">This lead needs more time. Follow up in two weeks — a reminder will be set.</p>
+      </div>
+    )
+  }
+
+  // Good Fit — Proposal flow
+  return (
+    <div className="space-y-4">
+      {/* Generate button */}
+      {!proposal && (
+        <div className="bg-[rgba(22,163,74,0.04)] border border-[rgba(22,163,74,0.15)] rounded-lg p-4">
+          <div className="text-xs font-bold text-green-600 uppercase tracking-wider mb-1">Good Fit — Generate Proposal</div>
+          <p className="text-sm text-stone-700 mb-3">AI will create a tailored proposal based on the discovery call notes and client information. You'll review and edit before sending.</p>
+          <button
+            onClick={handleGenerateProposal}
+            disabled={generating}
+            className="bg-[#16A34A] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {generating ? 'Generating Proposal...' : 'Generate Proposal'}
+          </button>
+        </div>
+      )}
+
+      {/* Proposal review/edit */}
+      {proposal && (
+        <div className="border border-stone-200 rounded-lg overflow-hidden">
+          <div className="bg-stone-50 px-4 py-3 flex items-center justify-between border-b border-stone-200">
+            <div>
+              <h4 className="text-sm font-semibold text-stone-900">Proposal for {client.brand || client.name}</h4>
+              <p className="text-xs text-stone-500">Review, edit, then send via email</p>
+            </div>
+            <div className="flex gap-2">
+              {!editing ? (
+                <button
+                  onClick={() => setEditing(true)}
+                  className="text-xs border border-stone-200 text-stone-600 px-3 py-1.5 rounded-lg hover:bg-white transition-colors cursor-pointer"
+                >
+                  Edit
+                </button>
+              ) : (
+                <button
+                  onClick={handleSaveProposal}
+                  className="text-xs bg-[#B45309] text-white px-3 py-1.5 rounded-lg hover:bg-amber-800 transition-colors cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              )}
+              <button
+                onClick={handleGenerateProposal}
+                disabled={generating}
+                className="text-xs border border-stone-200 text-stone-600 px-3 py-1.5 rounded-lg hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {generating ? 'Regenerating...' : 'Regenerate'}
+              </button>
+            </div>
+          </div>
+
+          {editing ? (
+            <textarea
+              value={proposal}
+              onChange={e => setProposal(e.target.value)}
+              className="w-full p-4 text-sm text-stone-700 leading-relaxed min-h-[400px] focus:outline-none resize-none font-mono"
+            />
+          ) : (
+            <div className="p-4 text-sm text-stone-700 leading-relaxed max-h-[500px] overflow-y-auto prose prose-sm prose-stone">
+              {proposal.split('\n').map((line, i) => {
+                if (line.startsWith('# ')) return <h2 key={i} className="text-lg font-bold text-stone-900 mt-4 mb-2">{line.replace('# ', '')}</h2>
+                if (line.startsWith('## ')) return <h3 key={i} className="text-base font-bold text-stone-900 mt-3 mb-1">{line.replace('## ', '')}</h3>
+                if (line.startsWith('**') && line.endsWith('**')) return <p key={i} className="font-semibold text-stone-900 mt-2">{line.replace(/\*\*/g, '')}</p>
+                if (line.startsWith('- ')) return <p key={i} className="pl-4 text-stone-600">&bull; {line.replace('- ', '')}</p>
+                if (line.trim() === '') return <br key={i} />
+                return <p key={i} className="text-stone-700">{line.replace(/\*\*/g, '').replace(/\*/g, '')}</p>
+              })}
+            </div>
+          )}
+
+          {/* Send button */}
+          <div className="bg-stone-50 px-4 py-3 border-t border-stone-200 flex items-center justify-between">
+            <p className="text-xs text-stone-400">
+              {sendingEmail ? 'Email client opened — send the proposal from there.' : 'When you\'re happy with the proposal, send it to the client.'}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSendProposal}
+                disabled={!client.email}
+                className="bg-[#B45309] text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-amber-800 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Send Proposal via Email
+              </button>
+              <button
+                onClick={() => { onAdvance() }}
+                className="border border-green-200 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-50 transition-colors cursor-pointer"
+              >
+                Move to Next Stage →
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -520,6 +723,17 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                 onAdvance={() => nextStageKey && handleAdvance(nextStageKey)}
                 canAdvance={allDone && !!nextStageKey}
                 nextStageName={nextStage?.name || 'Next'}
+                actionSlot={
+                  stage.key === 'discovery' && isCurrent ? (
+                    <DiscoveryActions
+                      leadStatus={fieldValues.get('discovery:lead_status') || ''}
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                      onAdvance={() => nextStageKey && handleAdvance(nextStageKey)}
+                    />
+                  ) : undefined
+                }
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">
