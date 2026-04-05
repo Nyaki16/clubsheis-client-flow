@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest } from 'next/server'
 
-// Increase timeout for AI generation (Vercel free = 10s default, pro = 300s)
 export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
@@ -43,28 +42,24 @@ Write the proposal in this structure:
 6. **Timeline** — When we can start and key milestones.
 7. **Next Steps** — Clear call to action.
 
-Keep the tone professional but human — like a smart friend who happens to be great at marketing. Not corporate. Not salesy. Just clear and confident.
+Keep the tone professional but human — like a smart friend who happens to be great at marketing. Not corporate. Not salesy. Just clear and confident. Keep it concise — no longer than 600 words.
 
 Output ONLY the proposal text in clean markdown format. No preamble.`
 
-    // Try primary model, fall back to older model if needed
-    let message
-    try {
-      message = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: prompt }],
-      })
-    } catch {
-      // Fallback to older model
-      message = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: prompt }],
-      })
-    }
+    // Use streaming to avoid Vercel timeout
+    const stream = await anthropic.messages.stream({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }],
+    })
 
-    const proposalText = message.content[0].type === 'text' ? message.content[0].text : ''
+    // Collect the full response from the stream
+    let proposalText = ''
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        proposalText += event.delta.text
+      }
+    }
 
     return Response.json({ proposal: proposalText })
   } catch (error) {

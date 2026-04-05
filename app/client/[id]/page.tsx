@@ -497,25 +497,27 @@ function ProposalReview({
   onSaveField: (stageKey: string, fieldKey: string, value: string) => void
   onAdvance: () => void
 }) {
-  const emailType = fieldValues.get('proposal:email_type') || 'proposal' // 'proposal' or 'not-a-fit'
+  const emailType = fieldValues.get('proposal:email_type') || 'proposal'
   const isThankYou = emailType === 'not-a-fit'
 
   const savedProposal = fieldValues.get('proposal:generated_text') || ''
   const savedThankYou = fieldValues.get('proposal:thankyou_text') || ''
-  const content = isThankYou ? savedThankYou : savedProposal
+  const currentContent = isThankYou ? savedThankYou : savedProposal
 
-  const [emailContent, setEmailContent] = useState(content)
+  const [emailContent, setEmailContent] = useState(currentContent)
   const [editing, setEditing] = useState(false)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [sendError, setSendError] = useState('')
   const proposalStatus = fieldValues.get('proposal:proposal_status') || 'Draft'
 
+  // Sync content whenever fieldValues change (handles both initial mount and updates)
   useEffect(() => {
-    const key = isThankYou ? 'proposal:thankyou_text' : 'proposal:generated_text'
-    const saved = fieldValues.get(key)
-    if (saved && saved !== emailContent) setEmailContent(saved)
-  }, [fieldValues, isThankYou]) // eslint-disable-line react-hooks/exhaustive-deps
+    const content = isThankYou
+      ? fieldValues.get('proposal:thankyou_text') || ''
+      : fieldValues.get('proposal:generated_text') || ''
+    if (content) setEmailContent(content)
+  }, [fieldValues, isThankYou])
 
   const handleSave = async () => {
     const key = isThankYou ? 'thankyou_text' : 'generated_text'
