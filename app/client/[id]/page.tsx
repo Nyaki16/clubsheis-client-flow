@@ -504,7 +504,7 @@ function AwaitingReviewActions({
         </p>
         <ul className="text-sm text-green-700 space-y-1 mb-4">
           <li className="flex items-center gap-2">
-            <span className="text-green-500">📁</span> Create a client folder in Google Drive
+            <span className="text-green-500">📁</span> Open Google Drive to create client folder
           </li>
           <li className="flex items-center gap-2">
             <span className="text-green-500">✅</span> Create a client task in ClickUp
