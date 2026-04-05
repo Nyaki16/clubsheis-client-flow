@@ -68,6 +68,7 @@ export interface StageDefinition {
   colorSoft: string
   triggerLabel: string
   triggerColor: string
+  guide?: string[]
   substeps: SubStep[]
   dataFields: DataField[]
   conditionalLogic: ConditionalRule[]

@@ -119,7 +119,7 @@ function StagePanel({
               </span>
             )}
           </div>
-          <p className="text-xs sm:text-sm text-stone-500 mt-0.5 truncate">{stage.summary}</p>
+          <p className="text-xs sm:text-sm text-stone-500 mt-0.5">{stage.summary}</p>
 
           {/* Progress bar */}
           {(isActive || isCompleted) && totalSubsteps > 0 && (
@@ -144,7 +144,25 @@ function StagePanel({
       {/* Expanded detail */}
       {expanded && (isActive || isCompleted) && (
         <div className="bg-white border border-t-0 border-stone-200 rounded-b-xl -mt-1 p-4 sm:p-6 space-y-6">
+          {/* Stage guide */}
+          {stage.guide && stage.guide.length > 0 && (
+            <div className="bg-[rgba(180,83,9,0.03)] border border-[rgba(180,83,9,0.12)] rounded-lg p-4">
+              <h4 className="text-xs font-bold text-[#B45309] uppercase tracking-wider mb-3">
+                {stage.substeps.length === 0 ? 'Guiding Questions' : 'Guide for This Stage'}
+              </h4>
+              <ol className="space-y-2">
+                {stage.guide.map((item, i) => (
+                  <li key={i} className="flex gap-3 text-sm text-stone-700">
+                    <span className="font-bold text-[#B45309] shrink-0 text-xs mt-0.5">{i + 1}.</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
           {/* Substep checklist */}
+          {stage.substeps.length > 0 && (
           <div>
             <h4 className="text-sm font-semibold text-stone-700 mb-3">
               {stage.parallelTracks ? 'Parallel Tracks' : 'Steps to Complete'}
@@ -204,6 +222,7 @@ function StagePanel({
               </div>
             )}
           </div>
+          )}
 
           {/* Data fields */}
           {stage.dataFields.length > 0 && (
@@ -253,7 +272,7 @@ function StagePanel({
                   Complete Stage & Move to {nextStageName} →
                 </button>
               )}
-              {!allDone && (
+              {!allDone && totalSubsteps > 0 && (
                 <p className="mt-2 text-xs text-stone-400">Complete all substeps to advance to the next stage.</p>
               )}
             </div>
@@ -416,7 +435,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
           const completedCount = stage.substeps.filter((_, i) =>
             completions.get(`${stage.key}:${i}`)
           ).length
-          const allDone = completedCount === totalSubsteps && totalSubsteps > 0
+          const allDone = totalSubsteps === 0 || (completedCount === totalSubsteps && totalSubsteps > 0)
 
           const nextStageKey = activeStageKeys[stageIdx + 1]
           const nextStage = STAGES.find(s => s.key === nextStageKey)
