@@ -48,7 +48,7 @@ Output ONLY the proposal text in clean markdown format. No preamble.`
 
     // Use streaming to avoid Vercel timeout
     const stream = await anthropic.messages.stream({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-3-haiku-20240307',
       max_tokens: 1500,
       messages: [{ role: 'user', content: prompt }],
     })

@@ -502,26 +502,22 @@ function ProposalReview({
 
   const savedProposal = fieldValues.get('proposal:generated_text') || ''
   const savedThankYou = fieldValues.get('proposal:thankyou_text') || ''
-  const currentContent = isThankYou ? savedThankYou : savedProposal
+  const savedContent = isThankYou ? savedThankYou : savedProposal
 
-  const [emailContent, setEmailContent] = useState(currentContent)
+  // Only use local state when editing — otherwise always read from fieldValues
+  const [editDraft, setEditDraft] = useState('')
   const [editing, setEditing] = useState(false)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [sendError, setSendError] = useState('')
   const proposalStatus = fieldValues.get('proposal:proposal_status') || 'Draft'
 
-  // Sync content whenever fieldValues change (handles both initial mount and updates)
-  useEffect(() => {
-    const content = isThankYou
-      ? fieldValues.get('proposal:thankyou_text') || ''
-      : fieldValues.get('proposal:generated_text') || ''
-    if (content) setEmailContent(content)
-  }, [fieldValues, isThankYou])
+  // The content to display — use edit draft when editing, otherwise always the saved value
+  const emailContent = editing ? editDraft : savedContent
 
   const handleSave = async () => {
     const key = isThankYou ? 'thankyou_text' : 'generated_text'
-    await onSaveField('proposal', key, emailContent)
+    await onSaveField('proposal', key, editDraft)
     setEditing(false)
   }
 
@@ -623,7 +619,7 @@ function ProposalReview({
           <div className="flex gap-2">
             {!editing ? (
               <button
-                onClick={() => setEditing(true)}
+                onClick={() => { setEditDraft(savedContent); setEditing(true) }}
                 className="text-xs border border-stone-200 text-stone-600 px-3 py-1.5 rounded-lg hover:bg-white transition-colors cursor-pointer"
               >
                 Edit
@@ -639,7 +635,7 @@ function ProposalReview({
           </div>
         </div>
 
-        <EmailContentEditor content={emailContent} onChange={setEmailContent} readOnly={!editing} />
+        <EmailContentEditor content={emailContent} onChange={setEditDraft} readOnly={!editing} />
       </div>
 
       {/* About Us PDF attachment — only for proposals */}
