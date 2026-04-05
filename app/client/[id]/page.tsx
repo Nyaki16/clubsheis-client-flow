@@ -709,6 +709,115 @@ function ProposalReview({
 }
 
 
+// ── Edit Client Modal ──
+function EditClientModal({
+  client,
+  onClose,
+  onSave,
+}: {
+  client: Client
+  onClose: () => void
+  onSave: (updates: Partial<Client>) => Promise<void>
+}) {
+  const [form, setForm] = useState({
+    name: client.name || '',
+    brand: client.brand || '',
+    email: client.email || '',
+    phone: client.phone || '',
+    website: client.website || '',
+    socials: client.socials || '',
+    needs: client.needs || '',
+    budget_range: client.budget_range || '',
+  })
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    await onSave(form)
+    setSaving(false)
+  }
+
+  const inputClass = "w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#B45309] focus:ring-1 focus:ring-[#B45309]/20 bg-white"
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-semibold text-stone-900 text-lg">Edit Client Details</h3>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600 text-xl cursor-pointer">×</button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 block">Contact Name</label>
+              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputClass} placeholder="Full name" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 block">Business / Brand</label>
+              <input value={form.brand} onChange={e => setForm(f => ({ ...f, brand: e.target.value }))} className={inputClass} placeholder="Company or brand" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 block">Email</label>
+              <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className={inputClass} placeholder="Primary email" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 block">Phone</label>
+              <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className={inputClass} placeholder="WhatsApp or phone" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 block">Website</label>
+              <input value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} className={inputClass} placeholder="https://..." />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 block">Social Handles</label>
+              <input value={form.socials} onChange={e => setForm(f => ({ ...f, socials: e.target.value }))} className={inputClass} placeholder="Instagram, LinkedIn, etc." />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 block">What They Need</label>
+            <textarea value={form.needs} onChange={e => setForm(f => ({ ...f, needs: e.target.value }))} className={`${inputClass} resize-none`} rows={3} placeholder="Notes from call" />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 block">Budget Range</label>
+            <select value={form.budget_range} onChange={e => setForm(f => ({ ...f, budget_range: e.target.value }))} className={inputClass}>
+              <option value="">Select range</option>
+              <option value="Under R5,000">Under R5,000</option>
+              <option value="R5,000 – R15,000">R5,000 – R15,000</option>
+              <option value="R15,000 – R30,000">R15,000 – R30,000</option>
+              <option value="R30,000+">R30,000+</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={handleSave}
+            disabled={saving || !form.name}
+            className="bg-[#B45309] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-amber-800 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+          <button
+            onClick={onClose}
+            className="border border-stone-200 text-stone-600 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main client page ──
 export default function ClientFlowPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -718,6 +827,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
   const [fieldValues, setFieldValues] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [showDelete, setShowDelete] = useState(false)
+  const [showEditClient, setShowEditClient] = useState(false)
   const [showTrackSelector, setShowTrackSelector] = useState(false)
   const [selectedTracks, setSelectedTracks] = useState<string[]>(['ads', 'email', 'social'])
   const activeTracks = (fieldValues.get('_config:active_tracks') || '').split(',').filter(Boolean)
@@ -807,15 +917,24 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
           </h1>
           <div className="flex items-center gap-3 mt-2 flex-wrap">
             {client.brand && <span className="text-sm text-stone-500">{client.brand}</span>}
-            {client.email && <span className="text-xs text-stone-400">{client.email}</span>}
+            {client.email && <span className="text-xs text-stone-400">✉ {client.email}</span>}
+            {client.phone && <span className="text-xs text-stone-400">☎ {client.phone}</span>}
           </div>
         </div>
-        <button
-          onClick={() => setShowDelete(true)}
-          className="text-xs text-stone-400 hover:text-red-500 transition-colors cursor-pointer"
-        >
-          Delete
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowEditClient(true)}
+            className="text-xs text-stone-500 hover:text-[#B45309] border border-stone-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+          >
+            Edit Client
+          </button>
+          <button
+            onClick={() => setShowDelete(true)}
+            className="text-xs text-stone-400 hover:text-red-500 transition-colors cursor-pointer"
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
       {/* Package selector */}
@@ -974,6 +1093,19 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
           )
         })}
       </div>
+
+      {/* Edit Client modal */}
+      {showEditClient && (
+        <EditClientModal
+          client={client}
+          onClose={() => setShowEditClient(false)}
+          onSave={async (updates) => {
+            await updateClient(id, updates)
+            setClient(prev => prev ? { ...prev, ...updates } : prev)
+            setShowEditClient(false)
+          }}
+        />
+      )}
 
       {/* Delete confirmation modal */}
       {showDelete && (
