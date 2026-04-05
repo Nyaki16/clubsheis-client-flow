@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-// @ts-expect-error - nodemailer types are dev-only
 import nodemailer from 'nodemailer'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -51,8 +50,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Build email options
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mailOptions: any = {
+    const mailOptions: nodemailer.SendMailOptions = {
       from: `"Nyaki & Kopano — ClubSheIs" <${gmailUser}>`,
       to,
       subject,
