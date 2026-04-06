@@ -1473,7 +1473,15 @@ function FunnelMapActions({
 
   const savedMapRaw = fieldValues.get('funnel-map:funnel_map_json') || ''
   let mapData: FunnelMapData | null = null
-  try { if (savedMapRaw) mapData = JSON.parse(savedMapRaw) } catch {}
+  try {
+    if (savedMapRaw) {
+      const raw = JSON.parse(savedMapRaw)
+      // Only accept new decision tree format (nodes+edges), ignore old rows format
+      if (raw.nodes && Array.isArray(raw.nodes) && raw.edges && Array.isArray(raw.edges)) {
+        mapData = raw
+      }
+    }
+  } catch {}
 
   // Get funnel elements for context
   const funnelStrategyJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
