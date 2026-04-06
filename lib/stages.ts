@@ -146,6 +146,7 @@ export const STAGES: StageDefinition[] = [
     substeps: [],
     dataFields: [
       { key: 'session_date', label: 'Strategy session date', placeholder: 'Select date', type: 'date' },
+      { key: 'transcript_link', label: 'Transcript link', placeholder: 'Google Drive or document link', type: 'text' },
       { key: 'session_transcript', label: 'Session transcript / notes', placeholder: 'Paste the full transcript or notes from the strategy session...', type: 'textarea' },
     ],
     conditionalLogic: [
