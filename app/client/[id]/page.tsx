@@ -844,7 +844,11 @@ function StrategyActions({
     const key = docType === 'client-profile' ? 'client_profile_approved'
       : docType === 'research-bible' ? 'research_bible_approved'
       : 'brand_voice_approved'
+    const docName = docType === 'client-profile' ? 'Client Profile'
+      : docType === 'research-bible' ? 'Research Bible'
+      : 'Brand Voice'
     await onSaveField('strategy', key, 'true')
+    alert(`${docName} approved! ✅\n\nNext step: Copy the document text and save it to Google Drive in the client's folder.`)
   }
 
   const handleEdit = (docType: string, text: string) => {
@@ -874,7 +878,7 @@ function StrategyActions({
     {
       key: 'client-profile',
       title: 'Client Profile',
-      description: 'Business overview, target audience, current marketing, offers, and goals.',
+      description: 'Full 8-section profile: overview, audience, voice, offers, content, visual identity, history, and social presence.',
       text: profileText,
       approved: profileApproved,
       canGenerate: true,
@@ -978,7 +982,7 @@ function StrategyActions({
                       onClick={() => handleApprove(doc.key)}
                       className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
                     >
-                      Approve ✓
+                      Approve & Save to Drive ✓
                     </button>
                   </div>
                 )}
@@ -1013,25 +1017,10 @@ function StrategyActions({
         )
       })}
 
-      {/* Upload All */}
-      {profileApproved && bibleApproved && voiceApproved && !allUploaded && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
-          <h4 className="text-sm font-bold text-green-800">All Documents Approved!</h4>
-          <p className="text-sm text-green-700">
-            Upload all three documents to Google Drive and link them to the ClickUp client task.
-          </p>
-          <button
-            onClick={handleUploadAll}
-            disabled={uploading}
-            className="w-full bg-green-600 text-white px-5 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
-          >
-            {uploading ? 'Uploading...' : 'Upload to Drive & Link to ClickUp →'}
-          </button>
-        </div>
-      )}
-      {allUploaded && (
+      {/* All Approved */}
+      {profileApproved && bibleApproved && voiceApproved && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-          <p className="text-sm font-semibold text-green-700">✓ All documents uploaded and linked — ready to move to production.</p>
+          <p className="text-sm font-semibold text-green-700">✓ All documents approved — confirm all are saved to Google Drive, then move to production.</p>
         </div>
       )}
     </div>
