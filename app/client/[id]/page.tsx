@@ -1487,6 +1487,7 @@ type FunnelElement = {
   type: string
   topic: string
   description: string
+  email_note?: string
   funnel_stage: string
   reasoning: string
   priority: number
@@ -1774,6 +1775,11 @@ function FunnelStrategyActions({
                               </div>
                               <p className="text-sm font-semibold text-stone-800 mt-0.5">{el.topic}</p>
                               <p className="text-xs text-stone-500 mt-1 leading-relaxed">{el.description}</p>
+                              {el.email_note && (
+                                <p className="text-xs text-purple-500 mt-1 flex items-center gap-1">
+                                  <span className="font-semibold">Email:</span> {el.email_note}
+                                </p>
+                              )}
                               <p className="text-xs text-stone-400 mt-1 italic">{el.reasoning}</p>
                             </div>
                           </div>

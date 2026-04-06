@@ -443,19 +443,21 @@ You MUST respond with ONLY a valid JSON array. No markdown, no explanation, no t
 
 Each element in the array must have these exact fields:
 {
-  "type": "The format type (e.g. Quiz, Ebook, Webinar, Checklist, Mini-Course, Video Series, Discovery Call, Sales Page, Webinar Registration Page, Lead Magnet Page, OTO Page, Book a Call Page, Check Out Page, Thank You Page, Welcome Email Sequence, Nurture Email Sequence, Launch Email Sequence, Post-Purchase Email Sequence, Re-engagement Email Sequence, Masterclass, Challenge, Workshop, Cheat Sheet, Template, Toolkit, Case Study Page, Testimonial Page, Waitlist Page, Tripwire Offer, Downsell Page, Upsell Page, Bump Offer, Application Page, Free Trial Page, Demo Page, Podcast Funnel, Social Media Funnel, Affiliate Page, Referral Programme Page)",
+  "type": "The format type — ONLY use asset/page types, NEVER email sequences. Examples: Quiz, Ebook, Webinar, Checklist, Mini-Course, Video Series, Discovery Call, Sales Page, Webinar Registration Page, Lead Magnet Page, OTO Page, Book a Call Page, Check Out Page, Thank You Page, Masterclass, Challenge, Workshop, Cheat Sheet, Template, Toolkit, Case Study Page, Testimonial Page, Waitlist Page, Tripwire Offer, Downsell Page, Upsell Page, Bump Offer, Application Page, Free Trial Page, Demo Page, Podcast Funnel, Social Media Funnel, Affiliate Page, Referral Programme Page, Course, Downloadable, Coaching Programme",
   "topic": "The specific topic or title tailored to this client (e.g. 'The 5-Step Framework for Building Confidence in the Boardroom')",
   "description": "2-3 sentences explaining what this is, what it covers, and why it works for this client's audience",
+  "email_note": "Brief note on what email sequence accompanies this element (e.g. 'Post-quiz nurture sequence selling the masterclass' or 'Pre-launch hype sequence building anticipation'). Every element has an email component — describe it here.",
   "funnel_stage": "One of: awareness, engagement, conversion, delivery, retention",
   "reasoning": "1-2 sentences on why this specific type and topic suits this client based on their audience, offers, and market position",
   "priority": A number from 1-N indicating build order (1 = build first)
 }
 
 IMPORTANT RULES:
-- Recommend 8-15 elements covering the FULL funnel (awareness through retention)
+- Recommend 6-12 elements covering the FULL funnel (awareness through retention)
+- NEVER include standalone email sequences as elements — emails are part of every element's flow, not separate items
+- Every element automatically comes with its own email sequence (pre or post) — describe this in the email_note field
 - Every element MUST have a specific, tailored topic — never generic
 - Consider what format suits this client's audience best (e.g. busy professionals prefer checklists over long ebooks)
-- Include a mix of lead magnets, pages, and email sequences
 - Think about how each element connects to the next in the customer journey
 - Priority ordering should reflect what creates the most impact soonest
 
