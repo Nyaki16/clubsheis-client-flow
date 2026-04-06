@@ -432,78 +432,55 @@ export const STAGES: StageDefinition[] = [
     nextActionPrompt: 'All tracks delivered this month. Generate the monthly performance report.',
   },
   {
-    key: 'review',
-    num: '7',
-    name: 'Client Review & Approval',
-    summary: 'Send deliverables to the client for review. Collect feedback, process revisions (max 2 rounds), and get final written sign-off before moving to delivery.',
+    key: 'internal-check',
+    num: '8',
+    name: 'Internal Check',
+    summary: 'Two team members independently review the entire build before it goes to the client. Every deliverable is checked against the brief, brand bible, and copy bible. Both reviewers must sign off before hand-over.',
     guide: [
-      'Package all deliverables in the client\'s Drive folder — clearly named and organised.',
-      'Send the review email with clear instructions on how to give feedback and the deadline.',
-      'Track review status actively — if no response in 3 business days, follow up.',
-      'Max 2 revision rounds are included — flag anything beyond as out of scope.',
-      'Get written confirmation (email or message) that deliverables are approved.',
+      'Assign two team members as Reviewer 1 and Reviewer 2.',
+      'Each reviewer works through the full checklist independently.',
+      'If any item fails, flag it and send back to production for fixes.',
+      'Both reviewers must sign off before the build moves to hand-over.',
+      'Use the notes field to flag any issues or concerns.',
     ],
-    color: '#2563EB',
-    colorSoft: 'rgba(37,99,235,0.06)',
-    triggerLabel: 'Trigger: Deliverables ready',
-    triggerColor: 'blue',
-    substeps: [
-      { label: 'Package deliverables', description: 'All files in client Drive folder, clearly named and organised.' },
-      { label: 'Send review email', description: 'What\'s included, how to give feedback, deadline for response.' },
-      { label: 'Track review status', description: 'Pending Review / Feedback Received / Revisions In Progress / Approved.' },
-      { label: 'Process revisions', description: 'Max 2 rounds, each tracked as a subtask.' },
-      { label: 'Final client sign-off', description: 'Written confirmation that deliverables are approved.' },
-    ],
-    dataFields: [
-      { key: 'review_status', label: 'Review status', placeholder: 'Select status', type: 'select', options: ['Pending Review', 'Feedback Received', 'Revisions In Progress', 'Approved'] },
-      { key: 'revision_round', label: 'Revision round', placeholder: 'Select round', type: 'select', options: ['0 - No revisions', '1', '2', '3+ (Out of scope)'] },
-      { key: 'review_deadline', label: 'Review deadline', placeholder: 'Select date', type: 'date' },
-      { key: 'client_feedback', label: 'Client feedback notes', placeholder: 'Paste feedback here', type: 'textarea' },
-    ],
+    color: '#7C3AED',
+    colorSoft: 'rgba(124,58,237,0.06)',
+    triggerLabel: 'Trigger: Production complete',
+    triggerColor: 'violet',
+    substeps: [],
+    dataFields: [],
     conditionalLogic: [
-      { condition: 'No client response in 3 business days', result: 'Trigger follow-up reminder' },
-      { condition: 'Revision round 3 requested', result: 'Flag: "Out of scope — discuss with CD"' },
-      { condition: 'Approved', result: 'Move to Stage 7 (Delivery) or Stage 8 (Retainer) based on contract' },
+      { condition: 'Both reviewers signed off', result: 'Move to Hand Over' },
+      { condition: 'Issues flagged', result: 'Send back to Production for fixes' },
     ],
-    nextActionPrompt: 'Client has approved all deliverables. Move to final delivery.',
+    nextActionPrompt: 'Both reviewers must sign off on the entire build before hand-over.',
   },
   {
-    key: 'delivery',
-    num: '8',
-    name: 'Final Delivery & Handoff',
-    summary: 'Ship the final work. Publish pages, launch campaigns, activate email sequences, schedule content. Then verify everything is working within 48 hours.',
+    key: 'handover',
+    num: '9',
+    name: 'Hand Over',
+    summary: 'Create the client hand-over document in Canva showing everything built, all access links, and instructions. Send to the client with a walkthrough.',
     guide: [
-      'Ensure all final files are in the correct format in the client\'s Drive folder.',
-      'Go-live actions: publish pages, schedule posts, launch ads, activate emails.',
-      'Do a post-delivery check within 48 hours — verify links, forms, tracking, and ads.',
-      'Send the client a delivery summary confirming everything is live.',
-      'Update task status to "Delivered" and log the completion date.',
+      'Generate the hand-over document — it pulls all deliverables, links, and access details.',
+      'Create the document in Canva using the client\'s brand bible.',
+      'Include: what was built, where to find it, login details, and next steps.',
+      'Send the hand-over document to the client.',
+      'Schedule a walkthrough call if needed.',
     ],
     color: '#16A34A',
     colorSoft: 'rgba(22,163,74,0.06)',
-    triggerLabel: 'Trigger: Client approved',
+    triggerLabel: 'Trigger: Internal check passed',
     triggerColor: 'green',
-    substeps: [
-      { label: 'Final file delivery', description: 'All assets in final format in client Drive folder.' },
-      { label: 'Go-live actions', description: 'Publish pages, schedule content, launch campaigns, activate emails.' },
-      { label: 'Post-delivery check', description: '48 hours after launch: verify links, forms, tracking, ads.' },
-      { label: 'Client notification', description: '"Everything is live. Here\'s your delivery summary."' },
-      { label: 'Update task status', description: 'Move to "Delivered", log completion date.' },
-    ],
-    dataFields: [
-      { key: 'delivery_date', label: 'Delivery date', placeholder: 'Select date', type: 'date' },
-      { key: 'go_live_status', label: 'Go-live status', placeholder: 'Select status', type: 'select', options: ['Not Yet', 'Published', 'Verified'] },
-      { key: 'post_check_status', label: 'Post-delivery check', placeholder: 'Select status', type: 'select', options: ['Pending', 'Done — All Good', 'Done — Issues Found'] },
-    ],
+    substeps: [],
+    dataFields: [],
     conditionalLogic: [
-      { condition: 'Contract = "Monthly retainer"', result: 'Move to Stage 8: Monthly Retainer Cycle' },
-      { condition: 'Contract = "Project"', result: 'Move to Stage 9: Project Wrap-Up' },
+      { condition: 'Hand-over document sent', result: 'Project complete or move to retainer' },
     ],
-    nextActionPrompt: 'Delivery complete and verified. Next: retainer cycle or wrap-up.',
+    nextActionPrompt: 'Create and send the hand-over document to the client.',
   },
   {
     key: 'retainer',
-    num: '9',
+    num: '10',
     name: 'Monthly Retainer Cycle',
     summary: 'End-of-month cycle for retainer clients. Review what was delivered, check performance metrics, confirm scope for next month, verify payment, then kick off the new month\'s work.',
     guide: [
@@ -543,7 +520,7 @@ export const STAGES: StageDefinition[] = [
   },
   {
     key: 'wrapup',
-    num: '10',
+    num: '11',
     name: 'Project Wrap-Up / Offboarding',
     summary: 'Close the project or offboard the client. Confirm all deliverables are handed over, collect feedback, run an internal retro, archive the project, and add the client to the nurture list for future work.',
     guide: [
@@ -579,7 +556,7 @@ export const STAGES: StageDefinition[] = [
 
 export function getActiveStagesForPackage(pkg: string): string[] {
   const core = ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'strategy', 'funnel-strategy', 'implementation-plan']
-  const closing = ['review', 'delivery']
+  const closing = ['internal-check', 'handover']
   const branches = PACKAGE_BRANCHES[pkg] || []
 
   const retainerPackages = ['content-day', 'ads-email-social']
@@ -592,7 +569,7 @@ export function getActiveStagesForPackage(pkg: string): string[] {
 
   // Full Build: funnel map, copy bible, brand bible, production, no retainer
   if (pkg === 'full-build') {
-    return [...core, 'funnel-map', 'copy-bible', 'brand-bible', 'production', ...closing, 'wrapup']
+    return [...core, 'funnel-map', 'copy-bible', 'brand-bible', 'production', 'internal-check', 'handover', 'wrapup']
   }
 
   return [

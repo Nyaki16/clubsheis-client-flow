@@ -3007,6 +3007,440 @@ function ProductionActions({
   )
 }
 
+// ── Internal Check: 2-person QA sign-off ──
+const CHECK_ITEMS = [
+  { key: 'pages_match_copy', label: 'All pages match the approved Copy Bible' },
+  { key: 'brand_consistent', label: 'Brand Bible applied consistently (colours, fonts, logo)' },
+  { key: 'funnel_flow_works', label: 'Funnel flow works end-to-end (every link, button, redirect)' },
+  { key: 'forms_working', label: 'All forms submit correctly and trigger automations' },
+  { key: 'email_sequences', label: 'Email sequences trigger correctly and content matches copy' },
+  { key: 'mobile_responsive', label: 'All pages are mobile responsive' },
+  { key: 'tracking_pixels', label: 'Tracking pixels / analytics installed and firing' },
+  { key: 'payment_links', label: 'Payment links / checkout working (if applicable)' },
+  { key: 'thank_you_pages', label: 'Thank-you / confirmation pages set up correctly' },
+  { key: 'domain_ssl', label: 'Custom domain connected and SSL active' },
+  { key: 'speed_check', label: 'Page load speed acceptable' },
+  { key: 'spelling_grammar', label: 'No spelling or grammar errors' },
+]
+
+function InternalCheckActions({
+  client,
+  fieldValues,
+  onSaveField,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+}) {
+  const reviewer1Name = fieldValues.get('internal-check:reviewer1_name') || ''
+  const reviewer2Name = fieldValues.get('internal-check:reviewer2_name') || ''
+  const reviewer1Signed = fieldValues.get('internal-check:reviewer1_signed') === 'true'
+  const reviewer2Signed = fieldValues.get('internal-check:reviewer2_signed') === 'true'
+  const checkNotes = fieldValues.get('internal-check:check_notes') || ''
+
+  const getCheckValue = (reviewer: 1 | 2, key: string) =>
+    fieldValues.get(`internal-check:r${reviewer}_${key}`) || ''
+
+  const totalChecks = CHECK_ITEMS.length
+  const r1Done = CHECK_ITEMS.filter(c => getCheckValue(1, c.key) === 'pass').length
+  const r2Done = CHECK_ITEMS.filter(c => getCheckValue(2, c.key) === 'pass').length
+  const r1Fails = CHECK_ITEMS.filter(c => getCheckValue(1, c.key) === 'fail').length
+  const r2Fails = CHECK_ITEMS.filter(c => getCheckValue(2, c.key) === 'fail').length
+
+  const bothComplete = r1Done === totalChecks && r2Done === totalChecks && r1Fails === 0 && r2Fails === 0
+
+  const ReviewerColumn = ({ num, name, signed }: { num: 1 | 2; name: string; signed: boolean }) => (
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-2 mb-3">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${signed ? 'bg-green-100 text-green-700' : 'bg-violet-100 text-violet-700'}`}>
+          {num}
+        </div>
+        <div className="flex-1 min-w-0">
+          <input
+            type="text"
+            value={name}
+            onChange={e => onSaveField('internal-check', `reviewer${num}_name`, e.target.value)}
+            placeholder={`Reviewer ${num} name`}
+            className="w-full text-sm font-medium border-b border-stone-200 focus:border-violet-500 outline-none pb-1 bg-transparent"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        {CHECK_ITEMS.map(item => {
+          const val = getCheckValue(num, item.key)
+          return (
+            <div key={item.key} className="flex items-center gap-2 group">
+              <button
+                onClick={() => onSaveField('internal-check', `r${num}_${item.key}`, val === 'pass' ? '' : 'pass')}
+                className={`w-5 h-5 rounded flex-shrink-0 border-2 flex items-center justify-center transition-all ${
+                  val === 'pass' ? 'bg-green-500 border-green-500 text-white' :
+                  val === 'fail' ? 'bg-red-500 border-red-500 text-white' :
+                  'border-stone-300 hover:border-violet-400'
+                }`}
+              >
+                {val === 'pass' && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                {val === 'fail' && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>}
+              </button>
+              <span className={`text-xs flex-1 ${val === 'pass' ? 'text-stone-400 line-through' : val === 'fail' ? 'text-red-600' : 'text-stone-600'}`}>
+                {item.label}
+              </span>
+              {val !== 'fail' && (
+                <button
+                  onClick={() => onSaveField('internal-check', `r${num}_${item.key}`, 'fail')}
+                  className="opacity-0 group-hover:opacity-100 text-[10px] text-red-400 hover:text-red-600 transition-opacity"
+                  title="Flag as failed"
+                >
+                  Flag
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Progress */}
+      <div className="mt-3 pt-3 border-t border-stone-100">
+        <div className="flex items-center justify-between text-xs text-stone-500 mb-1">
+          <span>{r1Done + r2Done > 0 ? (num === 1 ? r1Done : r2Done) : 0}/{totalChecks} passed</span>
+          {(num === 1 ? r1Fails : r2Fails) > 0 && (
+            <span className="text-red-500 font-medium">{num === 1 ? r1Fails : r2Fails} flagged</span>
+          )}
+        </div>
+        <div className="w-full bg-stone-100 rounded-full h-1.5">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{
+              width: `${((num === 1 ? r1Done : r2Done) / totalChecks) * 100}%`,
+              backgroundColor: (num === 1 ? r1Fails : r2Fails) > 0 ? '#ef4444' : '#7c3aed',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Sign-off */}
+      <button
+        onClick={() => onSaveField('internal-check', `reviewer${num}_signed`, signed ? 'false' : 'true')}
+        disabled={!name || (num === 1 ? r1Done : r2Done) < totalChecks || (num === 1 ? r1Fails : r2Fails) > 0}
+        className={`mt-3 w-full text-xs py-2 rounded-lg font-medium transition-all ${
+          signed
+            ? 'bg-green-100 text-green-700 border border-green-200'
+            : name && (num === 1 ? r1Done : r2Done) === totalChecks && (num === 1 ? r1Fails : r2Fails) === 0
+              ? 'bg-violet-600 text-white hover:bg-violet-700'
+              : 'bg-stone-100 text-stone-400 cursor-not-allowed'
+        }`}
+      >
+        {signed ? `Signed off by ${name}` : 'Sign Off'}
+      </button>
+    </div>
+  )
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="bg-white border border-stone-200 rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </div>
+          <div>
+            <h3 className="font-semibold text-stone-800">Internal Quality Check</h3>
+            <p className="text-xs text-stone-500">Two team members must independently verify the entire build</p>
+          </div>
+          {bothComplete && reviewer1Signed && reviewer2Signed && (
+            <span className="ml-auto text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">All Clear</span>
+          )}
+        </div>
+
+        {/* Two reviewer columns */}
+        <div className="flex gap-6">
+          <ReviewerColumn num={1} name={reviewer1Name} signed={reviewer1Signed} />
+          <div className="w-px bg-stone-200" />
+          <ReviewerColumn num={2} name={reviewer2Name} signed={reviewer2Signed} />
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div className="bg-white border border-stone-200 rounded-xl p-5">
+        <h4 className="text-sm font-medium text-stone-700 mb-2">Notes & Issues</h4>
+        <textarea
+          value={checkNotes}
+          onChange={e => onSaveField('internal-check', 'check_notes', e.target.value)}
+          placeholder="Flag any issues, concerns, or things to fix before hand-over..."
+          rows={3}
+          className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/20 bg-white resize-none"
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── Hand Over: Canva document + links summary ──
+const LINK_FIELDS = [
+  { key: 'lead_magnet_url', label: 'Lead Magnet Page', icon: '🧲' },
+  { key: 'oto_url', label: 'One Time Offer Page', icon: '💰' },
+  { key: 'main_product_url', label: 'Main Product / Course Page', icon: '🎓' },
+  { key: 'sales_page_url', label: 'Sales Page', icon: '📄' },
+  { key: 'checkout_url', label: 'Checkout / Payment Link', icon: '💳' },
+  { key: 'email_platform_url', label: 'Email Platform Login', icon: '📧' },
+  { key: 'hosting_url', label: 'Hosting / Systeme.io Login', icon: '🌐' },
+  { key: 'analytics_url', label: 'Analytics Dashboard', icon: '📊' },
+  { key: 'social_accounts', label: 'Social Accounts', icon: '📱' },
+  { key: 'drive_folder_url', label: 'Google Drive Folder', icon: '📁' },
+  { key: 'canva_brand_url', label: 'Canva Brand Kit', icon: '🎨' },
+  { key: 'other_url_1', label: 'Other Link 1', icon: '🔗' },
+  { key: 'other_url_2', label: 'Other Link 2', icon: '🔗' },
+]
+
+function HandOverActions({
+  client,
+  fieldValues,
+  onSaveField,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+}) {
+  const [generatingDoc, setGeneratingDoc] = useState(false)
+  const canvaDocUrl = fieldValues.get('handover:canva_doc_url') || ''
+  const walkthrough = fieldValues.get('handover:walkthrough_scheduled') || ''
+  const handoverNotes = fieldValues.get('handover:notes') || ''
+  const sentToClient = fieldValues.get('handover:sent_to_client') === 'true'
+
+  const filledLinks = LINK_FIELDS.filter(f => fieldValues.get(`handover:${f.key}`)?.trim())
+
+  // Generate handover summary for Canva
+  const generateHandoverContent = () => {
+    const brandName = fieldValues.get('onboarding:brand_name') || fieldValues.get('discovery:brand_name') || client.name || 'Client'
+    const pkg = fieldValues.get('onboarding:package') || client.package || ''
+
+    let content = `HAND-OVER DOCUMENT\n\n`
+    content += `Client: ${brandName}\n`
+    content += `Package: ${pkg}\n`
+    content += `Date: ${new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}\n\n`
+    content += `---\n\n`
+    content += `WHAT WE BUILT\n\n`
+
+    // Pull from stage data
+    const funnelStrategy = fieldValues.get('funnel-strategy:generated_text') || ''
+    if (funnelStrategy) {
+      content += `Funnel Strategy: Completed\n`
+    }
+
+    const copyBibleComplete = fieldValues.get('copy-bible:copy_bible_complete') === 'true'
+    if (copyBibleComplete) content += `Copy Bible: Completed\n`
+
+    const brandBibleComplete = fieldValues.get('brand-bible:brand_bible_complete') === 'true'
+    if (brandBibleComplete) content += `Brand Bible: Completed\n`
+
+    content += `\n---\n\n`
+    content += `ACCESS LINKS\n\n`
+
+    LINK_FIELDS.forEach(f => {
+      const val = fieldValues.get(`handover:${f.key}`)
+      if (val?.trim()) {
+        content += `${f.icon} ${f.label}: ${val}\n`
+      }
+    })
+
+    content += `\n---\n\n`
+    if (handoverNotes) {
+      content += `NOTES\n${handoverNotes}\n\n`
+    }
+    content += `Prepared by ClubSheIs\n`
+    return content
+  }
+
+  const downloadSummaryPdf = () => {
+    const content = generateHandoverContent()
+    const brandName = fieldValues.get('onboarding:brand_name') || client.name || 'Client'
+    const logoUrl = fieldValues.get('brand-bible:logo_url') || ''
+    const primaryColor = fieldValues.get('brand-bible:primary_color') || '#7C3AED'
+    const secondaryColor = fieldValues.get('brand-bible:secondary_color') || '#1e1e1e'
+
+    const linkRows = LINK_FIELDS
+      .filter(f => fieldValues.get(`handover:${f.key}`)?.trim())
+      .map(f => {
+        const val = fieldValues.get(`handover:${f.key}`) || ''
+        return `<tr><td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:13px;">${f.icon} ${f.label}</td><td style="padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:13px;"><a href="${val}" style="color:${primaryColor};word-break:break-all;">${val}</a></td></tr>`
+      }).join('')
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Hand-Over — ${brandName}</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+      * { margin:0; padding:0; box-sizing:border-box; }
+      body { font-family:'Inter',sans-serif; color:${secondaryColor}; padding:40px; max-width:800px; margin:0 auto; }
+      .header { text-align:center; margin-bottom:40px; padding-bottom:30px; border-bottom:3px solid ${primaryColor}; }
+      .logo { max-height:60px; margin-bottom:16px; }
+      h1 { font-size:28px; color:${primaryColor}; margin-bottom:8px; }
+      .meta { font-size:13px; color:#666; }
+      h2 { font-size:18px; color:${primaryColor}; margin:30px 0 16px; padding-bottom:8px; border-bottom:2px solid ${primaryColor}20; }
+      table { width:100%; border-collapse:collapse; }
+      .section { margin-bottom:24px; }
+      .notes { background:#f8f8f8; border-radius:8px; padding:16px; font-size:13px; line-height:1.6; white-space:pre-wrap; }
+      .footer { margin-top:40px; padding-top:20px; border-top:2px solid #eee; text-align:center; font-size:11px; color:#999; }
+    </style>
+    </head><body>
+    <div class="header">
+      ${logoUrl ? `<img src="${logoUrl}" class="logo" alt="Logo">` : ''}
+      <h1>Hand-Over Document</h1>
+      <div class="meta">${brandName} &bull; ${new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+    </div>
+
+    <h2>What We Built</h2>
+    <div class="section">
+      <table>
+        ${fieldValues.get('funnel-strategy:generated_text') ? '<tr><td style="padding:8px 0;font-size:14px;">Funnel Strategy</td><td style="padding:8px 0;font-size:14px;color:green;">Complete</td></tr>' : ''}
+        ${fieldValues.get('copy-bible:copy_bible_complete') === 'true' ? '<tr><td style="padding:8px 0;font-size:14px;">Copy Bible</td><td style="padding:8px 0;font-size:14px;color:green;">Complete</td></tr>' : ''}
+        ${fieldValues.get('brand-bible:brand_bible_complete') === 'true' ? '<tr><td style="padding:8px 0;font-size:14px;">Brand Bible</td><td style="padding:8px 0;font-size:14px;color:green;">Complete</td></tr>' : ''}
+      </table>
+    </div>
+
+    <h2>Access Links</h2>
+    <div class="section">
+      <table>${linkRows || '<tr><td style="padding:10px;font-size:13px;color:#999;">No links added yet</td></tr>'}</table>
+    </div>
+
+    ${handoverNotes ? `<h2>Notes</h2><div class="notes">${handoverNotes}</div>` : ''}
+
+    <div class="footer">Prepared by ClubSheIs &bull; ${new Date().getFullYear()}</div>
+
+    <script>window.onload=function(){setTimeout(function(){window.print();},500);}</script>
+    </body></html>`
+
+    const w = window.open('', '_blank')
+    if (w) { w.document.write(html); w.document.close() }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Links Section */}
+      <div className="bg-white border border-stone-200 rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+          </div>
+          <div>
+            <h3 className="font-semibold text-stone-800">Client Access Links</h3>
+            <p className="text-xs text-stone-500">All the links the client needs to access their build</p>
+          </div>
+          <span className="ml-auto text-xs text-stone-400">{filledLinks.length}/{LINK_FIELDS.length} added</span>
+        </div>
+
+        <div className="space-y-2">
+          {LINK_FIELDS.map(field => (
+            <div key={field.key} className="flex items-center gap-2">
+              <span className="text-base w-6 text-center flex-shrink-0">{field.icon}</span>
+              <label className="text-xs text-stone-500 w-36 flex-shrink-0">{field.label}</label>
+              <input
+                type="url"
+                value={fieldValues.get(`handover:${field.key}`) || ''}
+                onChange={e => onSaveField('handover', field.key, e.target.value)}
+                placeholder="https://..."
+                className="flex-1 border border-stone-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 bg-white"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Canva Document */}
+      <div className="bg-white border border-stone-200 rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          </div>
+          <div>
+            <h3 className="font-semibold text-stone-800">Hand-Over Document</h3>
+            <p className="text-xs text-stone-500">Create in Canva using the client&apos;s brand, or download a PDF summary</p>
+          </div>
+        </div>
+
+        {/* Canva URL */}
+        <div className="mb-3">
+          <label className="text-xs font-medium text-stone-600 mb-1 block">Canva Document URL</label>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={canvaDocUrl}
+              onChange={e => onSaveField('handover', 'canva_doc_url', e.target.value)}
+              placeholder="Paste your Canva hand-over document link..."
+              className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 bg-white"
+            />
+            {canvaDocUrl && (
+              <a
+                href={canvaDocUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 bg-teal-50 text-teal-700 rounded-lg text-sm font-medium hover:bg-teal-100 transition-colors flex items-center gap-1"
+              >
+                Open in Canva
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* Download PDF */}
+        <button
+          onClick={downloadSummaryPdf}
+          className="w-full py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg text-sm font-medium hover:from-green-700 hover:to-emerald-700 transition-all flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          Download Hand-Over PDF
+        </button>
+      </div>
+
+      {/* Notes & Walkthrough */}
+      <div className="bg-white border border-stone-200 rounded-xl p-5">
+        <h4 className="text-sm font-medium text-stone-700 mb-2">Hand-Over Notes</h4>
+        <textarea
+          value={handoverNotes}
+          onChange={e => onSaveField('handover', 'notes', e.target.value)}
+          placeholder="Instructions, passwords (non-sensitive), next steps, things the client needs to know..."
+          rows={3}
+          className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 bg-white resize-none mb-3"
+        />
+
+        <div className="flex items-center gap-3">
+          <label className="text-xs text-stone-600">Walkthrough call:</label>
+          <select
+            value={walkthrough}
+            onChange={e => onSaveField('handover', 'walkthrough_scheduled', e.target.value)}
+            className="text-sm border border-stone-200 rounded-lg px-3 py-1.5 bg-white text-stone-600"
+          >
+            <option value="">Not scheduled</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="completed">Completed</option>
+            <option value="not-needed">Not needed</option>
+          </select>
+        </div>
+
+        {/* Sent to client */}
+        <div className="mt-4 pt-4 border-t border-stone-100">
+          <button
+            onClick={() => onSaveField('handover', 'sent_to_client', sentToClient ? 'false' : 'true')}
+            className={`w-full py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+              sentToClient
+                ? 'bg-green-100 text-green-700 border border-green-200'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+          >
+            {sentToClient ? (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                Hand-Over Sent to Client
+              </>
+            ) : (
+              'Mark as Sent to Client'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const STAGE_LABELS: Record<string, { label: string; color: string; bg: string; border: string }> = {
   awareness: { label: 'Awareness', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
   engagement: { label: 'Engagement', color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
@@ -3963,7 +4397,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
             'strategy': { label: 'Planning & Strategy', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
             'funnel-map': { label: 'Pre-Production', color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
             'production': { label: 'Production', color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
-            'review': { label: 'Delivery and Hand Over', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
+            'internal-check': { label: 'Delivery and Hand Over', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
           }
           const phase = PHASES[stage.key]
           const stageIdx = activeStageKeys.indexOf(stage.key)
@@ -4074,9 +4508,21 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       fieldValues={fieldValues}
                       onSaveField={handleSaveField}
                     />
+                  ) : stage.key === 'internal-check' ? (
+                    <InternalCheckActions
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                    />
+                  ) : stage.key === 'handover' ? (
+                    <HandOverActions
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                    />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'production'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'production' || stage.key === 'internal-check' || stage.key === 'handover'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">
