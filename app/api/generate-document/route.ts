@@ -454,11 +454,11 @@ export async function POST(req: NextRequest) {
     let userMessage = `CLIENT: ${clientName} (${brandName || 'No brand name'})\n\nSTRATEGY SESSION TRANSCRIPT:\n${(transcript || '').slice(0, transcriptLimit)}`
 
     if (documentType === 'research-bible' && clientProfile) {
-      userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 6000)}`
+      userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 15000)}`
     }
     if (documentType === 'brand-voice') {
-      if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 2000)}`
-      if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 3000)}`
+      if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 10000)}`
+      if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
     }
 
     // Use streaming to avoid Vercel Edge timeout (25s)
@@ -471,7 +471,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : 8192,
+        max_tokens: documentType === 'brand-voice' ? 4000 : 16000,
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),
