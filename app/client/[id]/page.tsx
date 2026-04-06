@@ -844,11 +844,28 @@ function StrategyActions({
     const key = docType === 'client-profile' ? 'client_profile_approved'
       : docType === 'research-bible' ? 'research_bible_approved'
       : 'brand_voice_approved'
+    const textKey = docType === 'client-profile' ? 'client_profile_text'
+      : docType === 'research-bible' ? 'research_bible_text'
+      : 'brand_voice_text'
     const docName = docType === 'client-profile' ? 'Client Profile'
       : docType === 'research-bible' ? 'Research Bible'
       : 'Brand Voice'
+    const text = fieldValues.get(`strategy:${textKey}`) || ''
     await onSaveField('strategy', key, 'true')
-    alert(`${docName} approved! ✅\n\nNext step: Copy the document text and save it to Google Drive in the client's folder.`)
+
+    // Copy content to clipboard and open new Google Doc
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch { /* clipboard may fail silently */ }
+    window.open('https://docs.google.com/document/create', '_blank')
+    alert(`${docName} approved! ✅\n\nA new Google Doc has been opened.\nThe content has been copied to your clipboard — paste it into the doc.\n\nName the doc: ${client.name}_${docName.replace(/\s+/g, '')}\nSave it in the client's Google Drive folder.`)
+  }
+
+  const handleUnapprove = async (docType: string) => {
+    const key = docType === 'client-profile' ? 'client_profile_approved'
+      : docType === 'research-bible' ? 'research_bible_approved'
+      : 'brand_voice_approved'
+    await onSaveField('strategy', key, 'false')
   }
 
   const handleEdit = (docType: string, text: string) => {
@@ -957,35 +974,43 @@ function StrategyActions({
                 <div className="bg-white border border-stone-200 rounded-lg p-3 max-h-64 overflow-y-auto">
                   <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed">{
                     doc.text.split('\n').map((line, i) => {
-                      if (line.includes('GAP:')) {
+                      if (line.includes('GAP:') || line.includes('[ASSUMPTION:')) {
                         return <span key={i} className="bg-yellow-200 text-yellow-900 px-1 rounded">{line}{'\n'}</span>
                       }
                       return <span key={i}>{line}{'\n'}</span>
                     })
                   }</pre>
                 </div>
-                {!doc.approved && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEdit(doc.key, doc.text)}
-                      className="flex-1 bg-white border border-stone-300 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors cursor-pointer"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleGenerate(doc.key)}
-                      className="flex-1 bg-white border border-purple-300 text-purple-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-50 transition-colors cursor-pointer"
-                    >
-                      Regenerate
-                    </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(doc.key, doc.text)}
+                    className="flex-1 bg-white border border-stone-300 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleGenerate(doc.key)}
+                    disabled={isGenerating}
+                    className="flex-1 bg-white border border-purple-300 text-purple-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-50 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isGenerating ? 'Generating...' : 'Regenerate'}
+                  </button>
+                  {!doc.approved ? (
                     <button
                       onClick={() => handleApprove(doc.key)}
                       className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
                     >
                       Approve & Save to Drive ✓
                     </button>
-                  </div>
-                )}
+                  ) : (
+                    <button
+                      onClick={() => handleUnapprove(doc.key)}
+                      className="flex-1 bg-white border border-amber-300 text-amber-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-50 transition-colors cursor-pointer"
+                    >
+                      Unapprove
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
