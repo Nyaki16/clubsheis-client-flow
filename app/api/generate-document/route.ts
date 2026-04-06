@@ -784,6 +784,9 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok) {
       const errText = await res.text()
+      if (res.status === 429) {
+        return Response.json({ error: 'Slow down! Only generate one item at a time. Wait a moment before trying again.' }, { status: 429 })
+      }
       return Response.json({ error: `Anthropic API error (${res.status}): ${errText.slice(0, 300)}` }, { status: 502 })
     }
 
