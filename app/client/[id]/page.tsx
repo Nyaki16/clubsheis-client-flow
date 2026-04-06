@@ -1892,9 +1892,9 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
   const stageKeyMap: Record<string, string> = { 'page-build': 'copy-bible' }
   let resolvedStage = stageKeyMap[client.current_stage] || client.current_stage
 
-  // If the stage doesn't exist in active stages, reset to the first active stage
+  // If the stage doesn't exist in active stages, reset to Implementation Plan
   if (!activeStageKeys.includes(resolvedStage)) {
-    resolvedStage = activeStageKeys[0] || 'discovery'
+    resolvedStage = 'implementation-plan'
   }
 
   const currentIdx = activeStageKeys.indexOf(resolvedStage)
