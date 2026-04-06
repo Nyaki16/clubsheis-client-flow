@@ -1890,11 +1890,17 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
 
   // Handle legacy stage keys that were renamed
   const stageKeyMap: Record<string, string> = { 'page-build': 'copy-bible' }
-  const resolvedStage = stageKeyMap[client.current_stage] || client.current_stage
+  let resolvedStage = stageKeyMap[client.current_stage] || client.current_stage
+
+  // If the stage doesn't exist in active stages, reset to the first active stage
+  if (!activeStageKeys.includes(resolvedStage)) {
+    resolvedStage = activeStageKeys[0] || 'discovery'
+  }
+
   const currentIdx = activeStageKeys.indexOf(resolvedStage)
 
-  // If the stored stage was renamed, update it in the DB
-  if (resolvedStage !== client.current_stage && currentIdx >= 0) {
+  // If the stored stage needs updating, update it in the DB
+  if (resolvedStage !== client.current_stage) {
     updateClient(client.id, { current_stage: resolvedStage } as Partial<Client>)
     setClient(prev => prev ? { ...prev, current_stage: resolvedStage } : prev)
   }
