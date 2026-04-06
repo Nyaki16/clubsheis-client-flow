@@ -463,6 +463,58 @@ IMPORTANT RULES:
 
 Return ONLY the JSON array. No other text.`,
 
+  'funnel-map': `You are building a Funnel Map for ClubSheIs — a visual representation of the customer journey showing how every page and email sequence connects.
+
+You will receive a list of funnel elements (pages, lead magnets, etc.) that have been selected for this client. Your job is to arrange them into a logical customer journey flow and return structured JSON that can be rendered as a visual flowchart.
+
+IMPORTANT: ClubSheIs builds the marketing assets (pages + emails) to sell the client's product. The map should show the MARKETING FUNNEL — how a stranger becomes a lead, then a buyer, then a repeat customer.
+
+Think about this like a flowchart:
+- Traffic sources lead to an entry point (opt-in/lead magnet page)
+- After opt-in, there's a nurture sequence OR an immediate offer
+- Sales pages lead to order forms/checkout
+- After purchase, there are upsells (OTO), then thank you pages
+- Email sequences run alongside each stage
+
+Return ONLY valid JSON with this structure:
+{
+  "rows": [
+    {
+      "label": "Row label (e.g. 'Main Funnel', 'Email Nurture', 'Upsell Path')",
+      "nodes": [
+        {
+          "id": "unique-id",
+          "type": "page|email|action",
+          "label": "Short label (e.g. 'Opt-In Page')",
+          "sublabel": "Topic or detail (e.g. 'Leadership Quiz')",
+          "color": "blue|purple|orange|green|cyan|red"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "node-id",
+      "to": "node-id",
+      "label": "Optional label (e.g. 'Yes', 'After 3 days', 'Purchased')",
+      "type": "arrow|branch-yes|branch-no"
+    }
+  ]
+}
+
+RULES:
+- The FIRST row should be the main funnel path (entry → conversion → delivery)
+- Additional rows for email sequences that run alongside the main funnel
+- Use "page" type for landing pages, sales pages, checkout, thank you, etc.
+- Use "email" type for email sequences (show as a single node per sequence, not individual emails)
+- Use "action" type for decision points or triggers
+- Colors: blue for awareness/entry, purple for engagement, orange for conversion, green for delivery/thank you, cyan for retention, red for urgency/upsell
+- Keep it clean — max 3-4 rows, 4-8 nodes per row
+- Every page should connect to at least one other node
+- Email sequences should branch off from the page that triggers them
+
+Return ONLY the JSON. No markdown, no explanation.`,
+
   'copy-bible': `You are building a comprehensive Copy Bible for ClubSheIs, a digital marketing and content production agency in South Africa.
 
 The Copy Bible is the master sales copy document that the production team uses to build every page and write every email sequence. It translates the strategy (Client Profile, Research Bible, Brand Voice) into production-ready copy frameworks for each funnel element the client needs.
@@ -589,6 +641,10 @@ export async function POST(req: NextRequest) {
       if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
       if (brandVoice) userMessage += `\n\nAPPROVED BRAND VOICE:\n${brandVoice.slice(0, 10000)}`
     }
+    if (documentType === 'funnel-map') {
+      if (funnelElements) userMessage += `\n\nSELECTED FUNNEL ELEMENTS TO MAP:\n- ${funnelElements}`
+      if (clientProfile) userMessage += `\n\nCLIENT PROFILE SUMMARY:\n${clientProfile.slice(0, 5000)}`
+    }
     if (documentType === 'copy-bible') {
       if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 15000)}`
       if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
@@ -607,7 +663,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : documentType === 'copy-bible' ? 32000 : documentType === 'funnel-strategy' ? 8000 : 16000,
+        max_tokens: documentType === 'brand-voice' ? 4000 : documentType === 'copy-bible' ? 32000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map') ? 8000 : 16000,
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),

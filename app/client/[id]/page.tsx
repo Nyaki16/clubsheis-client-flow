@@ -1391,8 +1391,293 @@ function ImplementationPlanActions({
           onClick={onAdvance}
           className="w-full bg-green-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
         >
-          Confirm Implementation Plan & Move to Copy Bible →
+          Confirm Implementation Plan & Move to Funnel Map →
         </button>
+      )}
+    </div>
+  )
+}
+
+// ── Funnel Map Actions — Visual customer journey flowchart ──
+type FunnelMapNode = { id: string; type: string; label: string; sublabel: string; color: string }
+type FunnelMapRow = { label: string; nodes: FunnelMapNode[] }
+type FunnelMapConnection = { from: string; to: string; label?: string; type: string }
+type FunnelMapData = { rows: FunnelMapRow[]; connections: FunnelMapConnection[] }
+
+const NODE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
+  blue: { bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-800' },
+  purple: { bg: 'bg-purple-50', border: 'border-purple-300', text: 'text-purple-800' },
+  orange: { bg: 'bg-orange-50', border: 'border-orange-300', text: 'text-orange-800' },
+  green: { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-800' },
+  cyan: { bg: 'bg-cyan-50', border: 'border-cyan-300', text: 'text-cyan-800' },
+  red: { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-800' },
+}
+
+function FunnelMapActions({
+  client,
+  fieldValues,
+  onSaveField,
+  onAdvance,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+  onAdvance: () => void
+}) {
+  const [generating, setGenerating] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editJson, setEditJson] = useState('')
+  const mapRef = { current: null as HTMLDivElement | null }
+
+  const savedMapRaw = fieldValues.get('funnel-map:funnel_map_json') || ''
+  let mapData: FunnelMapData | null = null
+  try { if (savedMapRaw) mapData = JSON.parse(savedMapRaw) } catch {}
+
+  // Get funnel elements for context
+  const funnelStrategyJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
+  const funnelSelectionsRaw = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
+  const implExtrasRaw = fieldValues.get('implementation-plan:extra_elements') || '[]'
+  const profileText = fieldValues.get('strategy:client_profile_text') || ''
+
+  let funnelElementsList: string[] = []
+  try {
+    const allElements: FunnelElement[] = funnelStrategyJson ? JSON.parse(funnelStrategyJson) : []
+    const selectedIndices: number[] = JSON.parse(funnelSelectionsRaw)
+    funnelElementsList = selectedIndices.map(i => allElements[i]).filter(Boolean).map(el => `${el.type}: ${el.topic}`)
+  } catch {}
+  try {
+    const extras: { type: string; topic: string }[] = JSON.parse(implExtrasRaw)
+    for (const ex of extras) funnelElementsList.push(`${ex.type}: ${ex.topic}`)
+  } catch {}
+
+  const handleGenerate = async () => {
+    if (funnelElementsList.length === 0) {
+      alert('No funnel elements found. Complete the Funnel Strategy and Implementation Plan first.')
+      return
+    }
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/generate-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentType: 'funnel-map',
+          clientName: client.name,
+          brandName: client.brand,
+          funnelElements: funnelElementsList.join('\n- '),
+          clientProfile: profileText,
+        }),
+      })
+
+      if (!res.ok) {
+        const errText = await res.text()
+        let errMsg = errText
+        try { errMsg = JSON.parse(errText).error } catch {}
+        alert(`Error: ${errMsg}`)
+        setGenerating(false)
+        return
+      }
+
+      const reader = res.body?.getReader()
+      if (!reader) { alert('No response stream'); setGenerating(false); return }
+      const decoder = new TextDecoder()
+      let fullText = ''
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith('data: ')) {
+            const data = trimmed.slice(6)
+            if (data === '[DONE]') continue
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
+            } catch {}
+          }
+        }
+      }
+      if (buffer.trim().startsWith('data: ')) {
+        try {
+          const parsed = JSON.parse(buffer.trim().slice(6))
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
+        } catch {}
+      }
+
+      if (fullText) {
+        let jsonStr = fullText.trim()
+        if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+        try {
+          const parsed = JSON.parse(jsonStr)
+          if (parsed.rows) {
+            await onSaveField('funnel-map', 'funnel_map_json', JSON.stringify(parsed))
+          } else {
+            alert('AI response was not a valid funnel map. Please try again.')
+          }
+        } catch {
+          console.error('Failed to parse funnel map JSON:', jsonStr.slice(0, 200))
+          alert('Could not parse funnel map. Please try regenerating.')
+        }
+      }
+    } catch (err) {
+      alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}`)
+    }
+    setGenerating(false)
+  }
+
+  const handleEdit = () => {
+    setEditJson(JSON.stringify(mapData, null, 2))
+    setEditing(true)
+  }
+
+  const handleSaveEdit = async () => {
+    try {
+      const parsed = JSON.parse(editJson)
+      if (parsed.rows) {
+        await onSaveField('funnel-map', 'funnel_map_json', JSON.stringify(parsed))
+        setEditing(false)
+      } else {
+        alert('Invalid format — needs "rows" and "connections" fields.')
+      }
+    } catch {
+      alert('Invalid JSON. Please fix the syntax and try again.')
+    }
+  }
+
+  const handleDownloadPDF = () => {
+    const el = document.getElementById('funnel-map-render')
+    if (!el) return
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) { alert('Please allow popups to download the PDF.'); return }
+    printWindow.document.write(`
+      <html><head><title>${client.name} — Funnel Map</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 40px; background: white; }
+        .map-title { font-size: 24px; font-weight: bold; margin-bottom: 8px; }
+        .map-subtitle { font-size: 14px; color: #666; margin-bottom: 30px; }
+        .row { margin-bottom: 24px; }
+        .row-label { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 8px; }
+        .nodes { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .node { border: 2px solid #ddd; border-radius: 10px; padding: 12px 16px; min-width: 140px; text-align: center; }
+        .node-label { font-size: 13px; font-weight: 700; }
+        .node-sublabel { font-size: 11px; color: #666; margin-top: 2px; }
+        .node-type { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #999; }
+        .arrow { font-size: 20px; color: #ccc; }
+        .node-page { border-color: #7C3AED; background: #F5F3FF; }
+        .node-email { border-color: #8B5CF6; background: #FDF4FF; }
+        .node-action { border-color: #F59E0B; background: #FFFBEB; }
+        @media print { body { padding: 20px; } }
+      </style></head><body>
+      <div class="map-title">${client.name} — Funnel Map</div>
+      <div class="map-subtitle">${client.brand || ''} • Customer Journey Flow</div>
+      ${el.innerHTML}
+      <script>window.print();window.close();</script>
+      </body></html>
+    `)
+    printWindow.document.close()
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Generate / Regenerate */}
+      {!generating && (
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={funnelElementsList.length === 0}
+          className={`w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+            mapData ? 'bg-white border border-purple-300 text-purple-700 hover:bg-purple-50' : 'bg-purple-600 text-white hover:bg-purple-700'
+          }`}
+        >
+          {mapData ? 'Regenerate Funnel Map' : funnelElementsList.length === 0 ? 'Complete Implementation Plan first' : 'Generate Funnel Map'}
+        </button>
+      )}
+      {generating && (
+        <div className="text-center py-4">
+          <p className="text-sm text-purple-600 animate-pulse">Generating funnel map from your implementation plan...</p>
+        </div>
+      )}
+
+      {/* Visual map render */}
+      {mapData && !editing && (
+        <div className="space-y-3">
+          <div
+            id="funnel-map-render"
+            ref={(el) => { mapRef.current = el }}
+            className="bg-white border border-purple-200 rounded-xl p-5 overflow-x-auto"
+          >
+            {mapData.rows.map((row, ri) => (
+              <div key={ri} className="mb-5 last:mb-0">
+                <div className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-2">{row.label}</div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {row.nodes.map((node, ni) => {
+                    const colors = NODE_COLORS[node.color] || NODE_COLORS.purple
+                    const typeIcon = node.type === 'email' ? '✉' : node.type === 'action' ? '⚡' : '📄'
+                    return (
+                      <div key={node.id} className="flex items-center gap-3">
+                        <div className={`${colors.bg} ${colors.border} border-2 rounded-xl px-4 py-3 min-w-[150px] text-center`}>
+                          <div className="text-xs font-bold text-stone-400 uppercase tracking-wider">{typeIcon} {node.type}</div>
+                          <div className={`text-sm font-bold ${colors.text} mt-0.5`}>{node.label}</div>
+                          {node.sublabel && <div className="text-xs text-stone-500 mt-0.5">{node.sublabel}</div>}
+                        </div>
+                        {ni < row.nodes.length - 1 && (
+                          <div className="text-stone-300 text-lg font-bold flex-shrink-0">→</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            <button onClick={handleEdit} className="flex-1 bg-white border border-stone-300 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-stone-50 cursor-pointer">
+              Edit Map
+            </button>
+            <button onClick={handleGenerate} disabled={generating} className="flex-1 bg-white border border-purple-300 text-purple-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-50 cursor-pointer disabled:opacity-50">
+              Regenerate
+            </button>
+            <button onClick={handleDownloadPDF} className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-purple-700 cursor-pointer">
+              Download PDF
+            </button>
+          </div>
+
+          {/* Confirm */}
+          <button
+            type="button"
+            onClick={onAdvance}
+            className="w-full bg-green-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
+          >
+            Confirm Funnel Map & Move to Copy Bible →
+          </button>
+        </div>
+      )}
+
+      {/* Edit mode */}
+      {editing && (
+        <div className="space-y-2">
+          <p className="text-xs text-stone-500">Edit the JSON structure below. Each row has nodes (pages/emails), and connections show the flow between them.</p>
+          <textarea
+            value={editJson}
+            onChange={(e) => setEditJson(e.target.value)}
+            className="w-full border border-purple-300 rounded-lg p-3 text-xs text-stone-700 font-mono leading-relaxed min-h-[300px] focus:outline-none focus:ring-2 focus:ring-purple-400"
+          />
+          <div className="flex gap-2">
+            <button onClick={() => setEditing(false)} className="flex-1 bg-white border border-stone-300 text-stone-600 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
+              Cancel
+            </button>
+            <button onClick={handleSaveEdit} className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-purple-700 cursor-pointer">
+              Save Changes
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -2731,6 +3016,13 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       onSaveField={handleSaveField}
                       onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
                     />
+                  ) : stage.key === 'funnel-map' ? (
+                    <FunnelMapActions
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                      onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
+                    />
                   ) : stage.key === 'copy-bible' ? (
                     <CopyBibleActions
                       client={client}
@@ -2739,7 +3031,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                     />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'copy-bible'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">

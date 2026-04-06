@@ -17,10 +17,10 @@ export const ADS_EMAIL_SOCIAL_TRACKS = [
 
 export const PACKAGE_BRANCHES: Record<string, string[]> = {
   'ghutte-only': [],
-  'page-build': ['copy-bible'],
-  'content-day': ['copy-bible', 'content-production'],
-  'ads-email-social': ['copy-bible', 'ads-email-social'],
-  'full-build': ['copy-bible'],
+  'page-build': ['funnel-map', 'copy-bible'],
+  'content-day': ['funnel-map', 'copy-bible', 'content-production'],
+  'ads-email-social': ['funnel-map', 'copy-bible', 'ads-email-social'],
+  'full-build': ['funnel-map', 'copy-bible'],
 }
 
 export const STAGES: StageDefinition[] = [
@@ -206,6 +206,29 @@ export const STAGES: StageDefinition[] = [
       { condition: 'Implementation plan confirmed', result: 'Move to Copy Bible stage' },
     ],
     nextActionPrompt: 'Review the funnel elements, add any extras, then confirm and move to the Copy Bible.',
+  },
+  {
+    key: 'funnel-map',
+    num: '5B',
+    name: 'Funnel Map',
+    summary: 'A visual map of the customer journey showing how every page and email sequence connects. Review the flow, edit if needed, then download as a PDF for the production team.',
+    color: '#7C3AED',
+    colorSoft: 'rgba(124,58,237,0.06)',
+    triggerLabel: 'Trigger: Implementation Plan confirmed',
+    triggerColor: 'purple',
+    guide: [
+      'The funnel map is auto-generated from the Implementation Plan elements.',
+      'It shows the customer journey: traffic → entry point → nurture → conversion → delivery.',
+      'Each page shows its connected email sequence below it.',
+      'Edit the map if connections are wrong or elements are in the wrong order.',
+      'Download as PDF once confirmed — the production team uses this as the build reference.',
+    ],
+    substeps: [],
+    dataFields: [],
+    conditionalLogic: [
+      { condition: 'Funnel Map confirmed', result: 'Move to Stage 6: Copy Bible' },
+    ],
+    nextActionPrompt: 'Generate the funnel map, review the flow, then confirm and move to the Copy Bible.',
   },
   {
     key: 'copy-bible',
@@ -522,9 +545,9 @@ export function getActiveStagesForPackage(pkg: string): string[] {
     return [...core, ...closing, 'wrapup']
   }
 
-  // Full Build: copy bible, no retainer
+  // Full Build: funnel map, copy bible, no retainer
   if (pkg === 'full-build') {
-    return [...core, 'copy-bible', ...closing, 'wrapup']
+    return [...core, 'funnel-map', 'copy-bible', ...closing, 'wrapup']
   }
 
   return [
