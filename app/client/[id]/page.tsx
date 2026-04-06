@@ -1189,6 +1189,281 @@ function StrategyActions({
   )
 }
 
+// ── Copy Bible Actions — Generate copy for all funnel elements ──
+function CopyBibleActions({
+  client,
+  fieldValues,
+  onSaveField,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+}) {
+  const [generating, setGenerating] = useState(false)
+  const [editingDoc, setEditingDoc] = useState(false)
+  const [editText, setEditText] = useState('')
+  const [savingToDrive, setSavingToDrive] = useState(false)
+
+  const copyText = fieldValues.get('copy-bible:copy_bible_text') || ''
+  const copyApproved = fieldValues.get('copy-bible:copy_bible_approved') === 'true'
+  const copyDocUrl = fieldValues.get('copy-bible:copy_bible_doc_url') || ''
+
+  // Get all context from previous stages
+  const transcript = fieldValues.get('strategy:session_transcript') || ''
+  const profileText = fieldValues.get('strategy:client_profile_text') || ''
+  const bibleText = fieldValues.get('strategy:research_bible_text') || ''
+  const voiceText = fieldValues.get('strategy:brand_voice_text') || ''
+  const funnelElementsRaw = fieldValues.get('implementation-plan:funnel_elements') || '[]'
+  let funnelElements: string[] = []
+  try { funnelElements = JSON.parse(funnelElementsRaw) } catch {}
+
+  const handleGenerate = async () => {
+    if (funnelElements.length === 0) {
+      alert('No funnel elements selected. Go back to the Implementation Plan stage and select the elements you need.')
+      return
+    }
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/generate-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentType: 'copy-bible',
+          clientName: client.name,
+          brandName: client.brand,
+          transcript,
+          clientProfile: profileText,
+          researchBible: bibleText,
+          brandVoice: voiceText,
+          funnelElements: funnelElements.join('\n- '),
+        }),
+      })
+
+      if (!res.ok) {
+        const errText = await res.text()
+        let errMsg = errText
+        try { errMsg = JSON.parse(errText).error } catch {}
+        alert(`Error: ${errMsg}`)
+        setGenerating(false)
+        return
+      }
+
+      const reader = res.body?.getReader()
+      if (!reader) { alert('No response stream'); setGenerating(false); return }
+      const decoder = new TextDecoder()
+      let fullText = ''
+      let buffer = ''
+      let stopReason = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith('data: ')) {
+            const data = trimmed.slice(6)
+            if (data === '[DONE]') continue
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                fullText += parsed.delta.text
+              }
+              if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
+                stopReason = parsed.delta.stop_reason
+              }
+            } catch {}
+          }
+        }
+      }
+      if (buffer.trim().startsWith('data: ')) {
+        try {
+          const parsed = JSON.parse(buffer.trim().slice(6))
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
+          if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) stopReason = parsed.delta.stop_reason
+        } catch {}
+      }
+      if (stopReason === 'max_tokens') {
+        fullText += '\n\n⚠️ OUTPUT WAS TRUNCATED — document exceeded token limit. Please regenerate or edit manually.'
+      }
+
+      if (fullText) {
+        await onSaveField('copy-bible', 'copy_bible_text', fullText)
+      } else {
+        alert('Error: No content was generated. Please try again.')
+      }
+    } catch (err) {
+      alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}. Please try again.`)
+    }
+    setGenerating(false)
+  }
+
+  const handleApprove = async () => {
+    setSavingToDrive(true)
+    const content = copyText
+    const title = `${client.name}_CopyBible`
+    const scriptUrl = process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL
+
+    if (scriptUrl) {
+      try {
+        const form = document.createElement('form')
+        form.method = 'POST'
+        form.action = scriptUrl
+        form.target = '_blank'
+        const addField = (name: string, value: string) => {
+          const input = document.createElement('input')
+          input.type = 'hidden'
+          input.name = name
+          input.value = value
+          form.appendChild(input)
+        }
+        addField('title', title)
+        addField('content', content)
+        document.body.appendChild(form)
+        form.submit()
+        document.body.removeChild(form)
+      } catch {
+        await navigator.clipboard.writeText(content)
+        window.open('https://docs.google.com/document/create', '_blank')
+        alert(`Could not connect to Google Docs.\n\nContent copied to clipboard — paste into the new doc.\nName it: ${title}`)
+      }
+    } else {
+      await navigator.clipboard.writeText(content)
+      window.open('https://docs.google.com/document/create', '_blank')
+      alert(`Could not auto-create Google Doc (GOOGLE_APPS_SCRIPT_URL not set).\n\nContent has been copied to your clipboard — paste it into the new doc.\nName it: ${title}`)
+    }
+
+    await onSaveField('copy-bible', 'copy_bible_approved', 'true')
+    setSavingToDrive(false)
+  }
+
+  const handleUnapprove = async () => {
+    await onSaveField('copy-bible', 'copy_bible_approved', 'false')
+  }
+
+  const handleEdit = () => {
+    setEditText(copyText)
+    setEditingDoc(true)
+  }
+
+  const handleSaveEdit = async () => {
+    await onSaveField('copy-bible', 'copy_bible_text', editText)
+    setEditingDoc(false)
+    setEditText('')
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Funnel elements summary */}
+      {funnelElements.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-2">Funnel Elements to Cover</h4>
+          <div className="flex flex-wrap gap-1.5">
+            {funnelElements.map((el, i) => (
+              <span key={i} className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded font-medium">{el}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Copy Bible document */}
+      <div className={`rounded-lg border p-4 space-y-3 ${
+        copyApproved ? 'bg-green-50 border-green-200' : 'bg-white border-orange-200'
+      }`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+              copyApproved ? 'bg-green-500 text-white' : copyText ? 'bg-orange-500 text-white' : 'bg-stone-300 text-white'
+            }`}>
+              {copyApproved ? '✓' : '📝'}
+            </span>
+            <h4 className="text-sm font-bold text-stone-800">Copy Bible</h4>
+          </div>
+          <div className="flex items-center gap-2">
+            {copyApproved && copyDocUrl && (
+              <a href={copyDocUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-600 hover:text-blue-800 underline">
+                Open in Drive
+              </a>
+            )}
+            {copyApproved && <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
+          </div>
+        </div>
+        <p className="text-xs text-stone-500">Production-ready sales copy for every funnel element — pages, email sequences, CTAs, and headlines.</p>
+
+        {/* Generate button */}
+        {!copyText && !generating && (
+          <button
+            onClick={handleGenerate}
+            disabled={funnelElements.length === 0}
+            className="w-full bg-orange-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-orange-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {funnelElements.length === 0 ? 'Select funnel elements in Implementation Plan first' : 'Generate Copy Bible'}
+          </button>
+        )}
+        {generating && (
+          <div className="text-center py-3">
+            <p className="text-sm text-orange-600 animate-pulse">Generating Copy Bible... this may take a minute.</p>
+          </div>
+        )}
+
+        {/* Content display */}
+        {copyText && !editingDoc && (
+          <div className="space-y-2">
+            <div className="bg-white border border-stone-200 rounded-lg p-3 max-h-64 overflow-y-auto">
+              <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed">{
+                copyText.split('\n').map((line, i) => {
+                  if (line.includes('GAP:') || line.includes('[ASSUMPTION:')) {
+                    return <span key={i} className="bg-yellow-200 text-yellow-900 px-1 rounded">{line}{'\n'}</span>
+                  }
+                  return <span key={i}>{line}{'\n'}</span>
+                })
+              }</pre>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleEdit} className="flex-1 bg-white border border-stone-300 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-stone-50 cursor-pointer">
+                Edit
+              </button>
+              <button onClick={handleGenerate} disabled={generating} className="flex-1 bg-white border border-orange-300 text-orange-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-50 cursor-pointer disabled:opacity-50">
+                {generating ? 'Generating...' : 'Regenerate'}
+              </button>
+              {!copyApproved ? (
+                <button onClick={handleApprove} disabled={savingToDrive} className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 cursor-pointer disabled:opacity-50">
+                  {savingToDrive ? 'Creating Google Doc...' : 'Approve & Save to Drive ✓'}
+                </button>
+              ) : (
+                <button onClick={handleUnapprove} className="flex-1 bg-white border border-amber-300 text-amber-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-50 cursor-pointer">
+                  Unapprove
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Editing */}
+        {editingDoc && (
+          <div className="space-y-2">
+            <textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              className="w-full border border-orange-300 rounded-lg p-3 text-xs text-stone-700 font-sans leading-relaxed min-h-[200px] focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => { setEditingDoc(false); setEditText('') }} className="flex-1 bg-white border border-stone-300 text-stone-600 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
+                Cancel
+              </button>
+              <button onClick={handleSaveEdit} className="flex-1 bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-orange-700 cursor-pointer">
+                Save Changes
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Shared email editor for proposals and thank-you emails ──
 function EmailContentEditor({ content, onChange, readOnly }: { content: string; onChange: (v: string) => void; readOnly: boolean }) {
   if (!readOnly) {
@@ -1812,9 +2087,15 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       fieldValues={fieldValues}
                       onSaveField={handleSaveField}
                     />
+                  ) : stage.key === 'copy-bible' ? (
+                    <CopyBibleActions
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                    />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'copy-bible'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">

@@ -17,10 +17,10 @@ export const ADS_EMAIL_SOCIAL_TRACKS = [
 
 export const PACKAGE_BRANCHES: Record<string, string[]> = {
   'ghutte-only': [],
-  'page-build': ['page-build'],
-  'content-day': ['content-production'],
-  'ads-email-social': ['ads-email-social'],
-  'full-build': ['page-build'],
+  'page-build': ['copy-bible'],
+  'content-day': ['copy-bible', 'content-production'],
+  'ads-email-social': ['copy-bible', 'ads-email-social'],
+  'full-build': ['copy-bible'],
 }
 
 export const STAGES: StageDefinition[] = [
@@ -206,43 +206,27 @@ export const STAGES: StageDefinition[] = [
     nextActionPrompt: 'Select all funnel elements, confirm with the client, then move to production.',
   },
   {
-    key: 'page-build',
-    num: '6A',
-    name: 'Branch: New Page Build',
-    summary: 'Build the client\'s landing page, sales page, or website. Copy comes first using the PX Obsessed framework, then design, then build and launch. Max 2 revision rounds each for copy and design.',
+    key: 'copy-bible',
+    num: '6',
+    name: 'Copy Bible',
+    summary: 'Generate the Copy Bible — a comprehensive sales copy document covering every funnel element selected in the Implementation Plan. Uses the Client Profile, Research Bible, Brand Voice, and selected funnel elements to produce production-ready copy frameworks.',
     color: '#EA580C',
     colorSoft: 'rgba(234,88,12,0.06)',
-    triggerLabel: 'Conditional: Package includes page build',
+    triggerLabel: 'Trigger: Implementation Plan confirmed',
     triggerColor: 'orange',
-    conditional: true,
-    conditionPackages: ['page-build', 'full-build'],
     guide: [
-      'Always start with copy before design — messaging drives the layout.',
-      'Use the Research Bible and client voice to write in their tone.',
-      'Get Creative Director approval on copy before starting any design work.',
-      'Client gets max 2 revision rounds on copy AND 2 on design — communicate this upfront.',
-      'Post-launch: verify analytics, tracking pixels, and form submissions within 48 hours.',
+      'The Copy Bible is generated from ALL approved strategy documents + the selected funnel elements.',
+      'It produces copy frameworks, headlines, CTAs, and email sequences for each selected element.',
+      'Review carefully — this document drives all page builds and email automation.',
+      'Edit any section before approving — the approved version goes to the production team.',
+      'Save to Google Drive once approved — the team references this during build.',
     ],
-    substeps: [
-      { label: 'Define page type', description: 'Landing page, sales page, opt-in page, homepage, multi-page site.' },
-      { label: 'Write page copy', description: 'Using PX Obsessed framework: all 16 sections.' },
-      { label: 'Creative Director reviews copy', description: 'Approves messaging, voice, and structure before design.' },
-      { label: 'Design the page', description: 'Wireframe, visual design, responsive build.' },
-      { label: 'Client reviews', description: 'Feedback, max 2 revision rounds on copy, 2 on design.' },
-      { label: 'Build and launch', description: 'Deploy to client hosting/platform, test all links and forms.' },
-      { label: 'Post-launch check', description: 'Verify analytics, tracking pixels, form submissions working.' },
-    ],
-    dataFields: [
-      { key: 'page_type', label: 'Page type', placeholder: 'Select type', type: 'select', options: ['Landing', 'Sales', 'Opt-in', 'Homepage', 'Multi-page'] },
-      { key: 'platform', label: 'Platform', placeholder: 'Select platform', type: 'select', options: ['WordPress', 'Webflow', 'Shopify', 'Squarespace', 'Custom'] },
-      { key: 'copy_status', label: 'Copy status', placeholder: 'Select status', type: 'select', options: ['Drafting', 'In Review', 'Approved'] },
-      { key: 'design_status', label: 'Design status', placeholder: 'Select status', type: 'select', options: ['Wireframe', 'Visual', 'Building', 'Live'] },
-    ],
+    substeps: [],
+    dataFields: [],
     conditionalLogic: [
-      { condition: 'Copy approved + Design approved', result: 'Move to build and launch' },
-      { condition: 'Client requests revision round 3+', result: 'Flag as out of scope' },
+      { condition: 'Copy Bible approved', result: 'Move to production stages (Content, Ads, Email, Social)' },
     ],
-    nextActionPrompt: 'Page copy approved by Creative Director. Start the visual design.',
+    nextActionPrompt: 'Generate, review, and approve the Copy Bible, then move to production.',
   },
   {
     key: 'content-production',
@@ -536,9 +520,9 @@ export function getActiveStagesForPackage(pkg: string): string[] {
     return [...core, ...closing, 'wrapup']
   }
 
-  // Full Build: page build branch (3 pages), no retainer
+  // Full Build: copy bible, no retainer
   if (pkg === 'full-build') {
-    return [...core, 'page-build', ...closing, 'wrapup']
+    return [...core, 'copy-bible', ...closing, 'wrapup']
   }
 
   return [

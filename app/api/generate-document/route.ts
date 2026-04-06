@@ -429,7 +429,90 @@ Write 3 short examples in this brand's voice:
 ## Voice Consistency Checklist
 - 5 quick checks anyone on the team can use before publishing content
 
-Keep it practical and immediately usable. Under 800 words.`
+Keep it practical and immediately usable. Under 800 words.`,
+
+  'copy-bible': `You are building a comprehensive Copy Bible for ClubSheIs, a digital marketing and content production agency in South Africa.
+
+The Copy Bible is the master sales copy document that the production team uses to build every page and write every email sequence. It translates the strategy (Client Profile, Research Bible, Brand Voice) into production-ready copy frameworks for each funnel element the client needs.
+
+YOUR JOB: For EACH selected funnel element, write complete, production-ready copy using direct response frameworks. This is NOT a brief or outline — it's the actual copy the team will use. Write in the client's brand voice. Use the Research Bible's Schwartz analysis to pitch at the correct awareness stage and sophistication level.
+
+RULES:
+- Write in the client's BRAND VOICE as defined in the Brand Voice document
+- Use the Breakthrough Advertising analysis from the Research Bible to set the right messaging angle
+- Every headline needs 3 variations (the team will test them)
+- CTAs must be specific — not generic "Learn More" but action-oriented and benefit-driven
+- Use [ASSUMPTION] where inferring details, GAP: where info is genuinely missing
+- Each funnel element gets its own complete section with all copy written out
+
+For each selected funnel element, use the appropriate framework below:
+
+---
+CLUBSHEIS COPY BIBLE
+---
+
+### FOR PAGES (Lead Magnet, OTO, Sales, Webinar Registration, Book a Call, Check Out, Thank You):
+
+## [PAGE NAME]
+
+### Above the Fold
+- **Headline** (3 variations): The main promise. Speak to the core pain or desire at the right awareness level.
+- **Subheadline**: Expand on the headline — add specificity, credibility, or urgency.
+- **Hero CTA**: The primary action button text (3 variations).
+- **Supporting text**: 1-2 sentences that reduce friction.
+
+### Problem Section
+- **Section headline**: Name the problem they're feeling right now.
+- **Problem bullets** (3-5): Specific, emotional pain points in their language.
+- **Bridge statement**: The transition from "I feel this" to "there's a better way."
+
+### Solution Section
+- **Section headline**: Introduce the solution.
+- **How it works** (3-5 steps): Numbered, simple, concrete.
+- **Key benefit statements** (3-5): What changes for them.
+
+### Social Proof Section
+- **Section headline**: Build trust.
+- **Testimonial prompts**: What ideal testimonials would say (or actual ones if available).
+- **Credibility markers**: Numbers, media mentions, certifications, years of experience.
+
+### Offer Breakdown
+- **What's included**: List every element with benefit-oriented descriptions.
+- **Value framing**: How to position the price against the value.
+- **Price presentation**: How to display the price (if applicable).
+- **Guarantee / Risk reversal**: What reduces their fear of buying.
+
+### Urgency & Close
+- **Urgency element**: Why act now (scarcity, deadline, or consequence of inaction).
+- **Final CTA section**: Headline + button + supporting text.
+- **FAQ items** (3-5): Objection-handling disguised as FAQs.
+
+### FOR EMAIL SEQUENCES:
+
+## [SEQUENCE NAME]
+
+For each email in the sequence, write:
+
+**Email [number]: [Subject line]**
+- **Subject line** (3 variations)
+- **Preview text**
+- **Opening hook** (first 2-3 sentences — must stop the scroll)
+- **Body copy** (full email body — written in brand voice, conversational, benefit-driven)
+- **CTA** (what action to take + button text)
+- **P.S. line** (if applicable — often the most-read part of an email)
+- **Send timing**: When to send relative to trigger event
+
+Typical sequence structures:
+- **Lead Magnet Sequence** (5-7 emails): Welcome → Deliver value → Build trust → Soft pitch → Hard pitch → Last chance
+- **OTO Post-Purchase** (3-4 emails): Thank you + upsell → Social proof → Urgency → Final reminder
+- **Main Offer Post-Purchase** (4-5 emails): Welcome + onboarding → Quick win → Deeper engagement → Community → Referral ask
+- **Launch Sequence** (7-10 emails): Story/problem → Solution reveal → Social proof → Objection handling → Cart open → Midpoint → Urgency → Last chance → Cart close → Recap
+
+---
+
+Write COMPLETE copy — not outlines or placeholders. The production team should be able to copy-paste this into a page builder or email platform with minimal editing. Use the client's actual language, reference their specific offers, and maintain their brand voice throughout.
+
+There is NO word limit. Be as thorough as needed for each funnel element.`
 }
 
 export async function POST(req: NextRequest) {
@@ -439,7 +522,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'ANTHROPIC_API_KEY not set' }, { status: 500 })
     }
 
-    const { documentType, clientName, brandName, transcript, clientProfile, researchBible } = await req.json()
+    const { documentType, clientName, brandName, transcript, clientProfile, researchBible, brandVoice, funnelElements } = await req.json()
 
     const systemPrompt = PROMPTS[documentType]
     if (!systemPrompt) {
@@ -460,6 +543,12 @@ export async function POST(req: NextRequest) {
       if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 10000)}`
       if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
     }
+    if (documentType === 'copy-bible') {
+      if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 15000)}`
+      if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
+      if (brandVoice) userMessage += `\n\nAPPROVED BRAND VOICE:\n${brandVoice.slice(0, 10000)}`
+      if (funnelElements) userMessage += `\n\nSELECTED FUNNEL ELEMENTS TO WRITE COPY FOR:\n${funnelElements}`
+    }
 
     // Use streaming to avoid Vercel Edge timeout (25s)
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -472,7 +561,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : 16000,
+        max_tokens: documentType === 'brand-voice' ? 4000 : documentType === 'copy-bible' ? 32000 : 16000,
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),
