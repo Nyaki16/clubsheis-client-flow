@@ -2599,6 +2599,414 @@ type FunnelElement = {
   priority: number
 }
 
+// ── ClickUp types ──
+interface ClickUpTask {
+  id: string
+  name: string
+  status: { status: string; color: string }
+  assignees: { username: string; profilePicture: string | null; initials: string }[]
+  due_date: string | null
+  date_created: string
+  date_updated: string
+  url: string
+  priority: { priority: string; color: string } | null
+  tags: { name: string; tag_bg: string; tag_fg: string }[]
+  parent: string | null
+}
+interface ClickUpList { id: string; name: string }
+interface ClickUpFolder { id: string; name: string; lists: ClickUpList[] }
+interface ClickUpSpace { id: string; name: string; folders: ClickUpFolder[]; lists: ClickUpList[] }
+
+function ProductionActions({
+  client,
+  fieldValues,
+  onSaveField,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+}) {
+  const [tasks, setTasks] = useState<ClickUpTask[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [spaces, setSpaces] = useState<ClickUpSpace[]>([])
+  const [loadingSpaces, setLoadingSpaces] = useState(false)
+  const [showPicker, setShowPicker] = useState(false)
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set())
+  const [filterStatus, setFilterStatus] = useState<string>('all')
+
+  const linkedListId = fieldValues.get('production:clickup_list_id') || ''
+  const linkedListName = fieldValues.get('production:clickup_list_name') || ''
+
+  // Fetch tasks when list is linked
+  const fetchTasks = useCallback(async (listId: string) => {
+    if (!listId) return
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/clickup-tasks?listId=${listId}`)
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setTasks(data.tasks || [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to fetch tasks')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (linkedListId) fetchTasks(linkedListId)
+  }, [linkedListId, fetchTasks])
+
+  // Fetch workspace hierarchy for picker
+  const openPicker = async () => {
+    setShowPicker(true)
+    if (spaces.length > 0) return
+    setLoadingSpaces(true)
+    try {
+      const res = await fetch('/api/clickup-tasks')
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setSpaces(data.spaces || [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load ClickUp workspace')
+    } finally {
+      setLoadingSpaces(false)
+    }
+  }
+
+  const linkList = (listId: string, listName: string) => {
+    onSaveField('production', 'clickup_list_id', listId)
+    onSaveField('production', 'clickup_list_name', listName)
+    setShowPicker(false)
+    fetchTasks(listId)
+  }
+
+  // Task stats
+  const parentTasks = tasks.filter(t => !t.parent)
+  const closedStatuses = ['complete', 'closed', 'done', 'approved', 'delivered']
+  const completedTasks = parentTasks.filter(t => closedStatuses.includes(t.status.status.toLowerCase()))
+  const activeTasks = parentTasks.filter(t => !closedStatuses.includes(t.status.status.toLowerCase()))
+
+  // Get unique statuses for filter
+  const allStatuses = [...new Set(parentTasks.map(t => t.status.status))]
+
+  const filteredTasks = filterStatus === 'all'
+    ? parentTasks
+    : parentTasks.filter(t => t.status.status === filterStatus)
+
+  const progressPct = parentTasks.length > 0 ? Math.round((completedTasks.length / parentTasks.length) * 100) : 0
+
+  return (
+    <div className="space-y-4">
+      {/* ClickUp Link Section */}
+      <div className="bg-white border border-stone-200 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-stone-800">ClickUp Production Board</h3>
+              {linkedListName && (
+                <p className="text-xs text-stone-500">Linked to: <span className="font-medium text-rose-600">{linkedListName}</span></p>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {linkedListId && (
+              <button
+                onClick={() => fetchTasks(linkedListId)}
+                className="text-xs px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 transition-colors"
+              >
+                Refresh
+              </button>
+            )}
+            <button
+              onClick={openPicker}
+              className="text-xs px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg font-medium transition-colors"
+            >
+              {linkedListId ? 'Change List' : 'Link ClickUp List'}
+            </button>
+          </div>
+        </div>
+
+        {/* List Picker Modal */}
+        {showPicker && (
+          <div className="border border-stone-200 rounded-lg bg-stone-50 p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium text-sm text-stone-700">Select a ClickUp List</h4>
+              <button onClick={() => setShowPicker(false)} className="text-stone-400 hover:text-stone-600">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            {loadingSpaces ? (
+              <div className="flex items-center gap-2 text-sm text-stone-500 py-4 justify-center">
+                <div className="w-4 h-4 border-2 border-rose-300 border-t-rose-600 rounded-full animate-spin" />
+                Loading workspace...
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {spaces.map(space => (
+                  <div key={space.id}>
+                    <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1">{space.name}</p>
+                    {/* Folders */}
+                    {space.folders.map(folder => (
+                      <div key={folder.id} className="ml-2 mb-2">
+                        <p className="text-xs font-medium text-stone-600 mb-1">{folder.name}</p>
+                        <div className="ml-2 space-y-0.5">
+                          {folder.lists.map(list => (
+                            <button
+                              key={list.id}
+                              onClick={() => linkList(list.id, `${space.name} / ${folder.name} / ${list.name}`)}
+                              className={`w-full text-left text-sm px-3 py-1.5 rounded hover:bg-rose-50 hover:text-rose-700 transition-colors ${linkedListId === list.id ? 'bg-rose-100 text-rose-700 font-medium' : 'text-stone-700'}`}
+                            >
+                              {list.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    {/* Folderless lists */}
+                    {space.lists.length > 0 && (
+                      <div className="ml-2 space-y-0.5">
+                        {space.lists.map(list => (
+                          <button
+                            key={list.id}
+                            onClick={() => linkList(list.id, `${space.name} / ${list.name}`)}
+                            className={`w-full text-left text-sm px-3 py-1.5 rounded hover:bg-rose-50 hover:text-rose-700 transition-colors ${linkedListId === list.id ? 'bg-rose-100 text-rose-700 font-medium' : 'text-stone-700'}`}
+                          >
+                            {list.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!linkedListId && !showPicker && (
+          <div className="text-center py-8 border border-dashed border-stone-300 rounded-lg bg-stone-50">
+            <svg className="w-10 h-10 text-stone-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+            <p className="text-sm text-stone-500 mb-1">No ClickUp list linked yet</p>
+            <p className="text-xs text-stone-400">Link a ClickUp list to track production tasks for this client</p>
+          </div>
+        )}
+      </div>
+
+      {/* Progress & Tasks */}
+      {linkedListId && (
+        <>
+          {/* Progress Bar */}
+          <div className="bg-white border border-stone-200 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-stone-700 text-sm">Production Progress</h4>
+              <span className="text-xs font-semibold text-stone-500">{completedTasks.length}/{parentTasks.length} tasks</span>
+            </div>
+            <div className="w-full bg-stone-100 rounded-full h-3 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${progressPct}%`,
+                  background: progressPct === 100 ? '#22c55e' : 'linear-gradient(90deg, #E11D48, #F43F5E)',
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-4 mt-3 text-xs text-stone-500">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                {activeTasks.length} active
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-500" />
+                {completedTasks.length} completed
+              </span>
+              {progressPct === 100 && parentTasks.length > 0 && (
+                <span className="ml-auto text-green-600 font-semibold">All tasks complete!</span>
+              )}
+            </div>
+          </div>
+
+          {/* Filter & Task List */}
+          <div className="bg-white border border-stone-200 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-medium text-stone-700 text-sm">Tasks</h4>
+              <div className="flex items-center gap-2">
+                <select
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                  className="text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white text-stone-600"
+                >
+                  <option value="all">All ({parentTasks.length})</option>
+                  {allStatuses.map(s => (
+                    <option key={s} value={s}>{s} ({parentTasks.filter(t => t.status.status === s).length})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="flex items-center gap-2 text-sm text-stone-500 py-8 justify-center">
+                <div className="w-5 h-5 border-2 border-rose-300 border-t-rose-600 rounded-full animate-spin" />
+                Loading tasks...
+              </div>
+            ) : error ? (
+              <div className="text-sm text-red-600 bg-red-50 rounded-lg p-3">{error}</div>
+            ) : filteredTasks.length === 0 ? (
+              <p className="text-sm text-stone-400 text-center py-6">No tasks found</p>
+            ) : (
+              <div className="space-y-1.5">
+                {filteredTasks.map(task => {
+                  const isComplete = closedStatuses.includes(task.status.status.toLowerCase())
+                  const isExpanded = expandedTasks.has(task.id)
+                  const subtasks = tasks.filter(t => t.parent === task.id)
+                  const dueDate = task.due_date ? new Date(parseInt(task.due_date)) : null
+                  const isOverdue = dueDate && !isComplete && dueDate < new Date()
+
+                  return (
+                    <div key={task.id} className="border border-stone-100 rounded-lg overflow-hidden">
+                      <div
+                        className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-stone-50 transition-colors ${isComplete ? 'opacity-60' : ''}`}
+                        onClick={() => {
+                          const next = new Set(expandedTasks)
+                          isExpanded ? next.delete(task.id) : next.add(task.id)
+                          setExpandedTasks(next)
+                        }}
+                      >
+                        {/* Status dot */}
+                        <span
+                          className="w-3 h-3 rounded-full flex-shrink-0 border"
+                          style={{
+                            backgroundColor: task.status.color || '#94a3b8',
+                            borderColor: task.status.color || '#94a3b8',
+                          }}
+                        />
+
+                        {/* Task name */}
+                        <span className={`text-sm flex-1 ${isComplete ? 'line-through text-stone-400' : 'text-stone-700'}`}>
+                          {task.name}
+                        </span>
+
+                        {/* Priority badge */}
+                        {task.priority && (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                            style={{ backgroundColor: task.priority.color + '20', color: task.priority.color }}
+                          >
+                            {task.priority.priority}
+                          </span>
+                        )}
+
+                        {/* Assignees */}
+                        {task.assignees.length > 0 && (
+                          <div className="flex -space-x-1">
+                            {task.assignees.slice(0, 3).map((a, i) => (
+                              <div
+                                key={i}
+                                className="w-6 h-6 rounded-full bg-rose-100 border-2 border-white flex items-center justify-center"
+                                title={a.username}
+                              >
+                                {a.profilePicture ? (
+                                  <img src={a.profilePicture} alt={a.username} className="w-full h-full rounded-full object-cover" />
+                                ) : (
+                                  <span className="text-[9px] font-bold text-rose-600">{a.initials || a.username?.slice(0, 2).toUpperCase()}</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Due date */}
+                        {dueDate && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${isOverdue ? 'bg-red-100 text-red-600 font-semibold' : 'bg-stone-100 text-stone-500'}`}>
+                            {dueDate.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}
+                          </span>
+                        )}
+
+                        {/* Status label */}
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                          style={{ backgroundColor: (task.status.color || '#94a3b8') + '20', color: task.status.color || '#64748b' }}
+                        >
+                          {task.status.status}
+                        </span>
+
+                        {/* Expand arrow */}
+                        <svg className={`w-3 h-3 text-stone-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      </div>
+
+                      {/* Expanded details */}
+                      {isExpanded && (
+                        <div className="px-3 pb-3 pt-1 border-t border-stone-100 bg-stone-50/50">
+                          <div className="flex items-center gap-3 text-xs text-stone-500 mb-2">
+                            <span>Created: {new Date(parseInt(task.date_created)).toLocaleDateString('en-ZA')}</span>
+                            <span>Updated: {new Date(parseInt(task.date_updated)).toLocaleDateString('en-ZA')}</span>
+                          </div>
+
+                          {/* Tags */}
+                          {task.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {task.tags.map(tag => (
+                                <span
+                                  key={tag.name}
+                                  className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                                  style={{ backgroundColor: tag.tag_bg, color: tag.tag_fg }}
+                                >
+                                  {tag.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Subtasks */}
+                          {subtasks.length > 0 && (
+                            <div className="mt-2">
+                              <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1">Subtasks ({subtasks.length})</p>
+                              <div className="space-y-0.5 ml-2">
+                                {subtasks.map(sub => (
+                                  <div key={sub.id} className="flex items-center gap-2 text-xs">
+                                    <span
+                                      className="w-2 h-2 rounded-full flex-shrink-0"
+                                      style={{ backgroundColor: sub.status.color || '#94a3b8' }}
+                                    />
+                                    <span className={closedStatuses.includes(sub.status.status.toLowerCase()) ? 'line-through text-stone-400' : 'text-stone-600'}>
+                                      {sub.name}
+                                    </span>
+                                    <span className="text-stone-400 ml-auto">{sub.status.status}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Open in ClickUp */}
+                          <a
+                            href={task.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-2 text-xs text-rose-600 hover:text-rose-700 font-medium"
+                          >
+                            Open in ClickUp
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 const STAGE_LABELS: Record<string, { label: string; color: string; bg: string; border: string }> = {
   awareness: { label: 'Awareness', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
   engagement: { label: 'Engagement', color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
@@ -3660,9 +4068,15 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       onSaveField={handleSaveField}
                       onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
                     />
+                  ) : stage.key === 'production' ? (
+                    <ProductionActions
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                    />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'production'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">
