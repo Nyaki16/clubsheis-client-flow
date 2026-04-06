@@ -622,12 +622,13 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: `Unknown document type: ${documentType}` }, { status: 400 })
     }
 
-    if (!transcript) {
+    const noTranscriptRequired = ['funnel-map', 'funnel-strategy']
+    if (!transcript && !noTranscriptRequired.includes(documentType)) {
       return Response.json({ error: 'Transcript is required' }, { status: 400 })
     }
 
     const transcriptLimit = documentType === 'brand-voice' ? 10000 : 20000
-    let userMessage = `CLIENT: ${clientName} (${brandName || 'No brand name'})\n\nSTRATEGY SESSION TRANSCRIPT:\n${(transcript || '').slice(0, transcriptLimit)}`
+    let userMessage = `CLIENT: ${clientName} (${brandName || 'No brand name'})${transcript ? `\n\nSTRATEGY SESSION TRANSCRIPT:\n${transcript.slice(0, transcriptLimit)}` : ''}`
 
     if (documentType === 'research-bible' && clientProfile) {
       userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 15000)}`
