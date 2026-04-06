@@ -1189,6 +1189,191 @@ function StrategyActions({
   )
 }
 
+// ── Implementation Plan Actions — Confirm funnel strategy + add extras ──
+function ImplementationPlanActions({
+  client,
+  fieldValues,
+  onSaveField,
+  onAdvance,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+  onAdvance: () => void
+}) {
+  const [customInput, setCustomInput] = useState('')
+  const [showAddForm, setShowAddForm] = useState(false)
+
+  // Load funnel strategy elements and selections
+  const funnelStrategyJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
+  const funnelSelectionsRaw = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
+  // Load any extra implementation-only elements
+  const implExtrasRaw = fieldValues.get('implementation-plan:extra_elements') || '[]'
+
+  let allStrategyElements: FunnelElement[] = []
+  try { if (funnelStrategyJson) allStrategyElements = JSON.parse(funnelStrategyJson) } catch {}
+  let selectedIndices: number[] = []
+  try { selectedIndices = JSON.parse(funnelSelectionsRaw) } catch {}
+  let extraElements: { type: string; topic: string }[] = []
+  try { extraElements = JSON.parse(implExtrasRaw) } catch {}
+
+  const selectedElements = selectedIndices.map(i => allStrategyElements[i]).filter(Boolean)
+
+  const handleAddExtra = async () => {
+    const text = customInput.trim()
+    if (!text) return
+    let type = 'Custom'
+    let topic = text
+    const colonIdx = text.indexOf(':')
+    if (colonIdx > 0 && colonIdx < 30) {
+      type = text.slice(0, colonIdx).trim()
+      topic = text.slice(colonIdx + 1).trim()
+    }
+    const updated = [...extraElements, { type, topic }]
+    await onSaveField('implementation-plan', 'extra_elements', JSON.stringify(updated))
+    setCustomInput('')
+    setShowAddForm(false)
+  }
+
+  const handleRemoveExtra = async (idx: number) => {
+    const updated = extraElements.filter((_, i) => i !== idx)
+    await onSaveField('implementation-plan', 'extra_elements', JSON.stringify(updated))
+  }
+
+  const totalElements = selectedElements.length + extraElements.length
+
+  // Group strategy elements by funnel stage for display
+  const stageOrder = ['awareness', 'engagement', 'conversion', 'delivery', 'retention']
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+        <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">Production Checklist — {totalElements} elements</h4>
+        <p className="text-xs text-amber-600">These elements were confirmed in the Funnel Strategy. Review and add anything else needed before moving to the Copy Bible.</p>
+      </div>
+
+      {/* Strategy elements by stage */}
+      {selectedElements.length > 0 && (
+        <div className="space-y-3">
+          {stageOrder.map(stage => {
+            const stageItems = selectedElements.filter(el => el.funnel_stage === stage)
+            if (stageItems.length === 0) return null
+            const stageInfo = STAGE_LABELS[stage] || { label: stage, color: 'text-stone-700', bg: 'bg-stone-50', border: 'border-stone-200' }
+            return (
+              <div key={stage}>
+                <div className={`text-xs font-bold uppercase tracking-wider ${stageInfo.color} mb-1.5 flex items-center gap-2`}>
+                  <span className={`inline-block w-2 h-2 rounded-full ${stageInfo.bg} ${stageInfo.border} border`} />
+                  {stageInfo.label}
+                </div>
+                <div className="space-y-1.5">
+                  {stageItems.map((el, i) => (
+                    <div key={i} className={`rounded-lg border p-3 ${stageInfo.bg} ${stageInfo.border}`}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-500 text-sm">✓</span>
+                        <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
+                      </div>
+                      <p className="text-sm font-semibold text-stone-800 mt-0.5 ml-6">{el.topic}</p>
+                      {el.email_note && (
+                        <p className="text-xs text-purple-500 mt-1 ml-6">
+                          <span className="font-semibold">Email:</span> {el.email_note}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {selectedElements.length === 0 && (
+        <div className="text-center py-4 text-stone-400 text-sm">
+          No elements from Funnel Strategy. Go back and generate/confirm the strategy first, or add elements below.
+        </div>
+      )}
+
+      {/* Extra implementation elements */}
+      {extraElements.length > 0 && (
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-1.5 flex items-center gap-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-amber-50 border-amber-200 border" />
+            Additional Elements
+          </div>
+          <div className="space-y-1.5">
+            {extraElements.map((el, i) => (
+              <div key={i} className="rounded-lg border p-3 bg-amber-50 border-amber-200 flex items-center justify-between group">
+                <div className="flex items-center gap-2">
+                  <span className="text-amber-500 text-sm">+</span>
+                  <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
+                  <span className="text-sm font-semibold text-stone-800">{el.topic}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveExtra(i)}
+                  className="w-5 h-5 rounded-full bg-red-100 text-red-500 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex items-center justify-center hover:bg-red-200"
+                  title="Remove"
+                >
+                  x
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Add more elements */}
+      {showAddForm ? (
+        <div className="flex gap-2 items-start">
+          <input
+            type="text"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAddExtra() }}
+            placeholder="e.g. Check Out Page: Premium Coaching Package or Thank You Page: Post-Purchase Welcome"
+            className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 bg-white"
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={handleAddExtra}
+            className="bg-amber-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-amber-700 cursor-pointer whitespace-nowrap"
+          >
+            Add
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowAddForm(false); setCustomInput('') }}
+            className="bg-white border border-stone-300 text-stone-500 px-3 py-2 rounded-lg text-sm font-medium hover:bg-stone-50 cursor-pointer"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowAddForm(true)}
+          className="w-full border border-dashed border-stone-300 rounded-lg py-2.5 text-sm text-stone-400 hover:text-stone-600 hover:border-stone-400 transition-colors cursor-pointer"
+        >
+          + Add element not in strategy
+        </button>
+      )}
+
+      {/* Confirm button */}
+      {totalElements > 0 && (
+        <button
+          type="button"
+          onClick={onAdvance}
+          className="w-full bg-green-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
+        >
+          Confirm Implementation Plan & Move to Copy Bible →
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── Copy Bible Actions — Generate copy for all funnel elements ──
 function CopyBibleActions({
   client,
@@ -1213,9 +1398,10 @@ function CopyBibleActions({
   const profileText = fieldValues.get('strategy:client_profile_text') || ''
   const bibleText = fieldValues.get('strategy:research_bible_text') || ''
   const voiceText = fieldValues.get('strategy:brand_voice_text') || ''
-  // Pull funnel elements from Funnel Strategy (detailed) or Implementation Plan (generic) as fallback
+  // Pull funnel elements from Funnel Strategy selections + Implementation Plan extras
   const funnelStrategyJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
   const funnelSelectionsRaw = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
+  const implExtrasRaw = fieldValues.get('implementation-plan:extra_elements') || '[]'
   let funnelElements: string[] = []
 
   try {
@@ -1229,11 +1415,13 @@ function CopyBibleActions({
     }
   } catch {}
 
-  // Fallback to implementation plan if no funnel strategy selections
-  if (funnelElements.length === 0) {
-    const implPlanRaw = fieldValues.get('implementation-plan:funnel_elements') || '[]'
-    try { funnelElements = JSON.parse(implPlanRaw) } catch {}
-  }
+  // Add extra implementation-only elements
+  try {
+    const extras: { type: string; topic: string }[] = JSON.parse(implExtrasRaw)
+    for (const ex of extras) {
+      funnelElements.push(`${ex.type}: ${ex.topic}`)
+    }
+  } catch {}
 
   const handleGenerate = async () => {
     if (funnelElements.length === 0) {
@@ -1505,10 +1693,12 @@ function FunnelStrategyActions({
   client,
   fieldValues,
   onSaveField,
+  onAdvance,
 }: {
   client: Client
   fieldValues: Map<string, string>
   onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+  onAdvance: () => void
 }) {
   const [generating, setGenerating] = useState(false)
   const [customInputs, setCustomInputs] = useState<Record<string, string>>({})
@@ -1837,17 +2027,26 @@ function FunnelStrategyActions({
             )
           })}
 
-          {/* Selected summary */}
+          {/* Selected summary + confirm */}
           {selections.length > 0 && (
-            <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-3">
-              <h4 className="text-xs font-bold text-cyan-700 uppercase tracking-wider mb-1">Selected for this funnel ({selections.length})</h4>
-              <div className="flex flex-wrap gap-1.5">
-                {selectedElements.map((el, i) => (
-                  <span key={i} className="text-xs bg-cyan-100 text-cyan-800 px-2 py-1 rounded font-medium">
-                    {el.type}: {el.topic}
-                  </span>
-                ))}
+            <div className="space-y-3">
+              <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-3">
+                <h4 className="text-xs font-bold text-cyan-700 uppercase tracking-wider mb-1">Selected for this funnel ({selections.length})</h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedElements.map((el, i) => (
+                    <span key={i} className="text-xs bg-cyan-100 text-cyan-800 px-2 py-1 rounded font-medium">
+                      {el.type}: {el.topic}
+                    </span>
+                  ))}
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={onAdvance}
+                className="w-full bg-green-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
+              >
+                Confirm Funnel Strategy & Move to Implementation Plan →
+              </button>
             </div>
           )}
         </div>
@@ -2499,6 +2698,14 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       client={client}
                       fieldValues={fieldValues}
                       onSaveField={handleSaveField}
+                      onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
+                    />
+                  ) : stage.key === 'implementation-plan' ? (
+                    <ImplementationPlanActions
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                      onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
                     />
                   ) : stage.key === 'copy-bible' ? (
                     <CopyBibleActions
@@ -2508,7 +2715,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                     />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'copy-bible'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'copy-bible'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">
