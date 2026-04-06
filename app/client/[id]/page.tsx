@@ -1398,11 +1398,10 @@ function ImplementationPlanActions({
   )
 }
 
-// ── Funnel Map Actions — Visual customer journey flowchart ──
+// ── Funnel Map Actions — Decision tree customer journey ──
 type FunnelMapNode = { id: string; type: string; label: string; sublabel: string; color: string }
-type FunnelMapRow = { label: string; nodes: FunnelMapNode[] }
-type FunnelMapConnection = { from: string; to: string; label?: string; type: string }
-type FunnelMapData = { rows: FunnelMapRow[]; connections: FunnelMapConnection[] }
+type FunnelMapEdge = { from: string; to: string; label?: string; type: 'yes' | 'no' | 'default' }
+type FunnelMapData = { nodes: FunnelMapNode[]; edges: FunnelMapEdge[] }
 
 const NODE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
   blue: { bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-800' },
@@ -1411,6 +1410,50 @@ const NODE_COLORS: Record<string, { bg: string; border: string; text: string }> 
   green: { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-800' },
   cyan: { bg: 'bg-cyan-50', border: 'border-cyan-300', text: 'text-cyan-800' },
   red: { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-800' },
+  yellow: { bg: 'bg-yellow-50', border: 'border-yellow-400', text: 'text-yellow-800' },
+}
+const NODE_ICONS: Record<string, string> = { traffic: '🌐', page: '📄', email: '✉️', decision: '🔀', action: '⚡' }
+const EDGE_COLORS: Record<string, string> = { yes: 'text-green-600', no: 'text-red-500', default: 'text-stone-400' }
+const EDGE_BORDER: Record<string, string> = { yes: 'border-green-400', no: 'border-red-300', default: 'border-stone-300' }
+
+// Build layered tree from nodes+edges for rendering
+function buildTreeLayers(data: FunnelMapData): { layers: { node: FunnelMapNode; edges: { edge: FunnelMapEdge; targetNode: FunnelMapNode }[] }[][] } {
+  const nodeMap = new Map(data.nodes.map(n => [n.id, n]))
+  const childEdges = new Map<string, FunnelMapEdge[]>()
+  const hasParent = new Set<string>()
+  for (const e of data.edges) {
+    if (!childEdges.has(e.from)) childEdges.set(e.from, [])
+    childEdges.get(e.from)!.push(e)
+    hasParent.add(e.to)
+  }
+  // Find roots (nodes with no incoming edges)
+  const roots = data.nodes.filter(n => !hasParent.has(n.id))
+  if (roots.length === 0 && data.nodes.length > 0) roots.push(data.nodes[0])
+
+  const layers: { node: FunnelMapNode; edges: { edge: FunnelMapEdge; targetNode: FunnelMapNode }[] }[][] = []
+  let currentLevel = roots.map(r => r.id)
+  const visited = new Set<string>()
+
+  while (currentLevel.length > 0) {
+    const layerItems: { node: FunnelMapNode; edges: { edge: FunnelMapEdge; targetNode: FunnelMapNode }[] }[] = []
+    const nextLevel: string[] = []
+    for (const nid of currentLevel) {
+      if (visited.has(nid)) continue
+      visited.add(nid)
+      const node = nodeMap.get(nid)
+      if (!node) continue
+      const outEdges = (childEdges.get(nid) || [])
+        .map(e => ({ edge: e, targetNode: nodeMap.get(e.to)! }))
+        .filter(x => x.targetNode)
+      layerItems.push({ node, edges: outEdges })
+      for (const oe of outEdges) {
+        if (!visited.has(oe.targetNode.id)) nextLevel.push(oe.targetNode.id)
+      }
+    }
+    if (layerItems.length > 0) layers.push(layerItems)
+    currentLevel = nextLevel
+  }
+  return { layers }
 }
 
 function FunnelMapActions({
@@ -1427,7 +1470,6 @@ function FunnelMapActions({
   const [generating, setGenerating] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editJson, setEditJson] = useState('')
-  const mapRef = { current: null as HTMLDivElement | null }
 
   const savedMapRaw = fieldValues.get('funnel-map:funnel_map_json') || ''
   let mapData: FunnelMapData | null = null
@@ -1514,7 +1556,7 @@ function FunnelMapActions({
         if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
         try {
           const parsed = JSON.parse(jsonStr)
-          if (parsed.rows) {
+          if (parsed.nodes && parsed.edges) {
             await onSaveField('funnel-map', 'funnel_map_json', JSON.stringify(parsed))
           } else {
             alert('AI response was not a valid funnel map. Please try again.')
@@ -1538,11 +1580,11 @@ function FunnelMapActions({
   const handleSaveEdit = async () => {
     try {
       const parsed = JSON.parse(editJson)
-      if (parsed.rows) {
+      if (parsed.nodes && parsed.edges) {
         await onSaveField('funnel-map', 'funnel_map_json', JSON.stringify(parsed))
         setEditing(false)
       } else {
-        alert('Invalid format — needs "rows" and "connections" fields.')
+        alert('Invalid format — needs "nodes" and "edges" fields.')
       }
     } catch {
       alert('Invalid JSON. Please fix the syntax and try again.')
@@ -1560,26 +1602,69 @@ function FunnelMapActions({
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 40px; background: white; }
         .map-title { font-size: 24px; font-weight: bold; margin-bottom: 8px; }
         .map-subtitle { font-size: 14px; color: #666; margin-bottom: 30px; }
-        .row { margin-bottom: 24px; }
-        .row-label { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 8px; }
-        .nodes { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-        .node { border: 2px solid #ddd; border-radius: 10px; padding: 12px 16px; min-width: 140px; text-align: center; }
-        .node-label { font-size: 13px; font-weight: 700; }
-        .node-sublabel { font-size: 11px; color: #666; margin-top: 2px; }
-        .node-type { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #999; }
-        .arrow { font-size: 20px; color: #ccc; }
-        .node-page { border-color: #7C3AED; background: #F5F3FF; }
-        .node-email { border-color: #8B5CF6; background: #FDF4FF; }
-        .node-action { border-color: #F59E0B; background: #FFFBEB; }
         @media print { body { padding: 20px; } }
       </style></head><body>
       <div class="map-title">${client.name} — Funnel Map</div>
-      <div class="map-subtitle">${client.brand || ''} • Customer Journey Flow</div>
+      <div class="map-subtitle">${client.brand || ''} • Customer Journey Decision Tree</div>
       ${el.innerHTML}
       <script>window.print();window.close();</script>
       </body></html>
     `)
     printWindow.document.close()
+  }
+
+  // Render the decision tree
+  const renderTree = () => {
+    if (!mapData) return null
+    const { layers } = buildTreeLayers(mapData)
+
+    return (
+      <div className="space-y-1">
+        {layers.map((layer, li) => (
+          <div key={li}>
+            {/* Nodes in this layer */}
+            <div className="flex justify-center gap-4 flex-wrap">
+              {layer.map(({ node, edges }) => {
+                const colors = NODE_COLORS[node.color] || NODE_COLORS.purple
+                const icon = NODE_ICONS[node.type] || '📄'
+                const isDecision = node.type === 'decision'
+                return (
+                  <div key={node.id} className="flex flex-col items-center">
+                    {/* The node */}
+                    <div className={`${colors.bg} ${colors.border} border-2 ${isDecision ? 'rotate-0 rounded-lg border-dashed' : 'rounded-xl'} px-4 py-3 min-w-[160px] max-w-[200px] text-center shadow-sm`}>
+                      <div className="text-xs font-bold text-stone-400 uppercase tracking-wider">{icon} {node.type}</div>
+                      <div className={`text-sm font-bold ${colors.text} mt-0.5 leading-tight`}>{node.label}</div>
+                      {node.sublabel && <div className="text-xs text-stone-500 mt-0.5 leading-tight">{node.sublabel}</div>}
+                    </div>
+
+                    {/* Edges going out from this node */}
+                    {edges.length > 0 && (
+                      <div className={`flex ${edges.length > 1 ? 'gap-8' : ''} mt-1`}>
+                        {edges.map((oe, ei) => (
+                          <div key={ei} className="flex flex-col items-center">
+                            <div className={`w-0.5 h-4 ${EDGE_BORDER[oe.edge.type] || 'border-stone-300'} border-l-2`} />
+                            {oe.edge.label && (
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                oe.edge.type === 'yes' ? 'bg-green-100 text-green-700' :
+                                oe.edge.type === 'no' ? 'bg-red-100 text-red-600' :
+                                'bg-stone-100 text-stone-500'
+                              }`}>
+                                {oe.edge.label}
+                              </span>
+                            )}
+                            <div className={`text-lg ${EDGE_COLORS[oe.edge.type] || 'text-stone-400'}`}>↓</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
   }
 
   return (
@@ -1599,41 +1684,26 @@ function FunnelMapActions({
       )}
       {generating && (
         <div className="text-center py-4">
-          <p className="text-sm text-purple-600 animate-pulse">Generating funnel map from your implementation plan...</p>
+          <p className="text-sm text-purple-600 animate-pulse">Building your decision tree funnel map...</p>
         </div>
       )}
 
-      {/* Visual map render */}
+      {/* Visual decision tree render */}
       {mapData && !editing && (
         <div className="space-y-3">
-          <div
-            id="funnel-map-render"
-            ref={(el) => { mapRef.current = el }}
-            className="bg-white border border-purple-200 rounded-xl p-5 overflow-x-auto"
-          >
-            {mapData.rows.map((row, ri) => (
-              <div key={ri} className="mb-5 last:mb-0">
-                <div className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-2">{row.label}</div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  {row.nodes.map((node, ni) => {
-                    const colors = NODE_COLORS[node.color] || NODE_COLORS.purple
-                    const typeIcon = node.type === 'email' ? '✉' : node.type === 'action' ? '⚡' : '📄'
-                    return (
-                      <div key={node.id} className="flex items-center gap-3">
-                        <div className={`${colors.bg} ${colors.border} border-2 rounded-xl px-4 py-3 min-w-[150px] text-center`}>
-                          <div className="text-xs font-bold text-stone-400 uppercase tracking-wider">{typeIcon} {node.type}</div>
-                          <div className={`text-sm font-bold ${colors.text} mt-0.5`}>{node.label}</div>
-                          {node.sublabel && <div className="text-xs text-stone-500 mt-0.5">{node.sublabel}</div>}
-                        </div>
-                        {ni < row.nodes.length - 1 && (
-                          <div className="text-stone-300 text-lg font-bold flex-shrink-0">→</div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
+          <div id="funnel-map-render" className="bg-white border border-purple-200 rounded-xl p-6 overflow-x-auto">
+            <div className="text-center mb-4">
+              <h3 className="text-lg font-bold text-stone-800">Customer Journey Decision Tree</h3>
+              <p className="text-xs text-stone-400">Each decision point splits based on the customer&apos;s action</p>
+            </div>
+            {renderTree()}
+            {/* Legend */}
+            <div className="flex justify-center gap-4 mt-6 pt-4 border-t border-stone-100">
+              <span className="text-[10px] text-stone-400 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" /> Yes path</span>
+              <span className="text-[10px] text-stone-400 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" /> No path</span>
+              <span className="text-[10px] text-stone-400 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-stone-300 inline-block" /> Sequential</span>
+              <span className="text-[10px] text-stone-400 flex items-center gap-1">🔀 Decision point</span>
+            </div>
           </div>
 
           {/* Action buttons */}
@@ -1663,7 +1733,7 @@ function FunnelMapActions({
       {/* Edit mode */}
       {editing && (
         <div className="space-y-2">
-          <p className="text-xs text-stone-500">Edit the JSON structure below. Each row has nodes (pages/emails), and connections show the flow between them.</p>
+          <p className="text-xs text-stone-500">Edit the JSON structure below. &quot;nodes&quot; are the steps and &quot;edges&quot; connect them. Edge type &quot;yes&quot;/&quot;no&quot; creates decision branches.</p>
           <textarea
             value={editJson}
             onChange={(e) => setEditJson(e.target.value)}

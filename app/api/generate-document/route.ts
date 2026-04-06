@@ -463,55 +463,72 @@ IMPORTANT RULES:
 
 Return ONLY the JSON array. No other text.`,
 
-  'funnel-map': `You are building a Funnel Map for ClubSheIs — a visual representation of the customer journey showing how every page and email sequence connects.
+  'funnel-map': `You are building a Funnel Map for ClubSheIs — a visual decision tree showing the customer journey step-by-step, with branches based on customer decisions.
 
-You will receive a list of funnel elements (pages, lead magnets, etc.) that have been selected for this client. Your job is to arrange them into a logical customer journey flow and return structured JSON that can be rendered as a visual flowchart.
+You will receive a list of funnel elements (pages, lead magnets, etc.) that have been selected for this client. Your job is to arrange them into a sequential decision tree — each step follows from the previous one, and branches split based on what the customer does (buys vs doesn't buy, downloads vs ignores, watches vs skips, etc.).
 
-IMPORTANT: ClubSheIs builds the marketing assets (pages + emails) to sell the client's product. The map should show the MARKETING FUNNEL — how a stranger becomes a lead, then a buyer, then a repeat customer.
+IMPORTANT: ClubSheIs builds the marketing assets (pages + emails) to sell the client's product. The map shows the MARKETING FUNNEL as a decision tree — how a stranger becomes a lead, then a buyer, then a repeat customer, with different paths based on their actions.
 
-Think about this like a flowchart:
-- Traffic sources lead to an entry point (opt-in/lead magnet page)
-- After opt-in, there's a nurture sequence OR an immediate offer
-- Sales pages lead to order forms/checkout
-- After purchase, there are upsells (OTO), then thank you pages
-- Email sequences run alongside each stage
+Think about this like a DECISION TREE:
+- Start with traffic sources → entry point (opt-in/lead magnet page)
+- After each step, the customer either takes the desired action or doesn't
+- Each decision creates TWO branches (e.g. "Downloads Lead Magnet" vs "Doesn't Download")
+- The YES path continues deeper into the funnel (nurture → offer → upsell)
+- The NO path might get retargeting, a different email sequence, or exit
+- Email sequences attach to specific paths (e.g. after download, lead magnet emails fire)
 
 Return ONLY valid JSON with this structure:
 {
-  "rows": [
+  "nodes": [
     {
-      "label": "Row label (e.g. 'Main Funnel', 'Email Nurture', 'Upsell Path')",
-      "nodes": [
-        {
-          "id": "unique-id",
-          "type": "page|email|action",
-          "label": "Short label (e.g. 'Opt-In Page')",
-          "sublabel": "Topic or detail (e.g. 'Leadership Quiz')",
-          "color": "blue|purple|orange|green|cyan|red"
-        }
-      ]
+      "id": "unique-id",
+      "type": "page|email|action|decision|traffic",
+      "label": "Short label (e.g. 'Opt-In Page')",
+      "sublabel": "Topic or detail (e.g. 'Leadership Quiz')",
+      "color": "blue|purple|orange|green|cyan|red|yellow"
     }
   ],
-  "connections": [
+  "edges": [
     {
       "from": "node-id",
       "to": "node-id",
-      "label": "Optional label (e.g. 'Yes', 'After 3 days', 'Purchased')",
-      "type": "arrow|branch-yes|branch-no"
+      "label": "Decision label (e.g. 'Downloads', 'Doesn't Buy', 'Opens Email', 'After 3 Days')",
+      "type": "yes|no|default"
     }
   ]
 }
 
+NODE TYPES:
+- "traffic" — entry points (Social Media, Ads, etc.)
+- "page" — landing pages, sales pages, checkout, thank you, webinar reg, etc.
+- "email" — email sequences (show as one node per sequence, e.g. "Lead Magnet Nurture Emails (5)")
+- "decision" — a branch point where the customer's action determines the next step (e.g. "Buys OTO?", "Downloads?", "Watches Webinar?")
+- "action" — triggers or automations (e.g. "Tag: Buyer", "Add to List")
+
+EDGE TYPES:
+- "yes" — the customer takes the desired action (renders as green arrow)
+- "no" — the customer doesn't take the action (renders as red arrow)
+- "default" — a non-branching sequential step (renders as gray arrow)
+
+COLORS:
+- blue = awareness/traffic entry
+- purple = engagement (lead magnets, webinars)
+- orange = conversion (sales pages, checkout)
+- green = delivery (thank you, welcome)
+- cyan = retention (community, nurture)
+- red = urgency (upsell, OTO)
+- yellow = decision point
+
 RULES:
-- The FIRST row should be the main funnel path (entry → conversion → delivery)
-- Additional rows for email sequences that run alongside the main funnel
-- Use "page" type for landing pages, sales pages, checkout, thank you, etc.
-- Use "email" type for email sequences (show as a single node per sequence, not individual emails)
-- Use "action" type for decision points or triggers
-- Colors: blue for awareness/entry, purple for engagement, orange for conversion, green for delivery/thank you, cyan for retention, red for urgency/upsell
-- Keep it clean — max 3-4 rows, 4-8 nodes per row
-- Every page should connect to at least one other node
-- Email sequences should branch off from the page that triggers them
+- The tree starts with ONE entry node (traffic source)
+- Decision nodes MUST have exactly 2 outgoing edges: one "yes" and one "no"
+- Pages and emails flow sequentially with "default" edges unless branching
+- Every funnel element from the implementation plan must appear as a node
+- Email sequences branch off AFTER the page that triggers them (e.g. after opt-in page → lead magnet emails)
+- Show what happens on BOTH paths — the buyer path AND the non-buyer path
+- Keep it focused — typically 10-20 nodes total
+- Each decision node label should be a clear question (e.g. "Buys Course?", "Downloads Ebook?")
+- The NO path should show what the customer receives instead (retarget ads, nurture emails, different offer)
 
 Return ONLY the JSON. No markdown, no explanation.`,
 
