@@ -600,8 +600,8 @@ function AwaitingReviewActions({
             {creating ? 'Setting up client...' : 'Accept & Set Up Client →'}
           </button>
         ) : (
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-green-700 text-center">✓ Client set up — moved to Onboarding</p>
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-green-700 text-center">✓ Client set up complete</p>
             <div className="flex gap-3">
               {driveResult && (
                 <a href={driveResult} target="_blank" rel="noopener noreferrer"
@@ -616,6 +616,15 @@ function AwaitingReviewActions({
                 </a>
               )}
             </div>
+            <button
+              onClick={() => {
+                const nextStage = document.getElementById('stage-onboarding')
+                if (nextStage) nextStage.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }}
+              className="w-full bg-[#16A34A] text-white px-5 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
+            >
+              Continue to Client Onboarding →
+            </button>
           </div>
         )}
       </div>
