@@ -325,6 +325,7 @@ export async function POST(req: NextRequest) {
       if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 3000)}`
     }
 
+    // Use streaming to avoid Vercel Edge timeout (25s)
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -335,6 +336,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4000,
+        stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),
     })
@@ -344,20 +346,56 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: `Anthropic API error (${res.status}): ${errText.slice(0, 300)}` }, { status: 502 })
     }
 
-    const resText = await res.text()
-    let data
-    try {
-      data = JSON.parse(resText)
-    } catch {
-      return Response.json({ error: `Unexpected API response: ${resText.slice(0, 300)}` }, { status: 502 })
-    }
-    const content = data.content?.[0]?.text || ''
+    // Stream the response through to the client
+    const encoder = new TextEncoder()
+    const decoder = new TextDecoder()
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = res.body?.getReader()
+        if (!reader) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', error: 'No response body' })}\n\n`))
+          controller.close()
+          return
+        }
 
-    if (!content) {
-      return Response.json({ error: 'AI returned empty content — please try again' }, { status: 502 })
-    }
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
 
-    return Response.json({ document: content })
+            const chunk = decoder.decode(value, { stream: true })
+            const lines = chunk.split('\n')
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6)
+                if (data === '[DONE]') continue
+                try {
+                  const parsed = JSON.parse(data)
+                  if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', text: parsed.delta.text })}\n\n`))
+                  }
+                } catch {
+                  // Skip unparseable chunks
+                }
+              }
+            }
+          }
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`))
+        } catch (err) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', error: String(err) })}\n\n`))
+        }
+        controller.close()
+      }
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    })
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
     return Response.json({ error: msg }, { status: 500 })

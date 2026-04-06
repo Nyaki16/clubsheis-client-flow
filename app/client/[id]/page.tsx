@@ -825,22 +825,60 @@ function StrategyActions({
           researchBible: bibleText,
         }),
       })
-      const text = await res.text()
-      let data
-      try {
-        data = JSON.parse(text)
-      } catch {
-        alert(`Error: The API returned an unexpected response. This usually means the server is busy — please try again in a few seconds.\n\nDetails: ${text.slice(0, 200)}`)
+
+      if (!res.ok) {
+        const errText = await res.text()
+        let errMsg = errText
+        try { errMsg = JSON.parse(errText).error } catch {}
+        alert(`Error: ${errMsg}`)
         setGenerating('')
         return
       }
-      if (!res.ok) {
-        alert(`Error: ${data.error}`)
-      } else if (data.document) {
-        const fieldKey = docType === 'client-profile' ? 'client_profile_text'
-          : docType === 'research-bible' ? 'research_bible_text'
-          : 'brand_voice_text'
-        await onSaveField('strategy', fieldKey, data.document)
+
+      // Handle streaming response
+      const contentType = res.headers.get('content-type') || ''
+      if (contentType.includes('text/event-stream')) {
+        const reader = res.body?.getReader()
+        if (!reader) { alert('No response stream'); setGenerating(''); return }
+        const decoder = new TextDecoder()
+        let fullText = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          const chunk = decoder.decode(value, { stream: true })
+          const lines = chunk.split('\n')
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const parsed = JSON.parse(line.slice(6))
+                if (parsed.type === 'text') fullText += parsed.text
+                if (parsed.type === 'error') { alert(`Error: ${parsed.error}`); break }
+              } catch {}
+            }
+          }
+        }
+
+        if (fullText) {
+          const fieldKey = docType === 'client-profile' ? 'client_profile_text'
+            : docType === 'research-bible' ? 'research_bible_text'
+            : 'brand_voice_text'
+          await onSaveField('strategy', fieldKey, fullText)
+        }
+      } else {
+        // Fallback for non-streaming response
+        const text = await res.text()
+        try {
+          const data = JSON.parse(text)
+          if (data.document) {
+            const fieldKey = docType === 'client-profile' ? 'client_profile_text'
+              : docType === 'research-bible' ? 'research_bible_text'
+              : 'brand_voice_text'
+            await onSaveField('strategy', fieldKey, data.document)
+          }
+        } catch {
+          alert(`Error: Unexpected response. Please try again.`)
+        }
       }
     } catch (err) {
       alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}. Please try again.`)
