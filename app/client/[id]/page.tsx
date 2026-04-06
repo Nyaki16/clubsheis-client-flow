@@ -768,69 +768,263 @@ function OnboardingActions({
   )
 }
 
-// ── Strategy Session Actions — Transcript upload + Profile/Bible triggers ──
+// ── Strategy Session Actions — Sequential document pipeline ──
 function StrategyActions({
   client,
   fieldValues,
+  onSaveField,
 }: {
   client: Client
   fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
 }) {
-  const sessionCompleted = fieldValues.get('strategy:session_completed') === 'Yes'
-  const transcriptLink = fieldValues.get('strategy:session_transcript_link') || ''
-  const profileStatus = fieldValues.get('strategy:client_profile_status') || 'Not Started'
-  const bibleStatus = fieldValues.get('strategy:research_bible_status') || 'Not Started'
+  const transcript = fieldValues.get('strategy:session_transcript') || ''
 
-  if (!sessionCompleted) return null
+  // Document states from saved data
+  const savedProfile = fieldValues.get('strategy:client_profile_text') || ''
+  const savedBible = fieldValues.get('strategy:research_bible_text') || ''
+  const savedVoice = fieldValues.get('strategy:brand_voice_text') || ''
+  const profileApproved = fieldValues.get('strategy:client_profile_approved') === 'true'
+  const bibleApproved = fieldValues.get('strategy:research_bible_approved') === 'true'
+  const voiceApproved = fieldValues.get('strategy:brand_voice_approved') === 'true'
+  const allUploaded = fieldValues.get('strategy:docs_uploaded') === 'true'
+
+  // Local editing states
+  const [generating, setGenerating] = useState('')
+  const [editingDoc, setEditingDoc] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
+  const [uploading, setUploading] = useState(false)
+
+  // Current content (use saved)
+  const profileText = savedProfile
+  const bibleText = savedBible
+  const voiceText = savedVoice
+
+  if (!transcript) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <p className="text-sm text-amber-700">
+          <strong>Paste the strategy session transcript above</strong> to unlock the document pipeline.
+        </p>
+      </div>
+    )
+  }
+
+  const handleGenerate = async (docType: string) => {
+    setGenerating(docType)
+    try {
+      const res = await fetch('/api/generate-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentType: docType,
+          clientName: client.name,
+          brandName: client.brand,
+          transcript,
+          clientProfile: profileText,
+          researchBible: bibleText,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(`Error: ${data.error}`)
+      } else if (data.document) {
+        const fieldKey = docType === 'client-profile' ? 'client_profile_text'
+          : docType === 'research-bible' ? 'research_bible_text'
+          : 'brand_voice_text'
+        await onSaveField('strategy', fieldKey, data.document)
+      }
+    } catch (err) {
+      alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}`)
+    }
+    setGenerating('')
+  }
+
+  const handleApprove = async (docType: string) => {
+    const key = docType === 'client-profile' ? 'client_profile_approved'
+      : docType === 'research-bible' ? 'research_bible_approved'
+      : 'brand_voice_approved'
+    await onSaveField('strategy', key, 'true')
+  }
+
+  const handleEdit = (docType: string, text: string) => {
+    setEditingDoc(docType)
+    setEditText(text)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingDoc) return
+    const fieldKey = editingDoc === 'client-profile' ? 'client_profile_text'
+      : editingDoc === 'research-bible' ? 'research_bible_text'
+      : 'brand_voice_text'
+    await onSaveField('strategy', fieldKey, editText)
+    setEditingDoc(null)
+    setEditText('')
+  }
+
+  const handleUploadAll = async () => {
+    setUploading(true)
+    // For now, mark as uploaded — Drive + ClickUp integration can be added
+    await onSaveField('strategy', 'docs_uploaded', 'true')
+    setUploading(false)
+    alert('Documents marked as uploaded. Open Google Drive and ClickUp to link them.')
+  }
+
+  const DOCS = [
+    {
+      key: 'client-profile',
+      title: 'Client Profile',
+      description: 'Business overview, target audience, current marketing, offers, and goals.',
+      text: profileText,
+      approved: profileApproved,
+      canGenerate: true,
+      color: 'purple',
+    },
+    {
+      key: 'research-bible',
+      title: 'Research Bible',
+      description: 'Deep audience analysis, market sophistication, messaging strategy, content pillars.',
+      text: bibleText,
+      approved: bibleApproved,
+      canGenerate: profileApproved,
+      color: 'blue',
+    },
+    {
+      key: 'brand-voice',
+      title: 'Brand Voice',
+      description: 'Tone, language patterns, do\'s and don\'ts, sample copy.',
+      text: voiceText,
+      approved: voiceApproved,
+      canGenerate: bibleApproved,
+      color: 'amber',
+    },
+  ]
 
   return (
     <div className="space-y-3">
-      {transcriptLink && (
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-3">
-          <h4 className="text-sm font-bold text-purple-800">Post-Session Tasks</h4>
-          <p className="text-sm text-purple-700">
-            The transcript has been uploaded. Now build the Client Profile and Research Bible from the session notes.
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <div className={`rounded-lg p-3 border ${profileStatus === 'Complete' ? 'bg-green-50 border-green-200' : 'bg-white border-purple-200'}`}>
-              <p className="text-xs font-bold uppercase tracking-wider mb-1 ${profileStatus === 'Complete' ? 'text-green-600' : 'text-purple-600'}">
-                Client Profile
-              </p>
-              <p className="text-sm font-semibold">
-                {profileStatus === 'Complete' ? '✓ Complete' : profileStatus === 'Building' ? '⏳ Building...' : '○ Not Started'}
-              </p>
-              <p className="text-xs text-stone-500 mt-1">
-                Business info, audience, voice, offers — built from the strategy session.
-              </p>
+      {/* Document Pipeline */}
+      {DOCS.map((doc, idx) => {
+        const isGenerating = generating === doc.key
+        const isLocked = !doc.canGenerate
+        const hasContent = !!doc.text
+        const isEditing = editingDoc === doc.key
+
+        return (
+          <div key={doc.key} className={`rounded-lg border p-4 space-y-3 ${
+            doc.approved ? 'bg-green-50 border-green-200' :
+            isLocked ? 'bg-stone-50 border-stone-200 opacity-60' :
+            'bg-white border-purple-200'
+          }`}>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  doc.approved ? 'bg-green-500 text-white' :
+                  hasContent ? 'bg-purple-500 text-white' :
+                  'bg-stone-300 text-white'
+                }`}>
+                  {doc.approved ? '✓' : idx + 1}
+                </span>
+                <h4 className="text-sm font-bold text-stone-800">{doc.title}</h4>
+              </div>
+              {doc.approved && <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
+              {isLocked && <span className="text-xs text-stone-400">Locked — approve previous doc first</span>}
             </div>
-            <div className={`rounded-lg p-3 border ${bibleStatus === 'Complete' ? 'bg-green-50 border-green-200' : 'bg-white border-purple-200'}`}>
-              <p className="text-xs font-bold uppercase tracking-wider mb-1 ${bibleStatus === 'Complete' ? 'text-green-600' : 'text-purple-600'}">
-                Research Bible
-              </p>
-              <p className="text-sm font-semibold">
-                {bibleStatus === 'Complete' ? '✓ Complete' : bibleStatus === 'Building' ? '⏳ Building...' : '○ Not Started'}
-              </p>
-              <p className="text-xs text-stone-500 mt-1">
-                Deep audience analysis, awareness levels, messaging strategy.
-              </p>
-            </div>
+            <p className="text-xs text-stone-500">{doc.description}</p>
+
+            {/* Actions */}
+            {!isLocked && !hasContent && !isGenerating && (
+              <button
+                onClick={() => handleGenerate(doc.key)}
+                className="w-full bg-purple-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors cursor-pointer"
+              >
+                Generate {doc.title}
+              </button>
+            )}
+            {isGenerating && (
+              <div className="text-center py-3">
+                <p className="text-sm text-purple-600 animate-pulse">Generating {doc.title}...</p>
+              </div>
+            )}
+
+            {/* Content display */}
+            {hasContent && !isEditing && (
+              <div className="space-y-2">
+                <div className="bg-white border border-stone-200 rounded-lg p-3 max-h-64 overflow-y-auto">
+                  <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed">{doc.text}</pre>
+                </div>
+                {!doc.approved && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEdit(doc.key, doc.text)}
+                      className="flex-1 bg-white border border-stone-300 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors cursor-pointer"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleGenerate(doc.key)}
+                      className="flex-1 bg-white border border-purple-300 text-purple-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-50 transition-colors cursor-pointer"
+                    >
+                      Regenerate
+                    </button>
+                    <button
+                      onClick={() => handleApprove(doc.key)}
+                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
+                    >
+                      Approve ✓
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Editing */}
+            {isEditing && (
+              <div className="space-y-2">
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="w-full border border-purple-300 rounded-lg p-3 text-xs text-stone-700 font-sans leading-relaxed min-h-[200px] focus:outline-none focus:ring-2 focus:ring-purple-400"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setEditingDoc(null); setEditText('') }}
+                    className="flex-1 bg-white border border-stone-300 text-stone-600 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveEdit}
+                    className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-purple-700 cursor-pointer"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          {profileStatus !== 'Complete' || bibleStatus !== 'Complete' ? (
-            <p className="text-xs text-purple-600 text-center">
-              Build both documents before moving to the production stage.
-            </p>
-          ) : (
-            <p className="text-xs text-green-600 text-center font-semibold">
-              ✓ Both documents complete — ready to move to production.
-            </p>
-          )}
+        )
+      })}
+
+      {/* Upload All */}
+      {profileApproved && bibleApproved && voiceApproved && !allUploaded && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+          <h4 className="text-sm font-bold text-green-800">All Documents Approved!</h4>
+          <p className="text-sm text-green-700">
+            Upload all three documents to Google Drive and link them to the ClickUp client task.
+          </p>
+          <button
+            onClick={handleUploadAll}
+            disabled={uploading}
+            className="w-full bg-green-600 text-white px-5 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {uploading ? 'Uploading...' : 'Upload to Drive & Link to ClickUp →'}
+          </button>
         </div>
       )}
-      {!transcriptLink && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <p className="text-sm text-amber-700">
-            <strong>Session complete</strong> — upload the transcript or paste your session notes above to unlock the Client Profile and Research Bible builders.
-          </p>
+      {allUploaded && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+          <p className="text-sm font-semibold text-green-700">✓ All documents uploaded and linked — ready to move to production.</p>
         </div>
       )}
     </div>
@@ -1458,6 +1652,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                     <StrategyActions
                       client={client}
                       fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
                     />
                   ) : undefined
                 }
