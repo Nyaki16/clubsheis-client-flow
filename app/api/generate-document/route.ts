@@ -654,6 +654,13 @@ STRUCTURE FOR THE PAGE:
 - **Section headline**: Credibility builder.
 - **Testimonial/proof framing** (3): How to present evidence.
 
+### About Me Section
+- **Section headline**: Introduce the person behind the brand (e.g. "Hi, if we've never met before...")
+- **Personal intro**: Who they are, their story, what drives them — written warm and authentic in their voice.
+- **Why this matters to them**: Why they created this offer, what they've seen, what they believe.
+- **Why you should listen**: Their credentials, experience, results — positioned as "I've been where you are" not a cold CV.
+- **Bridge to CTA**: Connect their story back to the offer and why the visitor should take action NOW.
+
 ### CTA Section
 - **Final headline**: Drive action.
 - **CTA button text** (3 variations).
@@ -751,9 +758,9 @@ export async function POST(req: NextRequest) {
       if (funnelElements) userMessage += `\n\nSELECTED FUNNEL ELEMENTS TO WRITE COPY FOR:\n${funnelElements}`
     }
     if (documentType === 'copy-element-page' || documentType === 'copy-element-email') {
-      if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 15000)}`
-      if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
-      if (brandVoice) userMessage += `\n\nAPPROVED BRAND VOICE:\n${brandVoice.slice(0, 10000)}`
+      if (clientProfile) userMessage += `\n\nCLIENT PROFILE:\n${clientProfile.slice(0, 5000)}`
+      if (researchBible) userMessage += `\n\nRESEARCH BIBLE (KEY POINTS):\n${researchBible.slice(0, 5000)}`
+      if (brandVoice) userMessage += `\n\nBRAND VOICE:\n${brandVoice.slice(0, 4000)}`
       if (funnelElements) userMessage += `\n\nFUNNEL ELEMENT TO WRITE ${documentType === 'copy-element-page' ? 'PAGE COPY' : 'EMAIL SEQUENCE'} FOR:\n${funnelElements}`
       if (userNotes) userMessage += `\n\nUSER NOTES & IDEAS:\n${userNotes}`
     }
