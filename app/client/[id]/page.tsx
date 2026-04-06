@@ -1250,7 +1250,7 @@ function ImplementationPlanActions({
       {/* Header */}
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
         <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">Production Checklist — {totalElements} elements</h4>
-        <p className="text-xs text-amber-600">These elements were confirmed in the Funnel Strategy. Review and add anything else needed before moving to the Copy Bible.</p>
+        <p className="text-xs text-amber-600">These are the marketing assets we build — pages and email sequences to sell and market the client's product. The client creates the actual product (course, guide, masterclass, etc.).</p>
       </div>
 
       {/* Strategy elements by stage */}
@@ -1267,25 +1267,44 @@ function ImplementationPlanActions({
                   {stageInfo.label}
                 </div>
                 <div className="space-y-1.5">
-                  {stageItems.map((el, i) => (
-                    <div key={i} className={`rounded-lg border p-3 ${stageInfo.bg} ${stageInfo.border}`}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-green-500 text-sm">✓</span>
-                        <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
-                      </div>
-                      <p className="text-sm font-semibold text-stone-800 mt-0.5 ml-6">{el.topic}</p>
-                      <p className="text-xs text-stone-500 mt-0.5 ml-6">{el.description}</p>
-                      {el.email_note && (
-                        <div className="ml-6 mt-2 bg-purple-50 border border-purple-200 rounded-md px-3 py-2">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-purple-400 text-xs">✉</span>
-                            <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">Email Sequence</span>
-                          </div>
-                          <p className="text-xs text-purple-700 mt-0.5">{el.email_note}</p>
+                  {stageItems.map((el, i) => {
+                    // Determine what we build vs what client builds
+                    const isProduct = ['course', 'masterclass', 'ebook', 'guide', 'toolkit', 'template', 'cheat sheet', 'checklist', 'mini-course', 'video series', 'workshop', 'challenge', 'downloadable'].some(
+                      t => el.type.toLowerCase().includes(t)
+                    )
+                    return (
+                      <div key={i} className={`rounded-lg border p-3 ${stageInfo.bg} ${stageInfo.border}`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-500 text-sm">✓</span>
+                          <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        <p className="text-sm font-semibold text-stone-800 mt-0.5 ml-6">{el.topic}</p>
+                        <p className="text-xs text-stone-500 mt-0.5 ml-6">{el.description}</p>
+
+                        {/* What we build */}
+                        <div className="ml-6 mt-2 space-y-1.5">
+                          <div className="bg-green-50 border border-green-200 rounded-md px-3 py-1.5">
+                            <span className="text-xs font-bold text-green-600 uppercase tracking-wider">We build: </span>
+                            <span className="text-xs text-green-700">
+                              {isProduct ? `Landing page, sales copy & email sequence for the ${el.type.toLowerCase()}` : `${el.type} page & sales copy`}
+                            </span>
+                          </div>
+                          {isProduct && (
+                            <div className="bg-stone-50 border border-stone-200 rounded-md px-3 py-1.5">
+                              <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Client builds: </span>
+                              <span className="text-xs text-stone-600">The actual {el.type.toLowerCase()} content</span>
+                            </div>
+                          )}
+                          {el.email_note && (
+                            <div className="bg-purple-50 border border-purple-200 rounded-md px-3 py-1.5">
+                              <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">Email sequence: </span>
+                              <span className="text-xs text-purple-700">{el.email_note}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )

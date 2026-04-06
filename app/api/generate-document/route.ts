@@ -467,7 +467,14 @@ Return ONLY the JSON array. No other text.`,
 
 The Copy Bible is the master sales copy document that the production team uses to build every page and write every email sequence. It translates the strategy (Client Profile, Research Bible, Brand Voice) into production-ready copy frameworks for each funnel element the client needs.
 
-YOUR JOB: For EACH selected funnel element, write complete, production-ready copy using direct response frameworks. This is NOT a brief or outline — it's the actual copy the team will use. Write in the client's brand voice. Use the Research Bible's Schwartz analysis to pitch at the correct awareness stage and sophistication level.
+IMPORTANT CONTEXT — SCOPE OF WORK:
+ClubSheIs builds the MARKETING ASSETS — pages, sales copy, and email sequences — to sell and market the client's product. We do NOT build the actual product itself (the course content, ebook content, masterclass curriculum, guide text, etc.). The client creates their own product. Our job is to write the copy that SELLS it.
+
+So if the element is "Ebook: The 5-Step Framework for Confidence" — we write the landing page copy and email sequence to get people to download/buy it. We do NOT write the ebook itself.
+
+If the element is "Masterclass: Leadership for Women" — we write the registration page, sales page, and email sequences. We do NOT write the masterclass content.
+
+YOUR JOB: For EACH selected funnel element from the Implementation Plan, write complete, production-ready MARKETING copy — landing pages and email sequences that sell/promote the element. This is NOT a brief or outline — it's the actual copy the team will use. Write in the client's brand voice. Use the Research Bible's Schwartz analysis to pitch at the correct awareness stage and sophistication level.
 
 RULES:
 - Write in the client's BRAND VOICE as defined in the Brand Voice document
@@ -476,6 +483,8 @@ RULES:
 - CTAs must be specific — not generic "Learn More" but action-oriented and benefit-driven
 - Use [ASSUMPTION] where inferring details, GAP: where info is genuinely missing
 - Each funnel element gets its own complete section with all copy written out
+- For each element, write the PAGE COPY + the EMAIL SEQUENCE that accompanies it
+- Reference the specific product/offer the client is selling — describe its benefits and transformation, but remember we're writing the marketing copy, not the product content
 
 For each selected funnel element, use the appropriate framework below:
 
