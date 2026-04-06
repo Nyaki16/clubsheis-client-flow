@@ -2223,6 +2223,90 @@ function BrandBibleActions({
     printWindow.document.close()
   }
 
+  const LogoUploadField = ({ logoUrl: currentLogo, onSaveUrl, clientId }: { logoUrl: string; onSaveUrl: (url: string) => void; clientId: string }) => {
+    const [uploading, setUploading] = useState(false)
+    const [pasteMode, setPasteMode] = useState(false)
+    const [pasteUrl, setPasteUrl] = useState(currentLogo)
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return }
+      if (file.size > 5 * 1024 * 1024) { alert('File too large. Max 5MB.'); return }
+
+      setUploading(true)
+      try {
+        const { supabase } = await import('@/lib/supabase')
+        const ext = file.name.split('.').pop() || 'png'
+        const path = `logos/${clientId}/${Date.now()}.${ext}`
+        const { error } = await supabase.storage.from('brand-assets').upload(path, file, { upsert: true })
+        if (error) {
+          // Try creating bucket if it doesn't exist
+          if (error.message?.includes('not found') || error.message?.includes('Bucket')) {
+            await supabase.storage.createBucket('brand-assets', { public: true })
+            const { error: retryErr } = await supabase.storage.from('brand-assets').upload(path, file, { upsert: true })
+            if (retryErr) throw retryErr
+          } else {
+            throw error
+          }
+        }
+        const { data: urlData } = supabase.storage.from('brand-assets').getPublicUrl(path)
+        if (urlData?.publicUrl) {
+          onSaveUrl(urlData.publicUrl)
+        }
+      } catch (err) {
+        alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}. You can paste a URL instead.`)
+      }
+      setUploading(false)
+      e.target.value = ''
+    }
+
+    return (
+      <div>
+        <label className="text-xs font-semibold text-stone-600 block mb-1">Logo</label>
+        {/* Preview */}
+        {currentLogo && (
+          <div className="mb-2 flex items-center gap-3 bg-stone-50 rounded-lg p-2 border border-stone-200">
+            {currentLogo.startsWith('http') && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={currentLogo} alt="Logo" className="h-12 w-auto rounded object-contain" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-stone-600 truncate">{currentLogo}</p>
+            </div>
+            <button onClick={() => onSaveUrl('')} className="text-xs text-red-500 hover:text-red-700 cursor-pointer flex-shrink-0">Remove</button>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          {/* Upload button */}
+          <label className={`flex-1 flex items-center justify-center gap-2 border-2 border-dashed border-pink-200 rounded-lg px-4 py-3 cursor-pointer hover:bg-pink-50 transition-colors ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+            <span className="text-sm">📁</span>
+            <span className="text-xs font-medium text-pink-700">{uploading ? 'Uploading...' : 'Upload Logo Image'}</span>
+            <input type="file" accept="image/*" onChange={handleUpload} className="hidden" disabled={uploading} />
+          </label>
+          {/* Or paste URL */}
+          <button onClick={() => setPasteMode(!pasteMode)} className="px-3 py-2 border border-stone-200 rounded-lg text-xs font-medium text-stone-600 hover:bg-stone-50 cursor-pointer">
+            Paste URL
+          </button>
+        </div>
+
+        {pasteMode && (
+          <div className="flex gap-2 mt-2">
+            <input
+              type="text"
+              value={pasteUrl}
+              onChange={(e) => setPasteUrl(e.target.value)}
+              placeholder="https://drive.google.com/... or direct image URL"
+              className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-xs text-stone-700 focus:outline-none focus:ring-2 focus:ring-pink-300"
+            />
+            <button onClick={() => { onSaveUrl(pasteUrl); setPasteMode(false) }} className="bg-pink-600 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-pink-700 cursor-pointer">Save</button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const InputField = ({ label, fieldKey, placeholder, type = 'text', multiline = false }: { label: string; fieldKey: string; placeholder: string; type?: string; multiline?: boolean }) => (
     <div>
       <label className="text-xs font-semibold text-stone-600 block mb-1">{label}</label>
@@ -2306,7 +2390,11 @@ function BrandBibleActions({
 
       {/* Build Brand Bible sections */}
       <Section title="Logo" icon="🎨" id="logo">
-        <InputField label="Logo URL (Google Drive, Canva, or direct link)" fieldKey="logo_url" placeholder="https://drive.google.com/... or paste image URL" />
+        <LogoUploadField
+          logoUrl={logoUrl}
+          onSaveUrl={(url) => onSaveField('brand-bible', 'logo_url', url)}
+          clientId={client.id}
+        />
         <InputField label="Logo usage notes" fieldKey="logo_notes" placeholder="Minimum size, clear space rules, when to use which version..." multiline />
       </Section>
 
