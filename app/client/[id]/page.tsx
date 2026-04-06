@@ -1274,10 +1274,15 @@ function ImplementationPlanActions({
                         <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
                       </div>
                       <p className="text-sm font-semibold text-stone-800 mt-0.5 ml-6">{el.topic}</p>
+                      <p className="text-xs text-stone-500 mt-0.5 ml-6">{el.description}</p>
                       {el.email_note && (
-                        <p className="text-xs text-purple-500 mt-1 ml-6">
-                          <span className="font-semibold">Email:</span> {el.email_note}
-                        </p>
+                        <div className="ml-6 mt-2 bg-purple-50 border border-purple-200 rounded-md px-3 py-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-purple-400 text-xs">✉</span>
+                            <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">Email Sequence</span>
+                          </div>
+                          <p className="text-xs text-purple-700 mt-0.5">{el.email_note}</p>
+                        </div>
                       )}
                     </div>
                   ))}
