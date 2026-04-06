@@ -17,10 +17,10 @@ export const ADS_EMAIL_SOCIAL_TRACKS = [
 
 export const PACKAGE_BRANCHES: Record<string, string[]> = {
   'ghutte-only': [],
-  'page-build': ['funnel-map', 'copy-bible', 'brand-bible'],
-  'content-day': ['funnel-map', 'copy-bible', 'brand-bible', 'content-production'],
-  'ads-email-social': ['funnel-map', 'copy-bible', 'brand-bible', 'ads-email-social'],
-  'full-build': ['funnel-map', 'copy-bible', 'brand-bible'],
+  'page-build': ['funnel-map', 'copy-bible', 'brand-bible', 'production'],
+  'content-day': ['funnel-map', 'copy-bible', 'brand-bible', 'production', 'content-production'],
+  'ads-email-social': ['funnel-map', 'copy-bible', 'brand-bible', 'production', 'ads-email-social'],
+  'full-build': ['funnel-map', 'copy-bible', 'brand-bible', 'production'],
 }
 
 export const STAGES: StageDefinition[] = [
@@ -277,8 +277,30 @@ export const STAGES: StageDefinition[] = [
     nextActionPrompt: 'Complete the Brand Bible — connect Canva or build from scratch — then move to production.',
   },
   {
+    key: 'production',
+    num: '7',
+    name: 'Production',
+    summary: 'Active production tracked via ClickUp. View tasks, statuses, and progress for this client\'s build — pages, emails, assets, and deliverables.',
+    color: '#E11D48',
+    colorSoft: 'rgba(225,29,72,0.06)',
+    triggerLabel: 'Trigger: Pre-production complete',
+    triggerColor: 'rose',
+    guide: [
+      'All production tasks are managed in ClickUp.',
+      'Tasks are pulled from the client\'s ClickUp folder automatically.',
+      'Track progress across page builds, email sequences, and asset creation.',
+      'Mark production as complete once all tasks are done in ClickUp.',
+    ],
+    substeps: [],
+    dataFields: [],
+    conditionalLogic: [
+      { condition: 'All ClickUp tasks complete', result: 'Move to Review & Delivery' },
+    ],
+    nextActionPrompt: 'Track production progress in ClickUp and mark complete when done.',
+  },
+  {
     key: 'content-production',
-    num: '6C',
+    num: '7B',
     name: 'Branch: Content Production',
     summary: 'The full pre-production pipeline: Creative Brief, Content Plan, Scripts, Production Day, Post-Production, and Delivery. Each step has a gate checkpoint — nothing moves forward without approval.',
     color: '#0D9488',
@@ -322,7 +344,7 @@ export const STAGES: StageDefinition[] = [
   },
   {
     key: 'ads-email-social',
-    num: '6D',
+    num: '7C',
     name: 'Branch: Ads + Email + Social',
     summary: 'Three parallel tracks running simultaneously: Paid Ads, Email Sequences, and Social Content. Each track has its own progress — the Account Manager can see which track needs attention at a glance.',
     color: '#E11D48',
@@ -568,9 +590,9 @@ export function getActiveStagesForPackage(pkg: string): string[] {
     return [...core, ...closing, 'wrapup']
   }
 
-  // Full Build: funnel map, copy bible, brand bible, no retainer
+  // Full Build: funnel map, copy bible, brand bible, production, no retainer
   if (pkg === 'full-build') {
-    return [...core, 'funnel-map', 'copy-bible', 'brand-bible', ...closing, 'wrapup']
+    return [...core, 'funnel-map', 'copy-bible', 'brand-bible', 'production', ...closing, 'wrapup']
   }
 
   return [
