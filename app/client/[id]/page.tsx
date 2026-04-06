@@ -2279,7 +2279,7 @@ function BrandBibleActions({
       {/* Canva Brand Kit link */}
       <div className="bg-pink-50 border border-pink-200 rounded-lg p-3 space-y-2">
         <h4 className="text-xs font-bold text-pink-700 uppercase tracking-wider">Canva Brand Kit</h4>
-        <p className="text-xs text-stone-500">If the client has an existing Canva Brand Kit, paste the URL here. Otherwise, fill in the sections below to build one.</p>
+        <p className="text-xs text-stone-500">Paste the client&apos;s Canva Brand Kit URL, then copy the colours, fonts, and logo details into the sections below.</p>
         <input
           type="text"
           value={canvaUrl}
@@ -2288,11 +2288,21 @@ function BrandBibleActions({
           className="w-full border border-pink-200 rounded-lg px-3 py-2 text-xs text-stone-700 focus:outline-none focus:ring-2 focus:ring-pink-300 placeholder:text-stone-400"
         />
         {canvaUrl && (
-          <a href={canvaUrl} target="_blank" rel="noopener noreferrer" className="inline-block text-xs text-pink-600 font-medium hover:text-pink-800 underline">
-            Open Canva Brand Kit →
-          </a>
+          <div className="flex items-center justify-between">
+            <a href={canvaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-pink-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-pink-700 transition-colors">
+              Open in Canva to Copy Details →
+            </a>
+            <span className="text-[10px] text-stone-400">Open Canva side-by-side and fill in the fields below</span>
+          </div>
         )}
       </div>
+
+      {canvaUrl && !primaryFont && !logoUrl && !logoNotes && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+          <span className="text-amber-500 mt-0.5">⚠️</span>
+          <p className="text-xs text-amber-700">Brand Kit URL added but details are empty. Open the Canva Brand Kit above and copy the <strong>colours</strong>, <strong>fonts</strong>, and <strong>logo</strong> into the sections below.</p>
+        </div>
+      )}
 
       {/* Build Brand Bible sections */}
       <Section title="Logo" icon="🎨" id="logo">
