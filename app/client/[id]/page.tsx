@@ -835,50 +835,44 @@ function StrategyActions({
         return
       }
 
-      // Handle streaming response
-      const contentType = res.headers.get('content-type') || ''
-      if (contentType.includes('text/event-stream')) {
-        const reader = res.body?.getReader()
-        if (!reader) { alert('No response stream'); setGenerating(''); return }
-        const decoder = new TextDecoder()
-        let fullText = ''
+      // Read streaming SSE response
+      const reader = res.body?.getReader()
+      if (!reader) { alert('No response stream'); setGenerating(''); return }
+      const decoder = new TextDecoder()
+      let fullText = ''
+      let buffer = ''
 
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          const chunk = decoder.decode(value, { stream: true })
-          const lines = chunk.split('\n')
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const parsed = JSON.parse(line.slice(6))
-                if (parsed.type === 'text') fullText += parsed.text
-                if (parsed.type === 'error') { alert(`Error: ${parsed.error}`); break }
-              } catch {}
-            }
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || '' // Keep incomplete line in buffer
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const parsed = JSON.parse(line.slice(6))
+              if (parsed.type === 'text') fullText += parsed.text
+              if (parsed.type === 'error') { alert(`Error: ${parsed.error}`); break }
+            } catch {}
           }
         }
-
-        if (fullText) {
-          const fieldKey = docType === 'client-profile' ? 'client_profile_text'
-            : docType === 'research-bible' ? 'research_bible_text'
-            : 'brand_voice_text'
-          await onSaveField('strategy', fieldKey, fullText)
-        }
-      } else {
-        // Fallback for non-streaming response
-        const text = await res.text()
+      }
+      // Process any remaining buffer
+      if (buffer.startsWith('data: ')) {
         try {
-          const data = JSON.parse(text)
-          if (data.document) {
-            const fieldKey = docType === 'client-profile' ? 'client_profile_text'
-              : docType === 'research-bible' ? 'research_bible_text'
-              : 'brand_voice_text'
-            await onSaveField('strategy', fieldKey, data.document)
-          }
-        } catch {
-          alert(`Error: Unexpected response. Please try again.`)
-        }
+          const parsed = JSON.parse(buffer.slice(6))
+          if (parsed.type === 'text') fullText += parsed.text
+        } catch {}
+      }
+
+      if (fullText) {
+        const fieldKey = docType === 'client-profile' ? 'client_profile_text'
+          : docType === 'research-bible' ? 'research_bible_text'
+          : 'brand_voice_text'
+        await onSaveField('strategy', fieldKey, fullText)
+      } else {
+        alert('Error: No content was generated. Please try again.')
       }
     } catch (err) {
       alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}. Please try again.`)
