@@ -2307,6 +2307,70 @@ function BrandBibleActions({
     )
   }
 
+  const FONT_OPTIONS = [
+    // Sans-Serif
+    'Inter', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Nunito', 'Raleway', 'Work Sans', 'DM Sans', 'Outfit',
+    'Manrope', 'Plus Jakarta Sans', 'Source Sans 3', 'Rubik', 'Figtree', 'Albert Sans', 'Urbanist', 'Sora',
+    // Serif
+    'Playfair Display', 'Lora', 'Merriweather', 'EB Garamond', 'Libre Baskerville', 'Cormorant Garamond', 'DM Serif Display',
+    'Fraunces', 'Noto Serif', 'Bitter', 'Crimson Text', 'Vollkorn', 'Source Serif 4',
+    // Display / Decorative
+    'Abril Fatface', 'Oswald', 'Bebas Neue', 'Anton', 'Righteous', 'Archivo Black', 'Lexend',
+    // Script / Handwritten
+    'Dancing Script', 'Pacifico', 'Great Vibes', 'Satisfy', 'Sacramento', 'Alex Brush', 'Caveat', 'Kalam',
+  ]
+
+  const FontSelectField = ({ label, fieldKey }: { label: string; fieldKey: string }) => {
+    const value = fieldValues.get(`brand-bible:${fieldKey}`) || ''
+    const [customMode, setCustomMode] = useState(false)
+    const isCustom = value && !FONT_OPTIONS.includes(value)
+
+    return (
+      <div>
+        <label className="text-xs font-semibold text-stone-600 block mb-1">{label}</label>
+        {!customMode && !isCustom ? (
+          <div className="flex gap-2">
+            <select
+              value={value}
+              onChange={(e) => onSaveField('brand-bible', fieldKey, e.target.value)}
+              className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-xs text-stone-700 focus:outline-none focus:ring-2 focus:ring-pink-300 bg-white cursor-pointer"
+            >
+              <option value="">Select a font...</option>
+              <optgroup label="Sans-Serif">
+                {FONT_OPTIONS.slice(0, 18).map(f => <option key={f} value={f}>{f}</option>)}
+              </optgroup>
+              <optgroup label="Serif">
+                {FONT_OPTIONS.slice(18, 31).map(f => <option key={f} value={f}>{f}</option>)}
+              </optgroup>
+              <optgroup label="Display">
+                {FONT_OPTIONS.slice(31, 38).map(f => <option key={f} value={f}>{f}</option>)}
+              </optgroup>
+              <optgroup label="Script / Handwritten">
+                {FONT_OPTIONS.slice(38).map(f => <option key={f} value={f}>{f}</option>)}
+              </optgroup>
+            </select>
+            <button onClick={() => setCustomMode(true)} className="px-3 py-2 border border-stone-200 rounded-lg text-xs text-stone-500 hover:bg-stone-50 cursor-pointer whitespace-nowrap">
+              Custom
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => onSaveField('brand-bible', fieldKey, e.target.value)}
+              placeholder="Type custom font name..."
+              className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-xs text-stone-700 focus:outline-none focus:ring-2 focus:ring-pink-300"
+            />
+            <button onClick={() => setCustomMode(false)} className="px-3 py-2 border border-stone-200 rounded-lg text-xs text-stone-500 hover:bg-stone-50 cursor-pointer whitespace-nowrap">
+              List
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const InputField = ({ label, fieldKey, placeholder, type = 'text', multiline = false }: { label: string; fieldKey: string; placeholder: string; type?: string; multiline?: boolean }) => (
     <div>
       <label className="text-xs font-semibold text-stone-600 block mb-1">{label}</label>
@@ -2408,8 +2472,8 @@ function BrandBibleActions({
       </Section>
 
       <Section title="Typography" icon="🔤" id="typography">
-        <InputField label="Primary Font (Headings)" fieldKey="primary_font" placeholder="e.g. Playfair Display, Montserrat Bold..." />
-        <InputField label="Secondary Font (Body text)" fieldKey="secondary_font" placeholder="e.g. Open Sans, Lato, Inter..." />
+        <FontSelectField label="Primary Font (Headings)" fieldKey="primary_font" />
+        <FontSelectField label="Secondary Font (Body text)" fieldKey="secondary_font" />
         <InputField label="Font usage notes" fieldKey="font_notes" placeholder="Sizes, weights, when to use which font..." multiline />
       </Section>
 
