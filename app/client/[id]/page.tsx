@@ -1618,7 +1618,7 @@ function FunnelMapActions({
       <div class="map-title">${client.name} — Funnel Map</div>
       <div class="map-subtitle">${client.brand || ''} • Customer Journey Decision Tree</div>
       ${el.innerHTML}
-      <script>window.print();window.close();</script>
+      <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };</script>
       </body></html>
     `)
     printWindow.document.close()
@@ -2196,7 +2196,7 @@ function BrandBibleActions({
       ${canvaUrl ? `<div class="section"><div class="field-label">Canva Brand Kit</div><div class="field-value"><a href="${canvaUrl}">${canvaUrl}</a></div></div>` : ''}
       <h2>Logo</h2>
       <div class="section">
-        ${logoUrl ? `<div class="field-label">Logo URL</div><div class="field-value">${logoUrl}</div>` : ''}
+        ${logoUrl ? `<div style="margin-bottom:12px"><img src="${logoUrl}" alt="Logo" style="max-height:80px;max-width:200px;object-fit:contain" onerror="this.style.display='none'" /></div><div class="field-label">Logo URL</div><div class="field-value" style="word-break:break-all">${logoUrl}</div>` : ''}
         ${logoNotes ? `<div class="field-label">Logo Notes</div><div class="field-value">${logoNotes}</div>` : ''}
       </div>
       <h2>Colours</h2>
@@ -2220,7 +2220,7 @@ function BrandBibleActions({
         ${brandTone ? `<div class="field-label">Brand Tone / Mood</div><div class="field-value">${brandTone}</div>` : ''}
         ${designNotes ? `<div class="field-label">Design Notes</div><div class="field-value">${designNotes}</div>` : ''}
       </div>
-      <script>window.print();window.close();</script>
+      <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };</script>
       </body></html>
     `)
     printWindow.document.close()
