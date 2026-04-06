@@ -159,8 +159,55 @@ export const STAGES: StageDefinition[] = [
     nextActionPrompt: 'Upload the transcript, then generate and review all three documents before moving to production.',
   },
   {
+    key: 'implementation-plan',
+    num: '5',
+    name: 'Implementation Plan',
+    summary: 'Define the funnel elements and deliverables for this client. Select everything that needs to be built — pages, email sequences, and conversion assets. This becomes the production checklist for all downstream stages.',
+    color: '#D97706',
+    colorSoft: 'rgba(217,119,6,0.06)',
+    triggerLabel: 'Trigger: Strategy documents approved',
+    triggerColor: 'amber',
+    guide: [
+      'Review the Client Profile and Research Bible to determine what funnel elements this client needs.',
+      'Select ALL elements that need to be built — you can always add more later.',
+      'Pages (Lead Magnet, Sales Page, OTO, etc.) will flow into the Page Build stage.',
+      'Email sequences will flow into the Email track of Ads + Email + Social.',
+      'Once the plan is confirmed, move to production — the selected elements become your checklist.',
+    ],
+    substeps: [],
+    dataFields: [
+      {
+        key: 'funnel_elements',
+        label: 'Funnel elements to build',
+        placeholder: 'Select all that apply',
+        type: 'multiselect' as const,
+        options: [
+          'Lead Magnet Page',
+          'One Time Offer (OTO) Page',
+          'Sales Page',
+          'Webinar Registration Page',
+          'Book a Call Page',
+          'Check Out Page',
+          'Thank You Page',
+          'Lead Magnet Email Sequence',
+          'OTO Post-Purchase Email Sequence',
+          'Main Offer Post-Purchase Sequence',
+          'Launch Email Sequence',
+        ],
+      },
+      { key: 'funnel_notes', label: 'Implementation notes', placeholder: 'Any specific notes about the funnel structure, integrations, or priorities...', type: 'textarea' },
+      { key: 'target_launch_date', label: 'Target launch date', placeholder: '', type: 'date' },
+    ],
+    conditionalLogic: [
+      { condition: 'Funnel elements selected include pages', result: 'Activate Page Build stage for each page' },
+      { condition: 'Funnel elements selected include email sequences', result: 'Activate Email track in production' },
+      { condition: 'Plan confirmed by client', result: 'Move to production stages' },
+    ],
+    nextActionPrompt: 'Select all funnel elements, confirm with the client, then move to production.',
+  },
+  {
     key: 'page-build',
-    num: '5A',
+    num: '6A',
     name: 'Branch: New Page Build',
     summary: 'Build the client\'s landing page, sales page, or website. Copy comes first using the PX Obsessed framework, then design, then build and launch. Max 2 revision rounds each for copy and design.',
     color: '#EA580C',
@@ -199,7 +246,7 @@ export const STAGES: StageDefinition[] = [
   },
   {
     key: 'content-production',
-    num: '5B',
+    num: '6B',
     name: 'Branch: Content Production',
     summary: 'The full pre-production pipeline: Creative Brief, Content Plan, Scripts, Production Day, Post-Production, and Delivery. Each step has a gate checkpoint — nothing moves forward without approval.',
     color: '#0D9488',
@@ -243,7 +290,7 @@ export const STAGES: StageDefinition[] = [
   },
   {
     key: 'ads-email-social',
-    num: '5C',
+    num: '6C',
     name: 'Branch: Ads + Email + Social',
     summary: 'Three parallel tracks running simultaneously: Paid Ads, Email Sequences, and Social Content. Each track has its own progress — the Account Manager can see which track needs attention at a glance.',
     color: '#E11D48',
@@ -332,7 +379,7 @@ export const STAGES: StageDefinition[] = [
   },
   {
     key: 'review',
-    num: '6',
+    num: '7',
     name: 'Client Review & Approval',
     summary: 'Send deliverables to the client for review. Collect feedback, process revisions (max 2 rounds), and get final written sign-off before moving to delivery.',
     guide: [
@@ -368,7 +415,7 @@ export const STAGES: StageDefinition[] = [
   },
   {
     key: 'delivery',
-    num: '7',
+    num: '8',
     name: 'Final Delivery & Handoff',
     summary: 'Ship the final work. Publish pages, launch campaigns, activate email sequences, schedule content. Then verify everything is working within 48 hours.',
     guide: [
@@ -402,7 +449,7 @@ export const STAGES: StageDefinition[] = [
   },
   {
     key: 'retainer',
-    num: '8',
+    num: '9',
     name: 'Monthly Retainer Cycle',
     summary: 'End-of-month cycle for retainer clients. Review what was delivered, check performance metrics, confirm scope for next month, verify payment, then kick off the new month\'s work.',
     guide: [
@@ -442,7 +489,7 @@ export const STAGES: StageDefinition[] = [
   },
   {
     key: 'wrapup',
-    num: '9',
+    num: '10',
     name: 'Project Wrap-Up / Offboarding',
     summary: 'Close the project or offboard the client. Confirm all deliverables are handed over, collect feedback, run an internal retro, archive the project, and add the client to the nurture list for future work.',
     guide: [
@@ -477,7 +524,7 @@ export const STAGES: StageDefinition[] = [
 ]
 
 export function getActiveStagesForPackage(pkg: string): string[] {
-  const core = ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'strategy']
+  const core = ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'strategy', 'implementation-plan']
   const closing = ['review', 'delivery']
   const branches = PACKAGE_BRANCHES[pkg] || []
 

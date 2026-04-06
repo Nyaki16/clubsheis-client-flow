@@ -50,7 +50,7 @@ export interface DataField {
   key: string
   label: string
   placeholder: string
-  type: 'text' | 'select' | 'date' | 'textarea'
+  type: 'text' | 'select' | 'date' | 'textarea' | 'multiselect'
   options?: string[]
 }
 

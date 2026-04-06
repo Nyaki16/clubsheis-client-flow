@@ -38,6 +38,39 @@ function FieldInput({
       />
     )
   }
+  if (field.type === 'multiselect') {
+    const selected: string[] = value ? JSON.parse(value) : []
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {field.options?.map(opt => {
+          const isSelected = selected.includes(opt)
+          return (
+            <label
+              key={opt}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border cursor-pointer transition-all text-sm ${
+                isSelected
+                  ? 'bg-amber-50 border-amber-400 text-amber-900 font-medium'
+                  : 'bg-white border-stone-200 text-stone-600 hover:border-stone-300'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => {
+                  const next = isSelected
+                    ? selected.filter(s => s !== opt)
+                    : [...selected, opt]
+                  onChange(JSON.stringify(next))
+                }}
+                className="accent-amber-600 w-4 h-4"
+              />
+              {opt}
+            </label>
+          )
+        })}
+      </div>
+    )
+  }
   if (field.type === 'date') {
     return (
       <input type="date" value={value} onChange={e => onChange(e.target.value)} className={base} />
