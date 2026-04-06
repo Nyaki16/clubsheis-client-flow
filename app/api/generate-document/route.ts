@@ -622,7 +622,63 @@ Typical sequence structures:
 
 Write COMPLETE copy — not outlines or placeholders. The production team should be able to copy-paste this into a page builder or email platform with minimal editing. Use the client's actual language, reference their specific offers, and maintain their brand voice throughout.
 
-There is NO word limit. Be as thorough as needed for each funnel element.`
+There is NO word limit. Be as thorough as needed for each funnel element.`,
+
+  'copy-bible-element': `You are writing production-ready sales copy for ONE specific funnel element for ClubSheIs, a digital marketing and content production agency in South Africa.
+
+IMPORTANT CONTEXT — SCOPE OF WORK:
+ClubSheIs builds the MARKETING ASSETS — pages, sales copy, and email sequences — to sell and market the client's product. We do NOT build the actual product itself. Our job is to write the copy that SELLS it.
+
+You will receive ONE funnel element to write copy for. Write the COMPLETE page copy AND the email sequence that accompanies it.
+
+Write in the client's BRAND VOICE as defined in the Brand Voice document. Use the Breakthrough Advertising analysis from the Research Bible to set the right messaging angle.
+
+FOR PAGES (Lead Magnet, OTO, Sales, Webinar Registration, Book a Call, Check Out, Thank You):
+
+### Above the Fold
+- **Headline** (3 variations): The main promise.
+- **Subheadline**: Expand on the headline.
+- **Hero CTA**: The primary action button text (3 variations).
+- **Supporting text**: 1-2 sentences that reduce friction.
+
+### Problem Section
+- **Section headline**: Name the problem.
+- **Problem bullets** (3-5): Specific, emotional pain points.
+- **Bridge statement**: Transition to the solution.
+
+### Solution Section
+- **Section headline**: Introduce the solution.
+- **How it works** (3-5 steps): Simple, concrete.
+- **Key benefit statements** (3-5): What changes for them.
+
+### Social Proof Section
+- **Section headline**: Credibility builder.
+- **Testimonial/proof framing** (3): How to present evidence.
+
+### CTA Section
+- **Final headline**: Drive action.
+- **CTA button text** (3 variations).
+- **Urgency/scarcity element**: If applicable.
+
+### FAQ Section
+- **5-8 FAQs** with answers that overcome objections.
+
+FOR EMAIL SEQUENCES:
+Write each email with:
+- **Subject line** (3 variations)
+- **Preview text**
+- **Body copy** (full email — brand voice, conversational, benefit-driven)
+- **CTA** (action + button text)
+- **P.S. line** (if applicable)
+- **Send timing**: When to send relative to trigger event
+
+---
+
+Write COMPLETE copy — not outlines or placeholders. The production team should be able to copy-paste this. Use the client's actual language, reference their specific offers, and maintain their brand voice throughout.
+
+If the user has provided their own notes or ideas for this element, incorporate those into the copy.
+
+There is NO word limit. Be as thorough as needed.`
 }
 
 export async function POST(req: NextRequest) {
@@ -632,14 +688,14 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'ANTHROPIC_API_KEY not set' }, { status: 500 })
     }
 
-    const { documentType, clientName, brandName, transcript, clientProfile, researchBible, brandVoice, funnelElements } = await req.json()
+    const { documentType, clientName, brandName, transcript, clientProfile, researchBible, brandVoice, funnelElements, userNotes } = await req.json()
 
     const systemPrompt = PROMPTS[documentType]
     if (!systemPrompt) {
       return Response.json({ error: `Unknown document type: ${documentType}` }, { status: 400 })
     }
 
-    const noTranscriptRequired = ['funnel-map', 'funnel-strategy']
+    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'copy-bible-element']
     if (!transcript && !noTranscriptRequired.includes(documentType)) {
       return Response.json({ error: 'Transcript is required' }, { status: 400 })
     }
@@ -669,6 +725,13 @@ export async function POST(req: NextRequest) {
       if (brandVoice) userMessage += `\n\nAPPROVED BRAND VOICE:\n${brandVoice.slice(0, 10000)}`
       if (funnelElements) userMessage += `\n\nSELECTED FUNNEL ELEMENTS TO WRITE COPY FOR:\n${funnelElements}`
     }
+    if (documentType === 'copy-bible-element') {
+      if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 15000)}`
+      if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
+      if (brandVoice) userMessage += `\n\nAPPROVED BRAND VOICE:\n${brandVoice.slice(0, 10000)}`
+      if (funnelElements) userMessage += `\n\nFUNNEL ELEMENT TO WRITE COPY FOR:\n${funnelElements}`
+      if (userNotes) userMessage += `\n\nUSER NOTES & IDEAS FOR THIS ELEMENT:\n${userNotes}`
+    }
 
     // Use streaming to avoid Vercel Edge timeout (25s)
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -681,7 +744,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : documentType === 'copy-bible' ? 32000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map') ? 8000 : 16000,
+        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-bible-element') ? 32000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map') ? 8000 : 16000,
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),
