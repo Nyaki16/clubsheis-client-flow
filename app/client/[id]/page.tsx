@@ -644,7 +644,9 @@ function OnboardingActions({
 }) {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(fieldValues.get('onboarding:welcome_email_status') === 'Sent' || fieldValues.get('onboarding:welcome_email_status') === 'Client Replied')
-  const bookingLink = fieldValues.get('onboarding:booking_link') || ''
+  const [creatingSubaccount, setCreatingSubaccount] = useState(false)
+  const [subaccountCreated, setSubaccountCreated] = useState(!!fieldValues.get('onboarding:ghl_location_id'))
+  const [ghlUrl, setGhlUrl] = useState(fieldValues.get('onboarding:ghl_url') || '')
 
   const handleSendWelcome = async () => {
     if (!client.email) {
@@ -683,33 +685,85 @@ function OnboardingActions({
     setSending(false)
   }
 
+  const handleCreateSubaccount = async () => {
+    setCreatingSubaccount(true)
+    try {
+      const res = await fetch('/api/create-ghl-subaccount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: client.name,
+          clientEmail: client.email,
+          clientPhone: client.phone,
+          brandName: client.brand,
+          website: client.website,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(`Failed: ${data.error}`)
+      } else {
+        setSubaccountCreated(true)
+        setGhlUrl(data.ghlUrl || '')
+        await onSaveField('onboarding', 'ghl_location_id', data.locationId)
+        await onSaveField('onboarding', 'ghl_url', data.ghlUrl || '')
+        alert(`GHL sub-account "${data.locationName}" created!`)
+      }
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Network error'}`)
+    }
+    setCreatingSubaccount(false)
+  }
+
   return (
-    <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
-      <h4 className="text-sm font-bold text-green-800">Welcome & Onboarding</h4>
-      <p className="text-sm text-green-700">
-        Add {client.name} to GHL and trigger the welcome email workflow. The email is sent from GHL with your templates.
-      </p>
-      <div className="text-sm text-green-700 space-y-1">
-        <p className="font-medium">This will:</p>
-        <ul className="list-disc pl-5 space-y-0.5">
-          <li>Create or update the contact in GoHighLevel</li>
-          <li>Tag them as <span className="font-mono text-xs bg-green-100 px-1 rounded">client-onboarding</span></li>
-          <li>Trigger your welcome email workflow in GHL</li>
-        </ul>
+    <div className="space-y-3">
+      {/* Step 1: Create GHL Sub-Account */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+        <h4 className="text-sm font-bold text-blue-800">1. Create GHL Sub-Account</h4>
+        <p className="text-sm text-blue-700">
+          Create a new GoHighLevel sub-account for {client.brand || client.name}. This gives them their own CRM, pipeline, and automations.
+        </p>
+        {!subaccountCreated ? (
+          <button
+            onClick={handleCreateSubaccount}
+            disabled={creatingSubaccount}
+            className="w-full bg-blue-600 text-white px-5 py-3 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {creatingSubaccount ? 'Creating sub-account...' : `Create GHL Sub-Account for ${client.brand || client.name} →`}
+          </button>
+        ) : (
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-blue-700">✓ Sub-account created</p>
+            {ghlUrl && (
+              <a href={ghlUrl} target="_blank" rel="noopener noreferrer"
+                className="text-sm text-blue-600 underline hover:text-blue-800">
+                Open in GHL →
+              </a>
+            )}
+          </div>
+        )}
       </div>
-      {!sent ? (
-        <button
-          onClick={handleSendWelcome}
-          disabled={sending}
-          className="w-full bg-[#16A34A] text-white px-5 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
-        >
-          {sending ? 'Triggering workflow...' : `Trigger Welcome Workflow for ${client.name} →`}
-        </button>
-      ) : (
-        <div className="text-center">
-          <p className="text-sm font-semibold text-green-700">✓ Welcome workflow triggered — email sent via GHL</p>
-        </div>
-      )}
+
+      {/* Step 2: Trigger Welcome Workflow */}
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+        <h4 className="text-sm font-bold text-green-800">2. Trigger Welcome Workflow</h4>
+        <p className="text-sm text-green-700">
+          Add {client.name} as a contact in your ClubSheIs GHL and trigger the welcome email workflow.
+        </p>
+        {!sent ? (
+          <button
+            onClick={handleSendWelcome}
+            disabled={sending}
+            className="w-full bg-[#16A34A] text-white px-5 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {sending ? 'Triggering workflow...' : `Trigger Welcome Workflow for ${client.name} →`}
+          </button>
+        ) : (
+          <div className="text-center">
+            <p className="text-sm font-semibold text-green-700">✓ Welcome workflow triggered — email sent via GHL</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
