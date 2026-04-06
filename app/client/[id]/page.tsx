@@ -324,29 +324,59 @@ function DiscoveryActions({
   const handleGenerateProposal = async () => {
     setGenerating(true)
     try {
+      console.log('Starting proposal generation...')
+      const payload = {
+        clientName: client.name,
+        brandName: client.brand,
+        email: client.email,
+        needs: fieldValues.get('discovery:what_they_need') || client.needs,
+        transcriptNotes: fieldValues.get('discovery:transcript_link') || '',
+        budgetRange: client.budget_range,
+      }
+      console.log('Payload:', JSON.stringify(payload).slice(0, 200))
+
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 55000) // 55s timeout
+
       const res = await fetch('/api/generate-proposal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientName: client.name,
-          brandName: client.brand,
-          email: client.email,
-          needs: fieldValues.get('discovery:what_they_need') || client.needs,
-          transcriptNotes: fieldValues.get('discovery:transcript_link') || '',
-          budgetRange: client.budget_range,
-        }),
+        body: JSON.stringify(payload),
+        signal: controller.signal,
       })
-      const data = await res.json()
+      clearTimeout(timeout)
+
+      console.log('Response status:', res.status)
+      const text = await res.text()
+      console.log('Response body (first 200):', text.slice(0, 200))
+
+      let data
+      try { data = JSON.parse(text) } catch {
+        alert(`Invalid response from server: ${text.slice(0, 200)}`)
+        setGenerating(false)
+        return
+      }
+
       if (!res.ok) {
-        alert(`Proposal error: ${data.error || 'Unknown error'}`)
+        alert(`Proposal error (${res.status}): ${data.error || text.slice(0, 300)}`)
       } else if (data.proposal) {
+        console.log('Proposal received, saving...')
         setProposal(data.proposal)
         await onSaveField('proposal', 'generated_text', data.proposal)
         await onSaveField('proposal', 'proposal_status', 'Draft')
         await onSaveField('proposal', 'email_type', 'proposal')
+        console.log('Proposal saved successfully')
+      } else {
+        alert('No proposal in response: ' + text.slice(0, 300))
       }
     } catch (err) {
-      alert(`Failed to generate proposal: ${err instanceof Error ? err.message : 'Network error'}`)
+      const msg = err instanceof Error ? err.message : 'Network error'
+      console.error('Proposal generation failed:', msg)
+      if (msg.includes('abort')) {
+        alert('Proposal generation timed out. The AI is taking too long. Please try again.')
+      } else {
+        alert(`Failed to generate proposal: ${msg}`)
+      }
     }
     setGenerating(false)
   }
