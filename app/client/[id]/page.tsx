@@ -857,11 +857,24 @@ function StrategyActions({
 
     setSavingToDrive(docType)
 
+    const scriptUrl = process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL
+
+    if (!scriptUrl) {
+      // No Apps Script URL — fallback to clipboard
+      try { await navigator.clipboard.writeText(text) } catch {}
+      await onSaveField('strategy', key, 'true')
+      window.open('https://docs.google.com/document/create', '_blank')
+      alert(`Apps Script URL not configured.\n\nContent copied to clipboard — paste into the new doc.\nName it: ${docTitle}`)
+      setSavingToDrive('')
+      return
+    }
+
     try {
-      const res = await fetch('/api/create-google-doc', {
+      // Call Apps Script directly from browser (uses Google auth cookies)
+      const res = await fetch(scriptUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: docTitle, content: text }),
+        redirect: 'follow',
       })
       const data = await res.json()
 
@@ -870,18 +883,17 @@ function StrategyActions({
         await onSaveField('strategy', `${textKey.replace('_text', '')}_doc_url`, data.docUrl)
         window.open(data.docUrl, '_blank')
       } else {
-        // Fallback: copy to clipboard and open blank doc
         try { await navigator.clipboard.writeText(text) } catch {}
         await onSaveField('strategy', key, 'true')
         window.open('https://docs.google.com/document/create', '_blank')
-        alert(`Could not auto-create Google Doc (${data.error || 'unknown error'}).\n\nContent has been copied to your clipboard — paste it into the new doc.\nName it: ${docTitle}`)
+        alert(`Could not auto-create Google Doc (${data.error || 'unknown error'}).\n\nContent copied to clipboard — paste into the new doc.\nName it: ${docTitle}`)
       }
     } catch {
       // Fallback: copy to clipboard and open blank doc
       try { await navigator.clipboard.writeText(text) } catch {}
       await onSaveField('strategy', key, 'true')
       window.open('https://docs.google.com/document/create', '_blank')
-      alert(`Could not connect to Google Docs API.\n\nContent has been copied to your clipboard — paste it into the new doc.\nName it: ${docTitle}`)
+      alert(`Could not connect to Google Docs.\n\nContent copied to clipboard — paste into the new doc.\nName it: ${docTitle}`)
     }
     setSavingToDrive('')
   }
