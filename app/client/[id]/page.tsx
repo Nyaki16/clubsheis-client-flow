@@ -2216,9 +2216,9 @@ function BrandBibleActions({
       </div>
       <h2>Imagery & Style</h2>
       <div class="section">
-        ${imageryStyle ? `<div class="field-label">Imagery Style</div><div class="field-value">${imageryStyle}</div>` : ''}
-        ${brandTone ? `<div class="field-label">Brand Tone / Mood</div><div class="field-value">${brandTone}</div>` : ''}
-        ${designNotes ? `<div class="field-label">Design Notes</div><div class="field-value">${designNotes}</div>` : ''}
+        ${imageryStyle ? `<div class="field-label">Imagery Style</div><div class="field-value">${imageryStyle.split('||').join(', ')}</div>` : ''}
+        ${brandTone ? `<div class="field-label">Brand Tone / Mood</div><div class="field-value">${brandTone.split('||').join(', ')}</div>` : ''}
+        ${designNotes ? `<div class="field-label">Design Direction</div><div class="field-value">${designNotes.split('||').join(', ')}</div>` : ''}
       </div>
       <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };</script>
       </body></html>
@@ -2305,6 +2305,42 @@ function BrandBibleActions({
             />
             <button onClick={() => { onSaveUrl(pasteUrl); setPasteMode(false) }} className="bg-pink-600 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-pink-700 cursor-pointer">Save</button>
           </div>
+        )}
+      </div>
+    )
+  }
+
+  const MultiSelectTags = ({ label, fieldKey, options }: { label: string; fieldKey: string; options: string[] }) => {
+    const raw = fieldValues.get(`brand-bible:${fieldKey}`) || ''
+    const selected: string[] = raw ? raw.split('||').filter(Boolean) : []
+    const toggle = (tag: string) => {
+      const next = selected.includes(tag) ? selected.filter(t => t !== tag) : [...selected, tag]
+      onSaveField('brand-bible', fieldKey, next.join('||'))
+    }
+    return (
+      <div>
+        <label className="text-xs font-semibold text-stone-600 block mb-1.5">{label}</label>
+        <div className="flex flex-wrap gap-1.5">
+          {options.map(opt => {
+            const isSelected = selected.includes(opt)
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => toggle(opt)}
+                className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-pink-600 text-white border-pink-600 font-semibold'
+                    : 'bg-white text-stone-600 border-stone-200 hover:border-pink-300 hover:text-pink-700'
+                }`}
+              >
+                {isSelected && '✓ '}{opt}
+              </button>
+            )
+          })}
+        </div>
+        {selected.length > 0 && (
+          <p className="text-[10px] text-stone-400 mt-1.5">{selected.length} selected</p>
         )}
       </div>
     )
@@ -2481,9 +2517,37 @@ function BrandBibleActions({
       </Section>
 
       <Section title="Imagery & Style" icon="📸" id="imagery">
-        <InputField label="Imagery style" fieldKey="imagery_style" placeholder="e.g. Warm, authentic photography. No stock photos. Earthy tones with natural lighting..." multiline />
-        <InputField label="Brand tone / mood" fieldKey="brand_tone" placeholder="e.g. Empowering, warm, professional but approachable, feminine energy..." multiline />
-        <InputField label="Design notes" fieldKey="design_notes" placeholder="Any additional design guidelines, pattern usage, icon style, etc." multiline />
+        <MultiSelectTags
+          label="Imagery Style"
+          fieldKey="imagery_style"
+          options={[
+            'Warm & Natural Lighting', 'Bright & Airy', 'Dark & Moody', 'High Contrast', 'Soft & Muted',
+            'Authentic Photography', 'Lifestyle Shots', 'Studio Photography', 'Flat Lay', 'Candid & Unposed',
+            'No Stock Photos', 'Minimalist', 'Bold & Colourful', 'Earthy Tones', 'Pastel Palette',
+            'Editorial Style', 'Behind the Scenes', 'Product-Focused', 'People-Centred', 'Nature & Organic',
+            'Urban & Modern', 'Luxury & Premium', 'Playful & Fun', 'Clean & Corporate', 'Textured & Raw',
+          ]}
+        />
+        <MultiSelectTags
+          label="Brand Tone / Mood"
+          fieldKey="brand_tone"
+          options={[
+            'Empowering', 'Warm', 'Professional', 'Approachable', 'Feminine', 'Bold', 'Confident',
+            'Nurturing', 'Inspirational', 'Authentic', 'Playful', 'Sophisticated', 'Energetic', 'Calm',
+            'Luxurious', 'Friendly', 'Trustworthy', 'Edgy', 'Motivational', 'Inclusive',
+            'Community-Driven', 'Educational', 'Conversational', 'Aspirational', 'Down to Earth',
+          ]}
+        />
+        <MultiSelectTags
+          label="Design Direction"
+          fieldKey="design_notes"
+          options={[
+            'Clean Lines', 'Rounded Corners', 'Geometric Shapes', 'Organic Shapes', 'Minimalist Layout',
+            'Bold Typography', 'Lots of White Space', 'Gradient Effects', 'Drop Shadows', 'Flat Design',
+            'Icon-Heavy', 'Illustration Style', 'Photo Overlays', 'Duotone Effects', 'Hand-Drawn Elements',
+            'Grid-Based', 'Asymmetric Layout', 'Card-Based UI', 'Full-Width Sections', 'Parallax Scrolling',
+          ]}
+        />
       </Section>
 
       {/* Actions */}
