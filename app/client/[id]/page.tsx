@@ -467,6 +467,9 @@ function AwaitingReviewActions({
   const [done, setDone] = useState(false)
   const proposalStatus = fieldValues.get('awaiting-review:proposal_status') || ''
   const isAccepted = proposalStatus === 'Accepted'
+  const isDeclined = proposalStatus === 'Declined'
+  const [archiving, setArchiving] = useState(false)
+  const [archived, setArchived] = useState(false)
 
   const [driveResult, setDriveResult] = useState('')
   const [clickupResult, setClickupResult] = useState('')
@@ -520,7 +523,52 @@ function AwaitingReviewActions({
     setCreating(false)
   }
 
-  if (!isAccepted) return null
+  if (!isAccepted && !isDeclined) return null
+
+  if (isDeclined) {
+    return (
+      <div className="space-y-3">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-red-500 text-lg">📋</span>
+            <h4 className="text-sm font-bold text-red-800">Proposal Declined</h4>
+          </div>
+          <p className="text-sm text-red-700 mb-3">
+            {client.brand || client.name} has declined the proposal. Archive the client to end the workflow.
+          </p>
+          {!archived ? (
+            <button
+              onClick={async () => {
+                setArchiving(true)
+                try {
+                  const { supabase } = await import('@/lib/supabase')
+                  await supabase.from('clients').update({
+                    current_stage: 'archived',
+                    lead_status: 'Declined'
+                  }).eq('id', client.id)
+                  setArchived(true)
+                } catch (err) {
+                  alert('Failed to archive: ' + (err instanceof Error ? err.message : 'Unknown error'))
+                }
+                setArchiving(false)
+              }}
+              disabled={archiving}
+              className="w-full bg-red-600 text-white px-5 py-3 rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {archiving ? 'Archiving...' : 'Archive Client & End Workflow'}
+            </button>
+          ) : (
+            <div className="text-center space-y-2">
+              <p className="text-sm font-semibold text-red-700">✓ Client archived</p>
+              <a href="/" className="inline-block text-sm text-red-600 underline hover:text-red-800">
+                ← Back to Dashboard
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-3">
@@ -1162,7 +1210,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                 onToggleSubstep={handleToggleSubstep}
                 onSaveField={handleSaveField}
                 onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
-                canAdvance={allDone && !!nextStageKey}
+                canAdvance={allDone && !!nextStageKey && !(stage.key === 'awaiting-review' && fieldValues.get('awaiting-review:proposal_status') === 'Declined')}
                 nextStageName={nextStage?.name || 'Next'}
                 actionSlot={
                   stage.key === 'discovery' ? (
