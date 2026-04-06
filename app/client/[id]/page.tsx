@@ -651,31 +651,31 @@ function OnboardingActions({
       alert('Client email is missing. Please edit the client and add their email first.')
       return
     }
-    if (!bookingLink) {
-      alert('Please enter your calendar booking link first (e.g. calendly.com/clubsheis/strategy)')
-      return
-    }
     setSending(true)
     try {
-      const pkgLabel = client.package?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'your package'
+      const pkgLabel = client.package?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'client'
       const res = await fetch('/api/send-welcome-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientName: client.name,
           clientEmail: client.email,
+          clientPhone: client.phone,
           brandName: client.brand,
           packageName: pkgLabel,
-          bookingLink,
         }),
       })
       const data = await res.json()
       if (!res.ok) {
-        alert(`Failed to send: ${data.error}`)
+        alert(`Failed: ${data.error}`)
       } else {
         setSent(true)
         await onSaveField('onboarding', 'welcome_email_status', 'Sent')
-        alert(`Welcome email sent to ${client.email}!`)
+        if (data.warning) {
+          alert(`Contact added to GHL but workflow may need manual trigger: ${data.warning}`)
+        } else {
+          alert(`Welcome workflow triggered for ${client.name}!`)
+        }
       }
     } catch (err) {
       alert(`Error: ${err instanceof Error ? err.message : 'Network error'}`)
@@ -685,17 +685,16 @@ function OnboardingActions({
 
   return (
     <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
-      <h4 className="text-sm font-bold text-green-800">Welcome Email</h4>
+      <h4 className="text-sm font-bold text-green-800">Welcome & Onboarding</h4>
       <p className="text-sm text-green-700">
-        Send a welcome email to {client.name} with next steps and a link to book their strategy session.
+        Add {client.name} to GHL and trigger the welcome email workflow. The email is sent from GHL with your templates.
       </p>
       <div className="text-sm text-green-700 space-y-1">
-        <p className="font-medium">The email includes:</p>
+        <p className="font-medium">This will:</p>
         <ul className="list-disc pl-5 space-y-0.5">
-          <li>Welcome message and what to expect</li>
-          <li>Calendar booking link for the strategy session</li>
-          <li>Request for brand assets, logins, and existing content</li>
-          <li>Timeline overview</li>
+          <li>Create or update the contact in GoHighLevel</li>
+          <li>Tag them as <span className="font-mono text-xs bg-green-100 px-1 rounded">client-onboarding</span></li>
+          <li>Trigger your welcome email workflow in GHL</li>
         </ul>
       </div>
       {!sent ? (
@@ -704,11 +703,11 @@ function OnboardingActions({
           disabled={sending}
           className="w-full bg-[#16A34A] text-white px-5 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
         >
-          {sending ? 'Sending...' : `Send Welcome Email to ${client.name} →`}
+          {sending ? 'Triggering workflow...' : `Trigger Welcome Workflow for ${client.name} →`}
         </button>
       ) : (
         <div className="text-center">
-          <p className="text-sm font-semibold text-green-700">✓ Welcome email sent to {client.email}</p>
+          <p className="text-sm font-semibold text-green-700">✓ Welcome workflow triggered — email sent via GHL</p>
         </div>
       )}
     </div>
