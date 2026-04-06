@@ -632,6 +632,158 @@ function AwaitingReviewActions({
   )
 }
 
+// ── Onboarding Actions — Welcome email + booking link ──
+function OnboardingActions({
+  client,
+  fieldValues,
+  onSaveField,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+}) {
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(fieldValues.get('onboarding:welcome_email_status') === 'Sent' || fieldValues.get('onboarding:welcome_email_status') === 'Client Replied')
+  const bookingLink = fieldValues.get('onboarding:booking_link') || ''
+
+  const handleSendWelcome = async () => {
+    if (!client.email) {
+      alert('Client email is missing. Please edit the client and add their email first.')
+      return
+    }
+    if (!bookingLink) {
+      alert('Please enter your calendar booking link first (e.g. calendly.com/clubsheis/strategy)')
+      return
+    }
+    setSending(true)
+    try {
+      const pkgLabel = client.package?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'your package'
+      const res = await fetch('/api/send-welcome-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: client.name,
+          clientEmail: client.email,
+          brandName: client.brand,
+          packageName: pkgLabel,
+          bookingLink,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(`Failed to send: ${data.error}`)
+      } else {
+        setSent(true)
+        await onSaveField('onboarding', 'welcome_email_status', 'Sent')
+        alert(`Welcome email sent to ${client.email}!`)
+      }
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Network error'}`)
+    }
+    setSending(false)
+  }
+
+  return (
+    <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+      <h4 className="text-sm font-bold text-green-800">Welcome Email</h4>
+      <p className="text-sm text-green-700">
+        Send a welcome email to {client.name} with next steps and a link to book their strategy session.
+      </p>
+      <div className="text-sm text-green-700 space-y-1">
+        <p className="font-medium">The email includes:</p>
+        <ul className="list-disc pl-5 space-y-0.5">
+          <li>Welcome message and what to expect</li>
+          <li>Calendar booking link for the strategy session</li>
+          <li>Request for brand assets, logins, and existing content</li>
+          <li>Timeline overview</li>
+        </ul>
+      </div>
+      {!sent ? (
+        <button
+          onClick={handleSendWelcome}
+          disabled={sending}
+          className="w-full bg-[#16A34A] text-white px-5 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {sending ? 'Sending...' : `Send Welcome Email to ${client.name} →`}
+        </button>
+      ) : (
+        <div className="text-center">
+          <p className="text-sm font-semibold text-green-700">✓ Welcome email sent to {client.email}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Strategy Session Actions — Transcript upload + Profile/Bible triggers ──
+function StrategyActions({
+  client,
+  fieldValues,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+}) {
+  const sessionCompleted = fieldValues.get('strategy:session_completed') === 'Yes'
+  const transcriptLink = fieldValues.get('strategy:session_transcript_link') || ''
+  const profileStatus = fieldValues.get('strategy:client_profile_status') || 'Not Started'
+  const bibleStatus = fieldValues.get('strategy:research_bible_status') || 'Not Started'
+
+  if (!sessionCompleted) return null
+
+  return (
+    <div className="space-y-3">
+      {transcriptLink && (
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-3">
+          <h4 className="text-sm font-bold text-purple-800">Post-Session Tasks</h4>
+          <p className="text-sm text-purple-700">
+            The transcript has been uploaded. Now build the Client Profile and Research Bible from the session notes.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className={`rounded-lg p-3 border ${profileStatus === 'Complete' ? 'bg-green-50 border-green-200' : 'bg-white border-purple-200'}`}>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1 ${profileStatus === 'Complete' ? 'text-green-600' : 'text-purple-600'}">
+                Client Profile
+              </p>
+              <p className="text-sm font-semibold">
+                {profileStatus === 'Complete' ? '✓ Complete' : profileStatus === 'Building' ? '⏳ Building...' : '○ Not Started'}
+              </p>
+              <p className="text-xs text-stone-500 mt-1">
+                Business info, audience, voice, offers — built from the strategy session.
+              </p>
+            </div>
+            <div className={`rounded-lg p-3 border ${bibleStatus === 'Complete' ? 'bg-green-50 border-green-200' : 'bg-white border-purple-200'}`}>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1 ${bibleStatus === 'Complete' ? 'text-green-600' : 'text-purple-600'}">
+                Research Bible
+              </p>
+              <p className="text-sm font-semibold">
+                {bibleStatus === 'Complete' ? '✓ Complete' : bibleStatus === 'Building' ? '⏳ Building...' : '○ Not Started'}
+              </p>
+              <p className="text-xs text-stone-500 mt-1">
+                Deep audience analysis, awareness levels, messaging strategy.
+              </p>
+            </div>
+          </div>
+          {profileStatus !== 'Complete' || bibleStatus !== 'Complete' ? (
+            <p className="text-xs text-purple-600 text-center">
+              Build both documents before moving to the production stage.
+            </p>
+          ) : (
+            <p className="text-xs text-green-600 text-center font-semibold">
+              ✓ Both documents complete — ready to move to production.
+            </p>
+          )}
+        </div>
+      )}
+      {!transcriptLink && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <p className="text-sm text-amber-700">
+            <strong>Session complete</strong> — upload the transcript or paste your session notes above to unlock the Client Profile and Research Bible builders.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Shared email editor for proposals and thank-you emails ──
 function EmailContentEditor({ content, onChange, readOnly }: { content: string; onChange: (v: string) => void; readOnly: boolean }) {
   if (!readOnly) {
@@ -1243,9 +1395,20 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       fieldValues={fieldValues}
                       onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
                     />
+                  ) : stage.key === 'onboarding' ? (
+                    <OnboardingActions
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                    />
+                  ) : stage.key === 'strategy' ? (
+                    <StrategyActions
+                      client={client}
+                      fieldValues={fieldValues}
+                    />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">
