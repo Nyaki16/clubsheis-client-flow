@@ -15,11 +15,6 @@ export async function POST(req: NextRequest) {
     // Use brand name for the location name, fallback to client name
     const locationName = brandName || clientName
 
-    // Split name into first/last
-    const nameParts = (clientName || '').trim().split(' ')
-    const firstName = nameParts[0] || ''
-    const lastName = nameParts.slice(1).join(' ') || ''
-
     const res = await fetch(`${GHL_API}/locations/`, {
       method: 'POST',
       headers: {
@@ -30,9 +25,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         companyId: GHL_COMPANY_ID,
         name: locationName,
-        firstName,
-        lastName,
-        email: clientEmail || '',
+        email: clientEmail || 'info@clubsheis.com',
         phone: clientPhone || '',
         website: website || '',
         address: '',
