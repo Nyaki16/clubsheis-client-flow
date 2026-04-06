@@ -138,13 +138,16 @@ function StagePanel({
       >
         {/* Stage number */}
         <div
-          className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
+          className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 relative"
           style={{
             background: isCompleted ? 'rgba(22,163,74,0.08)' : stage.colorSoft,
             color: isCompleted ? '#16A34A' : stage.color,
           }}
         >
-          {isCompleted ? '✓' : stage.num}
+          {stage.num}
+          {isCompleted && (
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold">✓</span>
+          )}
         </div>
 
         <div className="flex-1 min-w-0">
@@ -3481,7 +3484,15 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
 
       {/* Stage timeline */}
       <div className="space-y-3">
-        {STAGES.filter(s => activeStageKeys.includes(s.key)).map((stage, idx) => {
+        {STAGES.filter(s => activeStageKeys.includes(s.key)).map((stage, idx, arr) => {
+          // Phase headings
+          const PHASES: Record<string, { label: string; color: string; bg: string; border: string }> = {
+            'discovery': { label: 'Onboarding', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
+            'strategy': { label: 'Planning & Strategy', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
+            'funnel-map': { label: 'Production', color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
+            'review': { label: 'Delivery & Wrap-Up', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
+          }
+          const phase = PHASES[stage.key]
           const stageIdx = activeStageKeys.indexOf(stage.key)
           const isCurrent = stage.key === resolvedStage
           const isCompleted = stageIdx < currentIdx
@@ -3498,6 +3509,12 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
 
           return (
             <div key={stage.key} id={`stage-${stage.key}`}>
+              {phase && (
+                <div className={`${phase.bg} ${phase.border} border rounded-lg px-4 py-2.5 mb-3 flex items-center gap-2`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${phase.color.replace('text-', 'bg-')}`} />
+                  <span className={`text-xs font-bold uppercase tracking-wider ${phase.color}`}>{phase.label}</span>
+                </div>
+              )}
               <StagePanel
                 stage={stage}
                 isActive={isActive}
