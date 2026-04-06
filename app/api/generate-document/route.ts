@@ -431,92 +431,35 @@ Write 3 short examples in this brand's voice:
 
 Keep it practical and immediately usable. Under 800 words.`,
 
-  'funnel-strategy': `You are building a Funnel Strategy document for ClubSheIs, a digital marketing and content production agency in South Africa.
+  'funnel-strategy': `You are a senior digital strategist for ClubSheIs, a digital marketing and content production agency in South Africa.
 
-The Funnel Strategy is the bridge between understanding the client (Client Profile, Research Bible, Brand Voice) and building their funnel (Implementation Plan, Copy Bible). It answers the critical question: WHAT exactly are we building for this client, and WHY?
+YOUR JOB: Analyse the Client Profile, Research Bible, and Brand Voice to recommend the optimal funnel elements for this client. Each element must have a specific TYPE and a specific TOPIC tailored to this client's business, audience, and goals.
 
-This is NOT a list of generic funnel elements. This is a detailed strategic document that describes each deliverable in specifics — what it's about, what angle it takes, how it connects to the overall strategy, and why it will work for THIS client's audience at their current awareness stage.
+Be SPECIFIC about topics. Not "an ebook" — instead "Ebook: The 5-Step Framework for Building Confidence in the Boardroom". Not "a quiz" — instead "Quiz: What's Your Leadership Style?". The topic must be directly relevant to what this client sells and who they serve.
 
-YOUR JOB: Analyse the Client Profile, Research Bible, and Brand Voice to determine the optimal funnel architecture for this client. Then describe each piece in enough detail that anyone on the team understands exactly what needs to be built.
+Think about the FULL funnel — from how a stranger discovers the brand all the way through to post-purchase retention and referrals.
 
-RULES:
-- Be SPECIFIC. Not "a lead magnet" — instead "A quiz lead magnet titled 'What's Your Leadership Style?' that helps corporate women identify their management approach and reveals how the client's coaching programme addresses their specific gaps."
-- For every deliverable, explain the STRATEGIC REASONING — why this format, why this topic, why this angle. Reference the Schwartz awareness stage and sophistication level from the Research Bible.
-- Use [ASSUMPTION: reasoning] where inferring creative direction. This is expected — the team needs a complete picture.
-- Only use GAP: for things that genuinely require client input before proceeding.
-- Write in plain, strategic language. Think like a senior strategist mapping out a campaign.
+You MUST respond with ONLY a valid JSON array. No markdown, no explanation, no text before or after. Just the JSON array.
 
-Use this exact structure:
+Each element in the array must have these exact fields:
+{
+  "type": "The format type (e.g. Quiz, Ebook, Webinar, Checklist, Mini-Course, Video Series, Discovery Call, Sales Page, Webinar Registration Page, Lead Magnet Page, OTO Page, Book a Call Page, Check Out Page, Thank You Page, Welcome Email Sequence, Nurture Email Sequence, Launch Email Sequence, Post-Purchase Email Sequence, Re-engagement Email Sequence, Masterclass, Challenge, Workshop, Cheat Sheet, Template, Toolkit, Case Study Page, Testimonial Page, Waitlist Page, Tripwire Offer, Downsell Page, Upsell Page, Bump Offer, Application Page, Free Trial Page, Demo Page, Podcast Funnel, Social Media Funnel, Affiliate Page, Referral Programme Page)",
+  "topic": "The specific topic or title tailored to this client (e.g. 'The 5-Step Framework for Building Confidence in the Boardroom')",
+  "description": "2-3 sentences explaining what this is, what it covers, and why it works for this client's audience",
+  "funnel_stage": "One of: awareness, engagement, conversion, delivery, retention",
+  "reasoning": "1-2 sentences on why this specific type and topic suits this client based on their audience, offers, and market position",
+  "priority": A number from 1-N indicating build order (1 = build first)
+}
 
----
-CLUBSHEIS FUNNEL STRATEGY
----
+IMPORTANT RULES:
+- Recommend 8-15 elements covering the FULL funnel (awareness through retention)
+- Every element MUST have a specific, tailored topic — never generic
+- Consider what format suits this client's audience best (e.g. busy professionals prefer checklists over long ebooks)
+- Include a mix of lead magnets, pages, and email sequences
+- Think about how each element connects to the next in the customer journey
+- Priority ordering should reflect what creates the most impact soonest
 
-## EXECUTIVE SUMMARY
-[2-3 paragraphs. What are we building for this client, at a high level? What's the overall funnel architecture? What's the customer journey from first touch to purchase? What's the strategic logic behind this approach?]
-
-## THE CUSTOMER JOURNEY
-Map out the ideal path a prospect takes from first discovering the brand to becoming a paying client/customer:
-
-**Stage 1 — Awareness:** [How do they first encounter the brand? What content/ad/referral brings them in? What's the hook?]
-
-**Stage 2 — Engagement:** [What keeps them interested? What value do they get before buying? What builds trust?]
-
-**Stage 3 — Conversion:** [What makes them buy? What's the offer? What overcomes their objections?]
-
-**Stage 4 — Delivery & Delight:** [What happens after they buy? How do we exceed expectations?]
-
-**Stage 5 — Retention & Referral:** [How do we keep them? How do we get them to refer others?]
-
-## FUNNEL ELEMENTS — DETAILED BREAKDOWN
-
-For EACH recommended deliverable, use this format:
-
-### [ELEMENT NAME]
-- **What it is:** [Detailed description — not just "a sales page" but exactly what kind of page, what it sells, what angle it takes]
-- **The topic / angle:** [What specifically is this about? If it's a lead magnet, what's the content? If it's a webinar, what's the topic? If it's an email sequence, what's the narrative arc?]
-- **Who it targets:** [Which segment of the audience, at what awareness stage]
-- **Strategic reasoning:** [Why this format? Why this topic? How does this connect to the Research Bible's findings about what works for this audience?]
-- **How it connects to the funnel:** [What comes before this? What comes after? How does it move the prospect forward?]
-- **Key messaging angle:** [The core message/promise for this specific piece, informed by the Schwartz analysis]
-- **Success metrics:** [How will we know this piece is working?]
-
-Include ALL recommended elements. Common categories:
-- **Lead Magnets** (quizzes, PDFs, checklists, mini-courses, webinars)
-- **Landing Pages** (opt-in, sales, webinar registration, booking, checkout, thank you)
-- **Email Sequences** (welcome, nurture, launch, post-purchase, re-engagement)
-- **Upsells & Cross-sells** (OTO pages, bump offers, post-purchase sequences)
-
-## FUNNEL ARCHITECTURE MAP
-Draw the funnel flow using text — show how each element connects:
-
-\`\`\`
-[Traffic Source] → [Entry Point] → [Nurture Mechanism] → [Conversion Point] → [Delivery] → [Retention]
-\`\`\`
-
-Expand each node with specifics.
-
-## RECOMMENDED PRIORITY ORDER
-Number the elements in the order they should be built, with reasoning:
-1. [Element] — Build first because...
-2. [Element] — Build second because...
-3. etc.
-
-## ASSUMPTIONS & GAPS
-
-**Strategic assumptions made:**
-| Assumption | Reasoning | Confidence |
-|---|---|---|
-| [Assumption] | [Why reasonable] | [High/Medium/Low] |
-
-**Gaps requiring client input:**
-- GAP: [What's missing and why it matters for the funnel strategy]
-
----
-
-Write in DEEP DETAIL. This document is the blueprint for everything that gets built. Every deliverable description should be detailed enough that the team can immediately start working on it. Think like a senior digital strategist who has studied this client's market deeply.
-
-There is NO word limit. Be as thorough as possible.`,
+Return ONLY the JSON array. No other text.`,
 
   'copy-bible': `You are building a comprehensive Copy Bible for ClubSheIs, a digital marketing and content production agency in South Africa.
 
@@ -653,7 +596,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : documentType === 'copy-bible' ? 32000 : documentType === 'funnel-strategy' ? 16000 : 16000,
+        max_tokens: documentType === 'brand-voice' ? 4000 : documentType === 'copy-bible' ? 32000 : documentType === 'funnel-strategy' ? 8000 : 16000,
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),

@@ -1213,13 +1213,31 @@ function CopyBibleActions({
   const profileText = fieldValues.get('strategy:client_profile_text') || ''
   const bibleText = fieldValues.get('strategy:research_bible_text') || ''
   const voiceText = fieldValues.get('strategy:brand_voice_text') || ''
-  const funnelElementsRaw = fieldValues.get('implementation-plan:funnel_elements') || '[]'
+  // Pull funnel elements from Funnel Strategy (detailed) or Implementation Plan (generic) as fallback
+  const funnelStrategyJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
+  const funnelSelectionsRaw = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
   let funnelElements: string[] = []
-  try { funnelElements = JSON.parse(funnelElementsRaw) } catch {}
+
+  try {
+    const allElements: FunnelElement[] = funnelStrategyJson ? JSON.parse(funnelStrategyJson) : []
+    const selectedIndices: number[] = JSON.parse(funnelSelectionsRaw)
+    if (allElements.length > 0 && selectedIndices.length > 0) {
+      funnelElements = selectedIndices
+        .map(i => allElements[i])
+        .filter(Boolean)
+        .map(el => `${el.type}: ${el.topic} — ${el.description}`)
+    }
+  } catch {}
+
+  // Fallback to implementation plan if no funnel strategy selections
+  if (funnelElements.length === 0) {
+    const implPlanRaw = fieldValues.get('implementation-plan:funnel_elements') || '[]'
+    try { funnelElements = JSON.parse(implPlanRaw) } catch {}
+  }
 
   const handleGenerate = async () => {
     if (funnelElements.length === 0) {
-      alert('No funnel elements selected. Go back to the Implementation Plan stage and select the elements you need.')
+      alert('No funnel elements selected. Go back to the Funnel Strategy or Implementation Plan stage and select the elements you need.')
       return
     }
     setGenerating(true)
@@ -1359,10 +1377,10 @@ function CopyBibleActions({
       {/* Funnel elements summary */}
       {funnelElements.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-          <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-2">Funnel Elements to Cover</h4>
+          <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-2">Funnel Elements to Cover ({funnelElements.length})</h4>
           <div className="flex flex-wrap gap-1.5">
             {funnelElements.map((el, i) => (
-              <span key={i} className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded font-medium">{el}</span>
+              <span key={i} className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded font-medium">{el.split(' — ')[0]}</span>
             ))}
           </div>
         </div>
@@ -1464,7 +1482,24 @@ function CopyBibleActions({
   )
 }
 
-// ── Funnel Strategy Actions — Generate strategic funnel breakdown ──
+// ── Funnel Strategy Actions — AI-suggested funnel elements with selectable cards ──
+type FunnelElement = {
+  type: string
+  topic: string
+  description: string
+  funnel_stage: string
+  reasoning: string
+  priority: number
+}
+
+const STAGE_LABELS: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  awareness: { label: 'Awareness', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
+  engagement: { label: 'Engagement', color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
+  conversion: { label: 'Conversion', color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200' },
+  delivery: { label: 'Delivery', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
+  retention: { label: 'Retention', color: 'text-cyan-700', bg: 'bg-cyan-50', border: 'border-cyan-200' },
+}
+
 function FunnelStrategyActions({
   client,
   fieldValues,
@@ -1475,12 +1510,16 @@ function FunnelStrategyActions({
   onSaveField: (stageKey: string, fieldKey: string, value: string) => void
 }) {
   const [generating, setGenerating] = useState(false)
-  const [editingDoc, setEditingDoc] = useState(false)
-  const [editText, setEditText] = useState('')
-  const [savingToDrive, setSavingToDrive] = useState(false)
 
-  const strategyText = fieldValues.get('funnel-strategy:funnel_strategy_text') || ''
-  const strategyApproved = fieldValues.get('funnel-strategy:funnel_strategy_approved') === 'true'
+  // Load saved elements and selections
+  const savedElementsRaw = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
+  const savedSelectionsRaw = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
+
+  let elements: FunnelElement[] = []
+  try { if (savedElementsRaw) elements = JSON.parse(savedElementsRaw) } catch {}
+
+  let selections: number[] = []
+  try { selections = JSON.parse(savedSelectionsRaw) } catch {}
 
   // Get all context from previous stages
   const transcript = fieldValues.get('strategy:session_transcript') || ''
@@ -1523,7 +1562,6 @@ function FunnelStrategyActions({
       const decoder = new TextDecoder()
       let fullText = ''
       let buffer = ''
-      let stopReason = ''
 
       while (true) {
         const { done, value } = await reader.read()
@@ -1541,9 +1579,6 @@ function FunnelStrategyActions({
               if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
                 fullText += parsed.delta.text
               }
-              if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
-                stopReason = parsed.delta.stop_reason
-              }
             } catch {}
           }
         }
@@ -1552,15 +1587,29 @@ function FunnelStrategyActions({
         try {
           const parsed = JSON.parse(buffer.trim().slice(6))
           if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
-          if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) stopReason = parsed.delta.stop_reason
         } catch {}
-      }
-      if (stopReason === 'max_tokens') {
-        fullText += '\n\n⚠️ OUTPUT WAS TRUNCATED — document exceeded token limit. Please regenerate or edit manually.'
       }
 
       if (fullText) {
-        await onSaveField('funnel-strategy', 'funnel_strategy_text', fullText)
+        // Extract JSON from response (handle markdown code blocks)
+        let jsonStr = fullText.trim()
+        if (jsonStr.startsWith('```')) {
+          jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+        }
+        try {
+          const parsed = JSON.parse(jsonStr)
+          if (Array.isArray(parsed)) {
+            await onSaveField('funnel-strategy', 'funnel_elements_json', JSON.stringify(parsed))
+            // Select all by default
+            const allIndices = parsed.map((_: FunnelElement, i: number) => i)
+            await onSaveField('funnel-strategy', 'funnel_selections', JSON.stringify(allIndices))
+          } else {
+            alert('AI response was not a valid list. Please try again.')
+          }
+        } catch {
+          console.error('Failed to parse funnel elements JSON:', jsonStr.slice(0, 200))
+          alert('Could not parse AI suggestions. Please try regenerating.')
+        }
       } else {
         alert('Error: No content was generated. Please try again.')
       }
@@ -1570,156 +1619,142 @@ function FunnelStrategyActions({
     setGenerating(false)
   }
 
-  const handleApprove = async () => {
-    setSavingToDrive(true)
-    const content = strategyText
-    const title = `${client.name}_FunnelStrategy`
-    const scriptUrl = process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL
-
-    if (scriptUrl) {
-      try {
-        const form = document.createElement('form')
-        form.method = 'POST'
-        form.action = scriptUrl
-        form.target = '_blank'
-        const addField = (name: string, value: string) => {
-          const input = document.createElement('input')
-          input.type = 'hidden'
-          input.name = name
-          input.value = value
-          form.appendChild(input)
-        }
-        addField('title', title)
-        addField('content', content)
-        document.body.appendChild(form)
-        form.submit()
-        document.body.removeChild(form)
-      } catch {
-        await navigator.clipboard.writeText(content)
-        window.open('https://docs.google.com/document/create', '_blank')
-        alert(`Could not connect to Google Docs.\n\nContent copied to clipboard — paste into the new doc.\nName it: ${title}`)
-      }
-    } else {
-      await navigator.clipboard.writeText(content)
-      window.open('https://docs.google.com/document/create', '_blank')
-      alert(`Could not auto-create Google Doc (GOOGLE_APPS_SCRIPT_URL not set).\n\nContent has been copied to your clipboard — paste it into the new doc.\nName it: ${title}`)
-    }
-
-    await onSaveField('funnel-strategy', 'funnel_strategy_approved', 'true')
-    setSavingToDrive(false)
+  const toggleSelection = async (idx: number) => {
+    const next = selections.includes(idx)
+      ? selections.filter(s => s !== idx)
+      : [...selections, idx]
+    await onSaveField('funnel-strategy', 'funnel_selections', JSON.stringify(next))
   }
 
-  const handleUnapprove = async () => {
-    await onSaveField('funnel-strategy', 'funnel_strategy_approved', 'false')
+  const selectAll = async () => {
+    const allIndices = elements.map((_, i) => i)
+    await onSaveField('funnel-strategy', 'funnel_selections', JSON.stringify(allIndices))
   }
 
-  const handleEdit = () => {
-    setEditText(strategyText)
-    setEditingDoc(true)
+  const deselectAll = async () => {
+    await onSaveField('funnel-strategy', 'funnel_selections', JSON.stringify([]))
   }
 
-  const handleSaveEdit = async () => {
-    await onSaveField('funnel-strategy', 'funnel_strategy_text', editText)
-    setEditingDoc(false)
-    setEditText('')
-  }
+  // Group elements by funnel stage
+  const stageOrder = ['awareness', 'engagement', 'conversion', 'delivery', 'retention']
+  const grouped = stageOrder.map(stage => ({
+    stage,
+    items: elements
+      .map((el, idx) => ({ ...el, originalIdx: idx }))
+      .filter(el => el.funnel_stage === stage)
+      .sort((a, b) => a.priority - b.priority),
+  })).filter(g => g.items.length > 0)
+
+  const selectedElements = selections.map(i => elements[i]).filter(Boolean)
+
+  // Build summary for downstream stages (Implementation Plan / Copy Bible)
+  const selectedSummary = selectedElements.map(el => `${el.type}: ${el.topic}`).join('\n- ')
 
   return (
     <div className="space-y-3">
       {/* Context check */}
       {!profileText && !transcript && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-          <p className="text-xs text-amber-700">⚠️ No strategy documents found. Complete the Strategy Session stage first — the Funnel Strategy needs the Client Profile, Research Bible, and Brand Voice to generate accurate recommendations.</p>
+          <p className="text-xs text-amber-700">Complete the Strategy Session stage first — the Funnel Strategy needs the Client Profile, Research Bible, and Brand Voice to generate tailored recommendations.</p>
         </div>
       )}
 
-      {/* Funnel Strategy document */}
-      <div className={`rounded-lg border p-4 space-y-3 ${
-        strategyApproved ? 'bg-green-50 border-green-200' : 'bg-white border-cyan-200'
-      }`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-              strategyApproved ? 'bg-green-500 text-white' : strategyText ? 'bg-cyan-500 text-white' : 'bg-stone-300 text-white'
-            }`}>
-              {strategyApproved ? '✓' : '🗺️'}
-            </span>
-            <h4 className="text-sm font-bold text-stone-800">Funnel Strategy</h4>
-          </div>
-          <div className="flex items-center gap-2">
-            {strategyApproved && <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
-          </div>
+      {/* Generate / Regenerate button */}
+      {!generating && (
+        <button
+          onClick={handleGenerate}
+          disabled={!transcript && !profileText}
+          className={`w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+            elements.length > 0
+              ? 'bg-white border border-cyan-300 text-cyan-700 hover:bg-cyan-50'
+              : 'bg-cyan-600 text-white hover:bg-cyan-700'
+          }`}
+        >
+          {elements.length > 0 ? 'Regenerate Suggestions' : !transcript && !profileText ? 'Complete Strategy Session first' : 'Generate Funnel Strategy'}
+        </button>
+      )}
+      {generating && (
+        <div className="text-center py-4">
+          <p className="text-sm text-cyan-600 animate-pulse">Analysing client data and generating tailored funnel elements...</p>
         </div>
-        <p className="text-xs text-stone-500">A detailed breakdown of what we're building for this client — not just element names, but specifics about each deliverable, its topic, angle, and how it fits the funnel.</p>
+      )}
 
-        {/* Generate button */}
-        {!strategyText && !generating && (
-          <button
-            onClick={handleGenerate}
-            disabled={!transcript && !profileText}
-            className="w-full bg-cyan-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-cyan-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {!transcript && !profileText ? 'Complete Strategy Session first' : 'Generate Funnel Strategy'}
-          </button>
-        )}
-        {generating && (
-          <div className="text-center py-3">
-            <p className="text-sm text-cyan-600 animate-pulse">Generating Funnel Strategy... this may take a minute.</p>
-          </div>
-        )}
-
-        {/* Content display */}
-        {strategyText && !editingDoc && (
-          <div className="space-y-2">
-            <div className="bg-white border border-stone-200 rounded-lg p-3 max-h-64 overflow-y-auto">
-              <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed">{
-                strategyText.split('\n').map((line, i) => {
-                  if (line.includes('GAP:') || line.includes('[ASSUMPTION:')) {
-                    return <span key={i} className="bg-yellow-200 text-yellow-900 px-1 rounded">{line}{'\n'}</span>
-                  }
-                  return <span key={i}>{line}{'\n'}</span>
-                })
-              }</pre>
-            </div>
+      {/* Element cards grouped by funnel stage */}
+      {elements.length > 0 && !generating && (
+        <div className="space-y-4">
+          {/* Selection controls */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-stone-500">
+              <span className="font-semibold text-stone-700">{selections.length}</span> of {elements.length} elements selected
+            </p>
             <div className="flex gap-2">
-              <button onClick={handleEdit} className="flex-1 bg-white border border-stone-300 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-stone-50 cursor-pointer">
-                Edit
-              </button>
-              <button onClick={handleGenerate} disabled={generating} className="flex-1 bg-white border border-cyan-300 text-cyan-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-cyan-50 cursor-pointer disabled:opacity-50">
-                {generating ? 'Generating...' : 'Regenerate'}
-              </button>
-              {!strategyApproved ? (
-                <button onClick={handleApprove} disabled={savingToDrive} className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 cursor-pointer disabled:opacity-50">
-                  {savingToDrive ? 'Creating Google Doc...' : 'Approve & Save to Drive ✓'}
-                </button>
-              ) : (
-                <button onClick={handleUnapprove} className="flex-1 bg-white border border-amber-300 text-amber-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-50 cursor-pointer">
-                  Unapprove
-                </button>
-              )}
+              <button onClick={selectAll} className="text-xs text-cyan-600 hover:text-cyan-800 font-medium cursor-pointer">Select all</button>
+              <span className="text-xs text-stone-300">|</span>
+              <button onClick={deselectAll} className="text-xs text-stone-500 hover:text-stone-700 font-medium cursor-pointer">Deselect all</button>
             </div>
           </div>
-        )}
 
-        {/* Editing */}
-        {editingDoc && (
-          <div className="space-y-2">
-            <textarea
-              value={editText}
-              onChange={(e) => setEditText(e.target.value)}
-              className="w-full border border-cyan-300 rounded-lg p-3 text-xs text-stone-700 font-sans leading-relaxed min-h-[200px] focus:outline-none focus:ring-2 focus:ring-cyan-400"
-            />
-            <div className="flex gap-2">
-              <button onClick={() => { setEditingDoc(false); setEditText('') }} className="flex-1 bg-white border border-stone-300 text-stone-600 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
-                Cancel
-              </button>
-              <button onClick={handleSaveEdit} className="flex-1 bg-cyan-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-cyan-700 cursor-pointer">
-                Save Changes
-              </button>
+          {grouped.map(({ stage, items }) => {
+            const stageInfo = STAGE_LABELS[stage] || { label: stage, color: 'text-stone-700', bg: 'bg-stone-50', border: 'border-stone-200' }
+            return (
+              <div key={stage}>
+                <div className={`text-xs font-bold uppercase tracking-wider ${stageInfo.color} mb-2 flex items-center gap-2`}>
+                  <span className={`inline-block w-2 h-2 rounded-full ${stageInfo.bg} ${stageInfo.border} border`} />
+                  {stageInfo.label}
+                </div>
+                <div className="space-y-2">
+                  {items.map((el) => {
+                    const isSelected = selections.includes(el.originalIdx)
+                    return (
+                      <button
+                        key={el.originalIdx}
+                        type="button"
+                        onClick={() => toggleSelection(el.originalIdx)}
+                        className={`w-full text-left rounded-lg border p-3 transition-all cursor-pointer ${
+                          isSelected
+                            ? `${stageInfo.bg} ${stageInfo.border} ring-1 ring-offset-1 ring-cyan-300`
+                            : 'bg-white border-stone-200 opacity-60 hover:opacity-80'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                            isSelected ? 'bg-cyan-600 border-cyan-600' : 'border-stone-300 bg-white'
+                          }`}>
+                            {isSelected && <span className="text-white text-xs font-bold">✓</span>}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
+                              <span className="text-xs text-stone-300">#{el.priority}</span>
+                            </div>
+                            <p className="text-sm font-semibold text-stone-800 mt-0.5">{el.topic}</p>
+                            <p className="text-xs text-stone-500 mt-1 leading-relaxed">{el.description}</p>
+                            <p className="text-xs text-stone-400 mt-1 italic">{el.reasoning}</p>
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Selected summary */}
+          {selections.length > 0 && (
+            <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-3">
+              <h4 className="text-xs font-bold text-cyan-700 uppercase tracking-wider mb-1">Selected for this funnel ({selections.length})</h4>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedElements.map((el, i) => (
+                  <span key={i} className="text-xs bg-cyan-100 text-cyan-800 px-2 py-1 rounded font-medium">
+                    {el.type}: {el.topic}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
