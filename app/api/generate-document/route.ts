@@ -483,75 +483,8 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: `Anthropic API error (${res.status}): ${errText.slice(0, 300)}` }, { status: 502 })
     }
 
-    // Stream the response through to the client
-    const encoder = new TextEncoder()
-    const decoder = new TextDecoder()
-    const stream = new ReadableStream({
-      async start(controller) {
-        const reader = res.body?.getReader()
-        if (!reader) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', error: 'No response body' })}\n\n`))
-          controller.close()
-          return
-        }
-
-        try {
-          let buffer = ''
-          let stopReason = ''
-
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || '' // Keep incomplete last line in buffer
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6).trim()
-                if (data === '[DONE]') continue
-                try {
-                  const parsed = JSON.parse(data)
-                  if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', text: parsed.delta.text })}\n\n`))
-                  }
-                  if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
-                    stopReason = parsed.delta.stop_reason
-                  }
-                } catch {
-                  // Skip unparseable chunks
-                }
-              }
-            }
-          }
-
-          // Process remaining buffer
-          if (buffer.startsWith('data: ')) {
-            const data = buffer.slice(6).trim()
-            try {
-              const parsed = JSON.parse(data)
-              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', text: parsed.delta.text })}\n\n`))
-              }
-              if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
-                stopReason = parsed.delta.stop_reason
-              }
-            } catch {}
-          }
-
-          if (stopReason === 'max_tokens') {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', text: '\n\n⚠️ OUTPUT WAS TRUNCATED — document exceeded token limit. Please regenerate with a shorter transcript or edit manually.' })}\n\n`))
-          }
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', stopReason })}\n\n`))
-        } catch (err) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', error: String(err) })}\n\n`))
-        }
-        controller.close()
-      }
-    })
-
-    return new Response(stream, {
+    // Pipe Anthropic's raw SSE stream directly to client — no re-encoding
+    return new Response(res.body, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',

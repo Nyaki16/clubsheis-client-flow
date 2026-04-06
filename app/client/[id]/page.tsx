@@ -835,35 +835,55 @@ function StrategyActions({
         return
       }
 
-      // Read streaming SSE response
+      // Read raw Anthropic SSE stream
       const reader = res.body?.getReader()
       if (!reader) { alert('No response stream'); setGenerating(''); return }
       const decoder = new TextDecoder()
       let fullText = ''
       let buffer = ''
+      let stopReason = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
-        buffer = lines.pop() || '' // Keep incomplete line in buffer
+        buffer = lines.pop() || ''
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith('data: ')) {
+            const data = trimmed.slice(6)
+            if (data === '[DONE]') continue
             try {
-              const parsed = JSON.parse(line.slice(6))
-              if (parsed.type === 'text') fullText += parsed.text
-              if (parsed.type === 'error') { alert(`Error: ${parsed.error}`); break }
+              const parsed = JSON.parse(data)
+              // Raw Anthropic format: content_block_delta with delta.text
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                fullText += parsed.delta.text
+              }
+              // Detect truncation
+              if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
+                stopReason = parsed.delta.stop_reason
+              }
             } catch {}
           }
         }
       }
-      // Process any remaining buffer
-      if (buffer.startsWith('data: ')) {
+      // Process remaining buffer
+      if (buffer.trim().startsWith('data: ')) {
+        const data = buffer.trim().slice(6)
         try {
-          const parsed = JSON.parse(buffer.slice(6))
-          if (parsed.type === 'text') fullText += parsed.text
+          const parsed = JSON.parse(data)
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+            fullText += parsed.delta.text
+          }
+          if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
+            stopReason = parsed.delta.stop_reason
+          }
         } catch {}
+      }
+
+      if (stopReason === 'max_tokens') {
+        fullText += '\n\n⚠️ OUTPUT WAS TRUNCATED — document exceeded token limit. Please regenerate or edit manually.'
       }
 
       if (fullText) {
