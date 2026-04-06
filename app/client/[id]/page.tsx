@@ -1888,7 +1888,16 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
     ? getActiveStagesForPackage(client.package)
     : STAGES.map(s => s.key)
 
-  const currentIdx = activeStageKeys.indexOf(client.current_stage)
+  // Handle legacy stage keys that were renamed
+  const stageKeyMap: Record<string, string> = { 'page-build': 'copy-bible' }
+  const resolvedStage = stageKeyMap[client.current_stage] || client.current_stage
+  const currentIdx = activeStageKeys.indexOf(resolvedStage)
+
+  // If the stored stage was renamed, update it in the DB
+  if (resolvedStage !== client.current_stage && currentIdx >= 0) {
+    updateClient(client.id, { current_stage: resolvedStage } as Partial<Client>)
+    setClient(prev => prev ? { ...prev, current_stage: resolvedStage } : prev)
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-8 py-10">
@@ -2026,7 +2035,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
       <div className="space-y-3">
         {STAGES.filter(s => activeStageKeys.includes(s.key)).map((stage, idx) => {
           const stageIdx = activeStageKeys.indexOf(stage.key)
-          const isCurrent = stage.key === client.current_stage
+          const isCurrent = stage.key === resolvedStage
           const isCompleted = stageIdx < currentIdx
           const isActive = isCurrent
 
