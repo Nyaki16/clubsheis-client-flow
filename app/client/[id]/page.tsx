@@ -3963,7 +3963,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
             'strategy': { label: 'Planning & Strategy', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
             'funnel-map': { label: 'Pre-Production', color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
             'production': { label: 'Production', color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
-            'review': { label: 'Delivery & Wrap-Up', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
+            'review': { label: 'Delivery and Hand Over', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
           }
           const phase = PHASES[stage.key]
           const stageIdx = activeStageKeys.indexOf(stage.key)
