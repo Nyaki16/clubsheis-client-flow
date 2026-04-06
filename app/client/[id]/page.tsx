@@ -1464,6 +1464,266 @@ function CopyBibleActions({
   )
 }
 
+// ── Funnel Strategy Actions — Generate strategic funnel breakdown ──
+function FunnelStrategyActions({
+  client,
+  fieldValues,
+  onSaveField,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+}) {
+  const [generating, setGenerating] = useState(false)
+  const [editingDoc, setEditingDoc] = useState(false)
+  const [editText, setEditText] = useState('')
+  const [savingToDrive, setSavingToDrive] = useState(false)
+
+  const strategyText = fieldValues.get('funnel-strategy:funnel_strategy_text') || ''
+  const strategyApproved = fieldValues.get('funnel-strategy:funnel_strategy_approved') === 'true'
+
+  // Get all context from previous stages
+  const transcript = fieldValues.get('strategy:session_transcript') || ''
+  const profileText = fieldValues.get('strategy:client_profile_text') || ''
+  const bibleText = fieldValues.get('strategy:research_bible_text') || ''
+  const voiceText = fieldValues.get('strategy:brand_voice_text') || ''
+
+  const handleGenerate = async () => {
+    if (!transcript && !profileText) {
+      alert('No strategy session transcript or client profile found. Complete the Strategy Session stage first.')
+      return
+    }
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/generate-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentType: 'funnel-strategy',
+          clientName: client.name,
+          brandName: client.brand,
+          transcript,
+          clientProfile: profileText,
+          researchBible: bibleText,
+          brandVoice: voiceText,
+        }),
+      })
+
+      if (!res.ok) {
+        const errText = await res.text()
+        let errMsg = errText
+        try { errMsg = JSON.parse(errText).error } catch {}
+        alert(`Error: ${errMsg}`)
+        setGenerating(false)
+        return
+      }
+
+      const reader = res.body?.getReader()
+      if (!reader) { alert('No response stream'); setGenerating(false); return }
+      const decoder = new TextDecoder()
+      let fullText = ''
+      let buffer = ''
+      let stopReason = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith('data: ')) {
+            const data = trimmed.slice(6)
+            if (data === '[DONE]') continue
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                fullText += parsed.delta.text
+              }
+              if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
+                stopReason = parsed.delta.stop_reason
+              }
+            } catch {}
+          }
+        }
+      }
+      if (buffer.trim().startsWith('data: ')) {
+        try {
+          const parsed = JSON.parse(buffer.trim().slice(6))
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
+          if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) stopReason = parsed.delta.stop_reason
+        } catch {}
+      }
+      if (stopReason === 'max_tokens') {
+        fullText += '\n\n⚠️ OUTPUT WAS TRUNCATED — document exceeded token limit. Please regenerate or edit manually.'
+      }
+
+      if (fullText) {
+        await onSaveField('funnel-strategy', 'funnel_strategy_text', fullText)
+      } else {
+        alert('Error: No content was generated. Please try again.')
+      }
+    } catch (err) {
+      alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}. Please try again.`)
+    }
+    setGenerating(false)
+  }
+
+  const handleApprove = async () => {
+    setSavingToDrive(true)
+    const content = strategyText
+    const title = `${client.name}_FunnelStrategy`
+    const scriptUrl = process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL
+
+    if (scriptUrl) {
+      try {
+        const form = document.createElement('form')
+        form.method = 'POST'
+        form.action = scriptUrl
+        form.target = '_blank'
+        const addField = (name: string, value: string) => {
+          const input = document.createElement('input')
+          input.type = 'hidden'
+          input.name = name
+          input.value = value
+          form.appendChild(input)
+        }
+        addField('title', title)
+        addField('content', content)
+        document.body.appendChild(form)
+        form.submit()
+        document.body.removeChild(form)
+      } catch {
+        await navigator.clipboard.writeText(content)
+        window.open('https://docs.google.com/document/create', '_blank')
+        alert(`Could not connect to Google Docs.\n\nContent copied to clipboard — paste into the new doc.\nName it: ${title}`)
+      }
+    } else {
+      await navigator.clipboard.writeText(content)
+      window.open('https://docs.google.com/document/create', '_blank')
+      alert(`Could not auto-create Google Doc (GOOGLE_APPS_SCRIPT_URL not set).\n\nContent has been copied to your clipboard — paste it into the new doc.\nName it: ${title}`)
+    }
+
+    await onSaveField('funnel-strategy', 'funnel_strategy_approved', 'true')
+    setSavingToDrive(false)
+  }
+
+  const handleUnapprove = async () => {
+    await onSaveField('funnel-strategy', 'funnel_strategy_approved', 'false')
+  }
+
+  const handleEdit = () => {
+    setEditText(strategyText)
+    setEditingDoc(true)
+  }
+
+  const handleSaveEdit = async () => {
+    await onSaveField('funnel-strategy', 'funnel_strategy_text', editText)
+    setEditingDoc(false)
+    setEditText('')
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Context check */}
+      {!profileText && !transcript && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <p className="text-xs text-amber-700">⚠️ No strategy documents found. Complete the Strategy Session stage first — the Funnel Strategy needs the Client Profile, Research Bible, and Brand Voice to generate accurate recommendations.</p>
+        </div>
+      )}
+
+      {/* Funnel Strategy document */}
+      <div className={`rounded-lg border p-4 space-y-3 ${
+        strategyApproved ? 'bg-green-50 border-green-200' : 'bg-white border-cyan-200'
+      }`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+              strategyApproved ? 'bg-green-500 text-white' : strategyText ? 'bg-cyan-500 text-white' : 'bg-stone-300 text-white'
+            }`}>
+              {strategyApproved ? '✓' : '🗺️'}
+            </span>
+            <h4 className="text-sm font-bold text-stone-800">Funnel Strategy</h4>
+          </div>
+          <div className="flex items-center gap-2">
+            {strategyApproved && <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
+          </div>
+        </div>
+        <p className="text-xs text-stone-500">A detailed breakdown of what we're building for this client — not just element names, but specifics about each deliverable, its topic, angle, and how it fits the funnel.</p>
+
+        {/* Generate button */}
+        {!strategyText && !generating && (
+          <button
+            onClick={handleGenerate}
+            disabled={!transcript && !profileText}
+            className="w-full bg-cyan-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-cyan-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {!transcript && !profileText ? 'Complete Strategy Session first' : 'Generate Funnel Strategy'}
+          </button>
+        )}
+        {generating && (
+          <div className="text-center py-3">
+            <p className="text-sm text-cyan-600 animate-pulse">Generating Funnel Strategy... this may take a minute.</p>
+          </div>
+        )}
+
+        {/* Content display */}
+        {strategyText && !editingDoc && (
+          <div className="space-y-2">
+            <div className="bg-white border border-stone-200 rounded-lg p-3 max-h-64 overflow-y-auto">
+              <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed">{
+                strategyText.split('\n').map((line, i) => {
+                  if (line.includes('GAP:') || line.includes('[ASSUMPTION:')) {
+                    return <span key={i} className="bg-yellow-200 text-yellow-900 px-1 rounded">{line}{'\n'}</span>
+                  }
+                  return <span key={i}>{line}{'\n'}</span>
+                })
+              }</pre>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleEdit} className="flex-1 bg-white border border-stone-300 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-stone-50 cursor-pointer">
+                Edit
+              </button>
+              <button onClick={handleGenerate} disabled={generating} className="flex-1 bg-white border border-cyan-300 text-cyan-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-cyan-50 cursor-pointer disabled:opacity-50">
+                {generating ? 'Generating...' : 'Regenerate'}
+              </button>
+              {!strategyApproved ? (
+                <button onClick={handleApprove} disabled={savingToDrive} className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 cursor-pointer disabled:opacity-50">
+                  {savingToDrive ? 'Creating Google Doc...' : 'Approve & Save to Drive ✓'}
+                </button>
+              ) : (
+                <button onClick={handleUnapprove} className="flex-1 bg-white border border-amber-300 text-amber-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-50 cursor-pointer">
+                  Unapprove
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Editing */}
+        {editingDoc && (
+          <div className="space-y-2">
+            <textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              className="w-full border border-cyan-300 rounded-lg p-3 text-xs text-stone-700 font-sans leading-relaxed min-h-[200px] focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => { setEditingDoc(false); setEditText('') }} className="flex-1 bg-white border border-stone-300 text-stone-600 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
+                Cancel
+              </button>
+              <button onClick={handleSaveEdit} className="flex-1 bg-cyan-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-cyan-700 cursor-pointer">
+                Save Changes
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Shared email editor for proposals and thank-you emails ──
 function EmailContentEditor({ content, onChange, readOnly }: { content: string; onChange: (v: string) => void; readOnly: boolean }) {
   if (!readOnly) {
@@ -2102,6 +2362,12 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       fieldValues={fieldValues}
                       onSaveField={handleSaveField}
                     />
+                  ) : stage.key === 'funnel-strategy' ? (
+                    <FunnelStrategyActions
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                    />
                   ) : stage.key === 'copy-bible' ? (
                     <CopyBibleActions
                       client={client}
@@ -2110,7 +2376,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                     />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'copy-bible'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'copy-bible'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">

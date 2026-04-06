@@ -431,6 +431,93 @@ Write 3 short examples in this brand's voice:
 
 Keep it practical and immediately usable. Under 800 words.`,
 
+  'funnel-strategy': `You are building a Funnel Strategy document for ClubSheIs, a digital marketing and content production agency in South Africa.
+
+The Funnel Strategy is the bridge between understanding the client (Client Profile, Research Bible, Brand Voice) and building their funnel (Implementation Plan, Copy Bible). It answers the critical question: WHAT exactly are we building for this client, and WHY?
+
+This is NOT a list of generic funnel elements. This is a detailed strategic document that describes each deliverable in specifics — what it's about, what angle it takes, how it connects to the overall strategy, and why it will work for THIS client's audience at their current awareness stage.
+
+YOUR JOB: Analyse the Client Profile, Research Bible, and Brand Voice to determine the optimal funnel architecture for this client. Then describe each piece in enough detail that anyone on the team understands exactly what needs to be built.
+
+RULES:
+- Be SPECIFIC. Not "a lead magnet" — instead "A quiz lead magnet titled 'What's Your Leadership Style?' that helps corporate women identify their management approach and reveals how the client's coaching programme addresses their specific gaps."
+- For every deliverable, explain the STRATEGIC REASONING — why this format, why this topic, why this angle. Reference the Schwartz awareness stage and sophistication level from the Research Bible.
+- Use [ASSUMPTION: reasoning] where inferring creative direction. This is expected — the team needs a complete picture.
+- Only use GAP: for things that genuinely require client input before proceeding.
+- Write in plain, strategic language. Think like a senior strategist mapping out a campaign.
+
+Use this exact structure:
+
+---
+CLUBSHEIS FUNNEL STRATEGY
+---
+
+## EXECUTIVE SUMMARY
+[2-3 paragraphs. What are we building for this client, at a high level? What's the overall funnel architecture? What's the customer journey from first touch to purchase? What's the strategic logic behind this approach?]
+
+## THE CUSTOMER JOURNEY
+Map out the ideal path a prospect takes from first discovering the brand to becoming a paying client/customer:
+
+**Stage 1 — Awareness:** [How do they first encounter the brand? What content/ad/referral brings them in? What's the hook?]
+
+**Stage 2 — Engagement:** [What keeps them interested? What value do they get before buying? What builds trust?]
+
+**Stage 3 — Conversion:** [What makes them buy? What's the offer? What overcomes their objections?]
+
+**Stage 4 — Delivery & Delight:** [What happens after they buy? How do we exceed expectations?]
+
+**Stage 5 — Retention & Referral:** [How do we keep them? How do we get them to refer others?]
+
+## FUNNEL ELEMENTS — DETAILED BREAKDOWN
+
+For EACH recommended deliverable, use this format:
+
+### [ELEMENT NAME]
+- **What it is:** [Detailed description — not just "a sales page" but exactly what kind of page, what it sells, what angle it takes]
+- **The topic / angle:** [What specifically is this about? If it's a lead magnet, what's the content? If it's a webinar, what's the topic? If it's an email sequence, what's the narrative arc?]
+- **Who it targets:** [Which segment of the audience, at what awareness stage]
+- **Strategic reasoning:** [Why this format? Why this topic? How does this connect to the Research Bible's findings about what works for this audience?]
+- **How it connects to the funnel:** [What comes before this? What comes after? How does it move the prospect forward?]
+- **Key messaging angle:** [The core message/promise for this specific piece, informed by the Schwartz analysis]
+- **Success metrics:** [How will we know this piece is working?]
+
+Include ALL recommended elements. Common categories:
+- **Lead Magnets** (quizzes, PDFs, checklists, mini-courses, webinars)
+- **Landing Pages** (opt-in, sales, webinar registration, booking, checkout, thank you)
+- **Email Sequences** (welcome, nurture, launch, post-purchase, re-engagement)
+- **Upsells & Cross-sells** (OTO pages, bump offers, post-purchase sequences)
+
+## FUNNEL ARCHITECTURE MAP
+Draw the funnel flow using text — show how each element connects:
+
+\`\`\`
+[Traffic Source] → [Entry Point] → [Nurture Mechanism] → [Conversion Point] → [Delivery] → [Retention]
+\`\`\`
+
+Expand each node with specifics.
+
+## RECOMMENDED PRIORITY ORDER
+Number the elements in the order they should be built, with reasoning:
+1. [Element] — Build first because...
+2. [Element] — Build second because...
+3. etc.
+
+## ASSUMPTIONS & GAPS
+
+**Strategic assumptions made:**
+| Assumption | Reasoning | Confidence |
+|---|---|---|
+| [Assumption] | [Why reasonable] | [High/Medium/Low] |
+
+**Gaps requiring client input:**
+- GAP: [What's missing and why it matters for the funnel strategy]
+
+---
+
+Write in DEEP DETAIL. This document is the blueprint for everything that gets built. Every deliverable description should be detailed enough that the team can immediately start working on it. Think like a senior digital strategist who has studied this client's market deeply.
+
+There is NO word limit. Be as thorough as possible.`,
+
   'copy-bible': `You are building a comprehensive Copy Bible for ClubSheIs, a digital marketing and content production agency in South Africa.
 
 The Copy Bible is the master sales copy document that the production team uses to build every page and write every email sequence. It translates the strategy (Client Profile, Research Bible, Brand Voice) into production-ready copy frameworks for each funnel element the client needs.
@@ -543,6 +630,11 @@ export async function POST(req: NextRequest) {
       if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 10000)}`
       if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
     }
+    if (documentType === 'funnel-strategy') {
+      if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 15000)}`
+      if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
+      if (brandVoice) userMessage += `\n\nAPPROVED BRAND VOICE:\n${brandVoice.slice(0, 10000)}`
+    }
     if (documentType === 'copy-bible') {
       if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 15000)}`
       if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
@@ -561,7 +653,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : documentType === 'copy-bible' ? 32000 : 16000,
+        max_tokens: documentType === 'brand-voice' ? 4000 : documentType === 'copy-bible' ? 32000 : documentType === 'funnel-strategy' ? 16000 : 16000,
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),

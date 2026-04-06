@@ -159,6 +159,29 @@ export const STAGES: StageDefinition[] = [
     nextActionPrompt: 'Upload the transcript, then generate and review all three documents before moving to production.',
   },
   {
+    key: 'funnel-strategy',
+    num: '4B',
+    name: 'Funnel Strategy',
+    summary: 'Take everything from the strategy documents and map out exactly WHAT is being built for this client and WHY. Not just element names — detailed descriptions of each deliverable, what it covers, and how it fits into the overall funnel strategy.',
+    color: '#0891B2',
+    colorSoft: 'rgba(8,145,178,0.06)',
+    triggerLabel: 'Trigger: Strategy documents approved',
+    triggerColor: 'cyan',
+    guide: [
+      'Review the Client Profile, Research Bible, and Brand Voice before generating.',
+      'The Funnel Strategy describes WHAT we\'re building — not just "a lead magnet" but "a quiz lead magnet about discovering your leadership style."',
+      'Each deliverable should explain what it is, what it covers, who it targets, and how it connects to the next piece.',
+      'Think about the full customer journey: how does someone discover the brand, engage, convert, and become a repeat buyer?',
+      'This document becomes the blueprint that drives the Implementation Plan and Copy Bible.',
+    ],
+    substeps: [],
+    dataFields: [],
+    conditionalLogic: [
+      { condition: 'Funnel Strategy approved', result: 'Move to Stage 5: Implementation Plan' },
+    ],
+    nextActionPrompt: 'Generate, review, and approve the Funnel Strategy, then move to the Implementation Plan.',
+  },
+  {
     key: 'implementation-plan',
     num: '5',
     name: 'Implementation Plan',
@@ -508,7 +531,7 @@ export const STAGES: StageDefinition[] = [
 ]
 
 export function getActiveStagesForPackage(pkg: string): string[] {
-  const core = ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'strategy', 'implementation-plan']
+  const core = ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'strategy', 'funnel-strategy', 'implementation-plan']
   const closing = ['review', 'delivery']
   const branches = PACKAGE_BRANCHES[pkg] || []
 
