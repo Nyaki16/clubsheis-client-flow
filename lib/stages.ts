@@ -118,16 +118,14 @@ export const STAGES: StageDefinition[] = [
     ],
     substeps: [],
     dataFields: [
-      { key: 'welcome_email_status', label: 'Welcome email', placeholder: 'Select', type: 'select', options: ['Not Sent', 'Sent', 'Client Replied'] },
-      { key: 'strategy_session_date', label: 'Strategy session date', placeholder: 'Select date', type: 'date' },
-      { key: 'booking_link', label: 'Calendar booking link', placeholder: 'e.g. calendly.com/clubsheis/strategy', type: 'text' },
-      { key: 'assets_received', label: 'Client assets received', placeholder: 'Select', type: 'select', options: ['None yet', 'Partial', 'All received'] },
+      { key: 'strategy_session_date', label: 'Strategy session date', placeholder: 'Auto-filled when client books via Ghutte', type: 'date' },
+      { key: 'booking_status', label: 'Booking status', placeholder: 'Select', type: 'select', options: ['Awaiting Booking', 'Booked', 'Rescheduled', 'Completed'] },
     ],
     conditionalLogic: [
-      { condition: 'Welcome email sent + session booked', result: 'Move to Stage 4: Strategy Session' },
-      { condition: 'Assets still missing', result: 'Send follow-up request to client' },
+      { condition: 'Ghutte account created + welcome workflow triggered', result: 'Wait for client to book strategy session' },
+      { condition: 'Client books via Ghutte calendar', result: 'Date auto-fills, move to Stage 4: Strategy Session' },
     ],
-    nextActionPrompt: 'Send the welcome email with the booking link, then wait for the client to book their strategy session.',
+    nextActionPrompt: 'Create the Ghutte account and trigger the welcome workflow. The strategy session date will auto-fill when the client books.',
   },
   {
     key: 'strategy',
