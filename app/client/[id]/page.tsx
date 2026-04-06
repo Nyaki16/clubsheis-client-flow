@@ -951,7 +951,14 @@ function StrategyActions({
             {hasContent && !isEditing && (
               <div className="space-y-2">
                 <div className="bg-white border border-stone-200 rounded-lg p-3 max-h-64 overflow-y-auto">
-                  <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed">{doc.text}</pre>
+                  <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed">{
+                    doc.text.split('\n').map((line, i) => {
+                      if (line.includes('GAP:')) {
+                        return <span key={i} className="bg-yellow-200 text-yellow-900 px-1 rounded">{line}{'\n'}</span>
+                      }
+                      return <span key={i}>{line}{'\n'}</span>
+                    })
+                  }</pre>
                 </div>
                 {!doc.approved && (
                   <div className="flex gap-2">

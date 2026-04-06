@@ -3,44 +3,103 @@ import { NextRequest } from 'next/server'
 export const runtime = 'edge'
 
 const PROMPTS: Record<string, string> = {
-  'client-profile': `You are building a Client Profile for ClubSheIs, a digital marketing and content production agency in South Africa.
+  'client-profile': `You are building a comprehensive Client Profile for ClubSheIs, a digital marketing and content production agency in South Africa.
 
-From the strategy session transcript below, extract and organise:
+From the strategy session transcript below, extract and organise information into the EXACT 8-section structure below. This profile is the single source of truth used by all production agents — every content job starts by reading this doc.
 
-## Business Overview
-- What does the business do?
-- Who do they serve?
-- What makes them different?
-- Current stage (startup, growing, established)
+CRITICAL RULE: Where information is NOT found in the transcript, you MUST write exactly: GAP: [describe what's missing and where to find it]
+Do NOT make up or assume information. If it's not explicitly stated or clearly implied, mark it as a GAP.
 
-## Target Audience
-- Primary audience demographics
-- Psychographics (values, fears, desires)
-- Where they hang out online
-- What content they consume
+Use this exact structure:
 
-## Current Marketing
-- What platforms are they on?
-- What's working / not working?
-- Current content frequency
-- Existing assets (website, email list, socials)
+---
+CLUBSHEIS CLIENT PROFILE
+---
 
-## Offers & Products
-- Main offer(s)
-- Pricing (if mentioned)
-- Sales process
-- Future offers planned
+## SECTION 1 — CLIENT OVERVIEW
+- **Client Full Name:**
+- **Brand / Business Name:**
+- **Industry / Niche:**
+- **Website:**
+- **Active Social Platforms:**
+- **Package Type:** (Studio Day / OBM / Ads / Email / Other)
+- **ClubSheIs Account Manager:**
+- **Date Onboarded:**
 
-## Goals & Priorities
-- Short-term goals (next 3 months)
-- Long-term vision
-- Specific KPIs or targets mentioned
-- What success looks like to them
+## SECTION 2 — TARGET AUDIENCE
+- **Who they are:** (age, life stage, profession, location)
+- **What they want:** (desired outcome or transformation)
+- **Top 3 pain points:**
+  1.
+  2.
+  3.
+- **How they consume content:** (platforms and formats they prefer)
+- **What they do NOT respond to:**
 
-## Key Quotes
-- Pull 3-5 direct quotes from the transcript that capture their voice, passion, or pain points.
+## SECTION 3 — BRAND VOICE & TONE
+- **3 words that describe the tone:**
+- **What the brand sounds like:** (1 paragraph description)
+- **What the brand does NOT sound like:**
+- **Banned words or phrases:**
+- **Signature phrases or frameworks the client uses repeatedly:**
 
-Write in clear, structured sections. Be specific — use their actual words where possible. Keep it under 800 words.`,
+## SECTION 4 — OFFERS & PRODUCTS
+List each offer separately:
+
+**Primary Offer:**
+- Name:
+- Price:
+- What it is:
+- Who it's for:
+- Current status: (active / launching / paused)
+
+**Secondary Offers:**
+
+**Lead Magnet:**
+- Name:
+- Where it lives:
+
+**Main CTA across all content:**
+
+## SECTION 5 — CONTENT DIRECTION
+- **Content pillars:** (3-4 core topics)
+  1.
+  2.
+  3.
+  4.
+- **Platforms we create content for:**
+- **Preferred formats:** (reels, carousels, long-form, etc.)
+- **Topics or angles to avoid:**
+- **Competitors or others in this space:**
+- **Current campaign or launch focus:**
+
+## SECTION 6 — VISUAL IDENTITY
+- **Primary brand colours:** (hex codes if mentioned)
+- **Secondary colours:**
+- **Fonts:**
+- **Photography style / aesthetic:**
+
+## SECTION 7 — HISTORY & NOTES
+- **What has worked well:**
+- **What to avoid repeating:**
+- **Client communication preferences:**
+- **Specific sensitivities or preferences:**
+
+## SECTION 8 — SOCIAL PRESENCE & ONLINE INTELLIGENCE
+- **Instagram handle & follower count:**
+- **LinkedIn URL & connection count:**
+- **Facebook page URL:**
+- **YouTube channel URL & subscriber count:**
+- **Website URL:**
+- **Current content style observed:**
+- **Top performing content types:**
+- **How their audience responds:**
+- **Active ads or promotions running:**
+- **Gap between public positioning and internal strategy:**
+
+---
+
+Write in clear, structured sections. Be specific — use the client's actual words where possible. Every field must have a value OR a GAP marker. Keep it under 1200 words.`,
 
   'research-bible': `You are building a Research Bible for ClubSheIs, a digital marketing and content production agency in South Africa.
 
@@ -139,7 +198,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'Transcript is required' }, { status: 400 })
     }
 
-    let userMessage = `CLIENT: ${clientName} (${brandName || 'No brand name'})\n\nSTRATEGY SESSION TRANSCRIPT:\n${(transcript || '').slice(0, 6000)}`
+    let userMessage = `CLIENT: ${clientName} (${brandName || 'No brand name'})\n\nSTRATEGY SESSION TRANSCRIPT:\n${(transcript || '').slice(0, 10000)}`
 
     if (documentType === 'research-bible' && clientProfile) {
       userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 3000)}`
@@ -158,7 +217,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
+        max_tokens: 4000,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),
     })
