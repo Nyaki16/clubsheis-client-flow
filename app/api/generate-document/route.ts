@@ -341,11 +341,21 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok) {
       const errText = await res.text()
-      return Response.json({ error: `API error: ${errText}` }, { status: res.status })
+      return Response.json({ error: `Anthropic API error (${res.status}): ${errText.slice(0, 300)}` }, { status: 502 })
     }
 
-    const data = await res.json()
+    const resText = await res.text()
+    let data
+    try {
+      data = JSON.parse(resText)
+    } catch {
+      return Response.json({ error: `Unexpected API response: ${resText.slice(0, 300)}` }, { status: 502 })
+    }
     const content = data.content?.[0]?.text || ''
+
+    if (!content) {
+      return Response.json({ error: 'AI returned empty content — please try again' }, { status: 502 })
+    }
 
     return Response.json({ document: content })
   } catch (error) {

@@ -825,7 +825,15 @@ function StrategyActions({
           researchBible: bibleText,
         }),
       })
-      const data = await res.json()
+      const text = await res.text()
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch {
+        alert(`Error: The API returned an unexpected response. This usually means the server is busy — please try again in a few seconds.\n\nDetails: ${text.slice(0, 200)}`)
+        setGenerating('')
+        return
+      }
       if (!res.ok) {
         alert(`Error: ${data.error}`)
       } else if (data.document) {
@@ -835,7 +843,7 @@ function StrategyActions({
         await onSaveField('strategy', fieldKey, data.document)
       }
     } catch (err) {
-      alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}`)
+      alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}. Please try again.`)
     }
     setGenerating('')
   }
