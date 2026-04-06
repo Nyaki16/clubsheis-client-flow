@@ -1510,6 +1510,8 @@ function FunnelStrategyActions({
   onSaveField: (stageKey: string, fieldKey: string, value: string) => void
 }) {
   const [generating, setGenerating] = useState(false)
+  const [customInputs, setCustomInputs] = useState<Record<string, string>>({})
+  const [addingCustom, setAddingCustom] = useState<Record<string, boolean>>({})
 
   // Load saved elements and selections
   const savedElementsRaw = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
@@ -1635,6 +1637,49 @@ function FunnelStrategyActions({
     await onSaveField('funnel-strategy', 'funnel_selections', JSON.stringify([]))
   }
 
+  const handleAddCustom = async (stage: string) => {
+    const text = (customInputs[stage] || '').trim()
+    if (!text) return
+
+    // Parse "Type: Topic" or just treat whole thing as topic
+    let type = 'Custom'
+    let topic = text
+    const colonIdx = text.indexOf(':')
+    if (colonIdx > 0 && colonIdx < 30) {
+      type = text.slice(0, colonIdx).trim()
+      topic = text.slice(colonIdx + 1).trim()
+    }
+
+    const newElement: FunnelElement = {
+      type,
+      topic,
+      description: 'Custom element added by team',
+      funnel_stage: stage,
+      reasoning: 'Manually added based on team strategy',
+      priority: elements.length + 1,
+    }
+
+    const updatedElements = [...elements, newElement]
+    const newIdx = updatedElements.length - 1
+    const updatedSelections = [...selections, newIdx]
+
+    await onSaveField('funnel-strategy', 'funnel_elements_json', JSON.stringify(updatedElements))
+    await onSaveField('funnel-strategy', 'funnel_selections', JSON.stringify(updatedSelections))
+    setCustomInputs(prev => ({ ...prev, [stage]: '' }))
+    setAddingCustom(prev => ({ ...prev, [stage]: false }))
+  }
+
+  const handleRemoveElement = async (idx: number) => {
+    const updatedElements = elements.filter((_, i) => i !== idx)
+    // Reindex selections — remove the deleted index and shift down any above it
+    const updatedSelections = selections
+      .filter(s => s !== idx)
+      .map(s => s > idx ? s - 1 : s)
+
+    await onSaveField('funnel-strategy', 'funnel_elements_json', JSON.stringify(updatedElements))
+    await onSaveField('funnel-strategy', 'funnel_selections', JSON.stringify(updatedSelections))
+  }
+
   // Group elements by funnel stage
   const stageOrder = ['awareness', 'engagement', 'conversion', 'delivery', 'retention']
   const grouped = stageOrder.map(stage => ({
@@ -1706,35 +1751,81 @@ function FunnelStrategyActions({
                   {items.map((el) => {
                     const isSelected = selections.includes(el.originalIdx)
                     return (
-                      <button
-                        key={el.originalIdx}
-                        type="button"
-                        onClick={() => toggleSelection(el.originalIdx)}
-                        className={`w-full text-left rounded-lg border p-3 transition-all cursor-pointer ${
-                          isSelected
-                            ? `${stageInfo.bg} ${stageInfo.border} ring-1 ring-offset-1 ring-cyan-300`
-                            : 'bg-white border-stone-200 opacity-60 hover:opacity-80'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                            isSelected ? 'bg-cyan-600 border-cyan-600' : 'border-stone-300 bg-white'
-                          }`}>
-                            {isSelected && <span className="text-white text-xs font-bold">✓</span>}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
-                              <span className="text-xs text-stone-300">#{el.priority}</span>
+                      <div key={el.originalIdx} className="relative group">
+                        <button
+                          type="button"
+                          onClick={() => toggleSelection(el.originalIdx)}
+                          className={`w-full text-left rounded-lg border p-3 transition-all cursor-pointer ${
+                            isSelected
+                              ? `${stageInfo.bg} ${stageInfo.border} ring-1 ring-offset-1 ring-cyan-300`
+                              : 'bg-white border-stone-200 opacity-60 hover:opacity-80'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                              isSelected ? 'bg-cyan-600 border-cyan-600' : 'border-stone-300 bg-white'
+                            }`}>
+                              {isSelected && <span className="text-white text-xs font-bold">✓</span>}
                             </div>
-                            <p className="text-sm font-semibold text-stone-800 mt-0.5">{el.topic}</p>
-                            <p className="text-xs text-stone-500 mt-1 leading-relaxed">{el.description}</p>
-                            <p className="text-xs text-stone-400 mt-1 italic">{el.reasoning}</p>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
+                                <span className="text-xs text-stone-300">#{el.priority}</span>
+                              </div>
+                              <p className="text-sm font-semibold text-stone-800 mt-0.5">{el.topic}</p>
+                              <p className="text-xs text-stone-500 mt-1 leading-relaxed">{el.description}</p>
+                              <p className="text-xs text-stone-400 mt-1 italic">{el.reasoning}</p>
+                            </div>
                           </div>
-                        </div>
-                      </button>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleRemoveElement(el.originalIdx) }}
+                          className="absolute top-2 right-2 w-5 h-5 rounded-full bg-red-100 text-red-500 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex items-center justify-center hover:bg-red-200"
+                          title="Remove element"
+                        >
+                          x
+                        </button>
+                      </div>
                     )
                   })}
+
+                  {/* Add custom element */}
+                  {addingCustom[stage] ? (
+                    <div className="flex gap-2 items-start">
+                      <input
+                        type="text"
+                        value={customInputs[stage] || ''}
+                        onChange={(e) => setCustomInputs(prev => ({ ...prev, [stage]: e.target.value }))}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustom(stage) }}
+                        placeholder="e.g. Webinar: How to Scale Your Coaching Business"
+                        className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 bg-white"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAddCustom(stage)}
+                        className="bg-cyan-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-cyan-700 cursor-pointer whitespace-nowrap"
+                      >
+                        Add
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setAddingCustom(prev => ({ ...prev, [stage]: false })); setCustomInputs(prev => ({ ...prev, [stage]: '' })) }}
+                        className="bg-white border border-stone-300 text-stone-500 px-3 py-2 rounded-lg text-sm font-medium hover:bg-stone-50 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setAddingCustom(prev => ({ ...prev, [stage]: true }))}
+                      className="w-full border border-dashed border-stone-300 rounded-lg py-2 text-xs text-stone-400 hover:text-stone-600 hover:border-stone-400 transition-colors cursor-pointer"
+                    >
+                      + Add your own {stageInfo.label.toLowerCase()} element
+                    </button>
+                  )}
                 </div>
               </div>
             )
