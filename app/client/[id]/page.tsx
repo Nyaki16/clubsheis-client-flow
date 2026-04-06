@@ -846,56 +846,48 @@ function StrategyActions({
     const key = docType === 'client-profile' ? 'client_profile_approved'
       : docType === 'research-bible' ? 'research_bible_approved'
       : 'brand_voice_approved'
-    const textKey = docType === 'client-profile' ? 'client_profile_text'
-      : docType === 'research-bible' ? 'research_bible_text'
-      : 'brand_voice_text'
     const docName = docType === 'client-profile' ? 'Client Profile'
       : docType === 'research-bible' ? 'Research Bible'
       : 'Brand Voice'
+    const textKey = docType === 'client-profile' ? 'client_profile_text'
+      : docType === 'research-bible' ? 'research_bible_text'
+      : 'brand_voice_text'
     const text = fieldValues.get(`strategy:${textKey}`) || ''
     const docTitle = `${client.name}_${docName.replace(/\s+/g, '')}`
-
-    setSavingToDrive(docType)
-
     const scriptUrl = process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL
 
+    // Mark as approved
+    await onSaveField('strategy', key, 'true')
+
     if (!scriptUrl) {
-      // No Apps Script URL — fallback to clipboard
       try { await navigator.clipboard.writeText(text) } catch {}
-      await onSaveField('strategy', key, 'true')
       window.open('https://docs.google.com/document/create', '_blank')
-      alert(`Apps Script URL not configured.\n\nContent copied to clipboard — paste into the new doc.\nName it: ${docTitle}`)
-      setSavingToDrive('')
+      alert(`Content copied to clipboard — paste into the new doc.\nName it: ${docTitle}`)
       return
     }
 
-    try {
-      // Call Apps Script directly from browser (uses Google auth cookies)
-      const res = await fetch(scriptUrl, {
-        method: 'POST',
-        body: JSON.stringify({ title: docTitle, content: text }),
-        redirect: 'follow',
-      })
-      const data = await res.json()
+    // Submit a hidden form to Apps Script (no CORS issues with form POST)
+    // The Apps Script creates the doc and redirects the new tab to it
+    const form = document.createElement('form')
+    form.method = 'POST'
+    form.action = scriptUrl
+    form.target = '_blank'
 
-      if (data.success && data.docUrl) {
-        await onSaveField('strategy', key, 'true')
-        await onSaveField('strategy', `${textKey.replace('_text', '')}_doc_url`, data.docUrl)
-        window.open(data.docUrl, '_blank')
-      } else {
-        try { await navigator.clipboard.writeText(text) } catch {}
-        await onSaveField('strategy', key, 'true')
-        window.open('https://docs.google.com/document/create', '_blank')
-        alert(`Could not auto-create Google Doc (${data.error || 'unknown error'}).\n\nContent copied to clipboard — paste into the new doc.\nName it: ${docTitle}`)
-      }
-    } catch {
-      // Fallback: copy to clipboard and open blank doc
-      try { await navigator.clipboard.writeText(text) } catch {}
-      await onSaveField('strategy', key, 'true')
-      window.open('https://docs.google.com/document/create', '_blank')
-      alert(`Could not connect to Google Docs.\n\nContent copied to clipboard — paste into the new doc.\nName it: ${docTitle}`)
-    }
-    setSavingToDrive('')
+    const titleInput = document.createElement('input')
+    titleInput.type = 'hidden'
+    titleInput.name = 'title'
+    titleInput.value = docTitle
+    form.appendChild(titleInput)
+
+    const contentInput = document.createElement('input')
+    contentInput.type = 'hidden'
+    contentInput.name = 'content'
+    contentInput.value = text
+    form.appendChild(contentInput)
+
+    document.body.appendChild(form)
+    form.submit()
+    document.body.removeChild(form)
   }
 
   const handleUnapprove = async (docType: string) => {
