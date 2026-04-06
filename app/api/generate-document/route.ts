@@ -103,15 +103,16 @@ Write in clear, structured sections. Be specific — use the client's actual wor
 
   'research-bible': `You are building a comprehensive Research Bible for ClubSheIs, a digital marketing and content production agency in South Africa.
 
-The Research Bible is the research foundation that sits behind the Creative Brief — it tells the team who we're really talking to, what they believe, what they've tried, and exactly what kind of messaging will cut through.
+The Research Bible is the research foundation that sits behind the Creative Brief — it tells the team who we're really talking to, what they believe, what they've tried, and exactly what kind of messaging will cut through for this specific client at this specific moment in time.
 
 It uses Eugene Schwartz's Breakthrough Advertising frameworks to analyse the market and translate that analysis into concrete messaging direction.
 
-CRITICAL RULES:
-- Never invent facts. No fabricated statistics, competitor details, or fictional audience research.
-- Assumptions must be labelled: [ASSUMPTION: reasoning]
-- Gaps must be named: GAP: [describe what's missing and why it matters]
-- Never put words in the client's mouth — only quote from the actual transcript.
+CRITICAL RULES — HONESTY PROTOCOL:
+- Never invent facts. No fabricated statistics, no made-up competitor details, no invented client wins, no fictional audience research.
+- Never put words in the client's mouth. Only quote from actual transcripts or published material.
+- Assumptions must be labelled: [ASSUMPTION: reasoning] so the team knows it needs verification.
+- Gaps must be named: GAP: [describe what's missing and why it matters] — don't paper over it.
+- Ask rather than guess on high-stakes items. Pricing, active launch dates, client claims about results — if you can't confirm these from a source, mark as GAP.
 
 Using the strategy session transcript AND the approved Client Profile below, write the Research Bible in this EXACT 7-part structure:
 
@@ -122,26 +123,30 @@ CLUBSHEIS RESEARCH BIBLE
 ## PART 1 — CLIENT INTAKE SUMMARY
 
 **What this business does:**
-[One clear sentence — the transformation or service in plain language.]
+[One clear sentence. Pulled from client profile and confirmed by transcript. The transformation or service in plain language.]
 
 **Who this business does it for:**
-[Specific person — life stage, professional context, what they're trying to do, what's in their way.]
+[Specific. Not "women 25-45." The real person — their life stage, professional context, what they're trying to do, what's in their way.]
 
 **Where they work:**
-[Country, city, platform preferences, currency context.]
+[Country, city, and relevant regional notes. For SA clients: note platform preferences, currency context (ZAR), and any local market dynamics that affect messaging.]
 
 ## PART 2 — RESEARCH SOURCES LOG
 
-List sources consulted: transcript, client profile, any other docs referenced.
+List every source consulted. Format:
 
-| Source | Type | Key insight extracted |
-|---|---|---|
-| [source] | [type] | [one-line summary] |
+| Source | Type | Date | Key insight extracted |
+|---|---|---|---|
+| [Document name or URL] | [Type: transcript / profile / social / web] | [date] | [One-line summary of what it revealed] |
+
+> Sources marked with [ASSUMPTION] or [GAP] labels in this document trace back to incomplete sources.
 
 ## PART 3 — MARKET RESEARCH REPORT
 
+Use H3 headings for each of the nine sections. Write in plain, human language. Vary sentence length. Short paragraphs. No hype words.
+
 #### Target Market
-Portrait of the specific person this brand is for. Go beyond demographics into worldview, daily reality.
+Portrait of the specific person this brand is for. Go beyond demographics into worldview, daily reality, and what they're quietly hoping someone will say to them.
 
 Quick-reference profile:
 - Age range:
@@ -153,33 +158,44 @@ Quick-reference profile:
 - What makes them click:
 
 #### Core Pain Point
-The single deepest pain — not the surface complaint but the thing underneath it.
-- **Underlying fear:**
-- **Surface complaint:**
-- **The gap they feel:**
+The single deepest pain — not the surface complaint but the thing underneath it. Write it the way they'd say it to a friend.
+
+- **Underlying fear:** [the thing they're actually scared of]
+- **Surface complaint:** [what they'd type into Google]
+- **The gap they feel:** [distance between where they are and where they feel they should be]
 
 #### Common But Disliked Solutions
-What have they already tried? What feels like it should work but doesn't? List each failed solution and the emotional cost.
+What have they already tried? What feels like it should work but doesn't?
+
+List each failed solution and — crucially — the emotional cost of having tried it. This is what the audience is cynical about. Our messaging must acknowledge these without dismissing them.
 
 #### Unique Solution
+What does this brand offer that the alternatives don't? In plain language, not marketing language.
+
 - **The core difference:** [one sentence]
-- **Why it works when others don't:**
-- **What makes it feel safe to try:**
+- **Why it works when others don't:** [the mechanism, simply explained]
+- **What makes it feel safe to try:** [what reduces risk for someone who's been burned]
 
 #### How The Solution Works
-Walk through the actual process. Concrete. Jargon-free. Number the steps.
+Walk through the actual process. Concrete. Jargon-free. What actually happens. Number the steps. Note what's included. Give a realistic timeline.
 
 #### Credibility / Evidence
-All confirmable proof points only. Label anything unverified as [ASSUMPTION] or GAP.
+All confirmable proof points only. If something can't be verified from a source, label it as [ASSUMPTION] or GAP. Never fabricate or inflate.
+
+- Track record: [confirmed client numbers, years, results — with sources]
+- Proof points: [media, speaking, awards — confirmed]
+- Social proof signals: [engagement patterns observed, comment quality]
 
 #### Testimonials
-If available from transcript, include verbatim. If none: GAP: No testimonials provided. Request from client before content production begins.
+If the client provided testimonials in the transcript, paste them verbatim. Cite source.
+
+If no testimonials are available, write: GAP: No testimonials provided. Request from client before content production begins. Do NOT write fictional testimonials.
 
 #### Desired Feelings After Success
-Not outcomes — feelings. The emotional state the ideal client is moving toward.
+Not outcomes — feelings. The emotional state the ideal client is moving toward. Pull these from transcript language and client's own copy. If inferring, label as [ASSUMPTION].
 
 #### Specific Outcomes Hoped For
-Concrete, real-world results the audience wants.
+Concrete, real-world results the audience wants. Tangible things they can point to. Ground these in what clients actually say in transcripts, not in generic category assumptions.
 
 ## PART 4 — BREAKTHROUGH ADVERTISING ANALYSIS
 
@@ -189,15 +205,23 @@ The 5 Stages (Schwartz):
 | Stage | Name | What they're thinking |
 |---|---|---|
 | 1 | Unaware | "Everything is fine." |
-| 2 | Problem Aware | "Something's wrong but I don't know what to do." |
-| 3 | Solution Aware | "I know there are things that help with this." |
-| 4 | Product Aware | "I've heard of this brand — is it right for me?" |
+| 2 | Problem Aware | "Something's wrong but I don't know what to do about it." |
+| 3 | Solution Aware | "I know there are things out there that help with this." |
+| 4 | Product Aware | "I've heard of this brand — but is it right for me?" |
 | 5 | Most Aware | "I want this — just show me how to get it." |
 
 **Assessment:** [Stage number and name]
-**Evidence from research:** [Specific signals]
-**What this means for messaging:** [What kind of message lands at this stage]
-**Recommended entry point for content:** [Hook style, format, angle]
+
+**Evidence from research:**
+- [Specific signal — e.g. comment behaviour, competitor engagement, search trends]
+- [Specific signal]
+- [Specific signal]
+
+**What this means for messaging:**
+[One paragraph. What kind of message lands at this stage — what to lead with, what to avoid, what the hook structure should look like.]
+
+**Recommended entry point for content:**
+[Concrete recommendation — hook style, format, angle to lead with.]
 
 #### Current Market Sophistication Level
 
@@ -210,52 +234,81 @@ The 5 Levels (Schwartz):
 | 4 | Mechanisms are widely known | Elaborate or improve the mechanism |
 | 5 | Market is exhausted | Lead with identity, sensation, or belonging |
 
-**Assessment:** [Level number]
-**Evidence from research:** [What claims competitors are making, what's saturated]
-**What this means for messaging:** [What cuts through at this level]
+**Assessment:** [Level number and name]
+
+**Evidence from research:**
+- [e.g. What claims competitors are making and how saturated they are]
+- [e.g. What the audience is tired of seeing]
+- [e.g. What IS cutting through — and why]
+
+**What this means for messaging:**
+[One paragraph. What kind of message cuts through at this sophistication level — what needs to be named, shown, or proven differently from everyone else.]
 
 #### Combined Messaging Strategy
 
+Where awareness stage + sophistication level intersect — the creative sweet spot.
+
 | Element | Recommendation |
 |---|---|
-| Hook style | [What the first 3 seconds / first line should do] |
+| Hook style | [Specific — what the first 3 seconds / first line should do] |
 | Lead emotion | [The feeling to trigger first] |
-| Proof format | [How to show it's real] |
-| CTA approach | [Low-barrier vs high-commitment] |
-| Tone | [How to sound] |
-| What to avoid | [Phrases, claims, formats that won't land] |
+| Proof format | [How to show it's real — process, results, voice, specifics] |
+| CTA approach | [What the next step asks of them — low-barrier vs high-commitment] |
+| Tone | [How to sound, not sound like] |
+| What to avoid | [Specific phrases, claims, formats that won't land at this stage/level] |
 
 ## PART 5 — COMPETITIVE LANDSCAPE
 
 | Competitor | Positioning | Strengths | Weaknesses | Gap we can own |
 |---|---|---|---|---|
-| [Name] | [How they position] | [Working] | [Falling short] | [Unoccupied] |
+| [Name] | [How they position] | [What's working for them] | [Where they fall short] | [What's unoccupied] |
 
-**The whitespace:** [What nobody in this market is saying that this brand could own.]
+**The whitespace:**
+[One paragraph. What nobody in this market is saying or doing that this brand could own. The positioning gap. Ground this in the research — not a theoretical claim.]
 
 ## PART 6 — CONTENT INTELLIGENCE
 
+What's actually working in this market right now — grounded in observed social data.
+
 **Formats with highest engagement in this niche:**
+- [Format — and what specifically makes it work]
+
 **Topics that consistently drive saves, shares, and DMs:**
+- [Topic — with evidence from observation]
+
 **Topics that get likes but no action:**
+- [Topic — and why it's probably happening]
+
 **Caption patterns that convert:**
-**Audience language to use in hooks and copy:** [Exact phrases from transcript/comments]
+- [Pattern — with example of what it looks like]
+
+**Audience language to use in hooks and copy:**
+- [Exact phrases the audience uses about their own problems — pulled from transcript, comments, forums]
 
 ## PART 7 — ASSUMPTIONS & GAPS
+
+Transparency log. Every assumption and gap from this document collected in one place.
+
+**Confirmed from direct sources:**
+
+| Fact | Source |
+|---|---|
+| [Confirmed fact] | [Document name or transcript] |
 
 **Inferred / assumed:**
 
 | Assumption | Reasoning | Confidence |
 |---|---|---|
-| [Assumption] | [Why reasonable] | [High / Medium / Low] |
+| [Assumption] | [Why this is a reasonable inference] | [High / Medium / Low] |
 
 **Gaps requiring client input before production begins:**
 - GAP: [Gap 1 — what's missing and why it matters]
 - GAP: [Gap 2]
+- GAP: [Gap 3]
 
 ---
 
-Write in plain, human language. Short paragraphs. No hype words. Be strategic and actionable — this document drives all content creation. Every field must have a value, an [ASSUMPTION] label, or a GAP marker. Keep it under 2000 words.`,
+Write in plain, human language. Short paragraphs. No hype words. Be strategic and actionable — this document drives all content creation. Every field must have a value, an [ASSUMPTION] label, or a GAP marker. Part 4 (Breakthrough Advertising) is the most important section for the creative team — do not skip or abbreviate it. If the market is at Sophistication Level 3 or above, the team must lead with a named mechanism. Keep it under 2500 words.`,
 
   'brand-voice': `You are building a Brand Voice Guide for ClubSheIs, a digital marketing and content production agency in South Africa.
 
@@ -318,7 +371,7 @@ export async function POST(req: NextRequest) {
     let userMessage = `CLIENT: ${clientName} (${brandName || 'No brand name'})\n\nSTRATEGY SESSION TRANSCRIPT:\n${(transcript || '').slice(0, 10000)}`
 
     if (documentType === 'research-bible' && clientProfile) {
-      userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 3000)}`
+      userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 6000)}`
     }
     if (documentType === 'brand-voice') {
       if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 2000)}`
