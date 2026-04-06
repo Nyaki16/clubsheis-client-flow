@@ -1761,7 +1761,233 @@ function FunnelMapActions({
   )
 }
 
-// ── Copy Bible Actions — Per-element copy generation with dropdowns ──
+// ── Copy Bible — Shared streaming helper ──
+async function streamGenerate(body: Record<string, unknown>): Promise<{ text: string; truncated: boolean }> {
+  const res = await fetch('/api/generate-document', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const errText = await res.text()
+    let errMsg = errText
+    try { errMsg = JSON.parse(errText).error } catch {}
+    throw new Error(errMsg)
+  }
+  const reader = res.body?.getReader()
+  if (!reader) throw new Error('No response stream')
+  const decoder = new TextDecoder()
+  let fullText = ''
+  let buffer = ''
+  let stopReason = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('data: ')) {
+        const data = trimmed.slice(6)
+        if (data === '[DONE]') continue
+        try {
+          const parsed = JSON.parse(data)
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
+          if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) stopReason = parsed.delta.stop_reason
+        } catch {}
+      }
+    }
+  }
+  if (buffer.trim().startsWith('data: ')) {
+    try {
+      const parsed = JSON.parse(buffer.trim().slice(6))
+      if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
+      if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) stopReason = parsed.delta.stop_reason
+    } catch {}
+  }
+  return { text: fullText, truncated: stopReason === 'max_tokens' }
+}
+
+// ── Shared: Save to Google Drive helper ──
+function saveToDrive(title: string, content: string) {
+  const scriptUrl = process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL
+  if (scriptUrl) {
+    try {
+      const form = document.createElement('form')
+      form.method = 'POST'
+      form.action = scriptUrl
+      form.target = '_blank'
+      const addField = (name: string, value: string) => {
+        const input = document.createElement('input')
+        input.type = 'hidden'
+        input.name = name
+        input.value = value
+        form.appendChild(input)
+      }
+      addField('title', title)
+      addField('content', content)
+      document.body.appendChild(form)
+      form.submit()
+      document.body.removeChild(form)
+      return
+    } catch {}
+  }
+  navigator.clipboard.writeText(content)
+  window.open('https://docs.google.com/document/create', '_blank')
+  alert(`Content copied to clipboard — paste it into the new doc.\nName it: ${title}`)
+}
+
+// ── Copy Sub-Section (Page Copy or Email Sequence) ──
+function CopySubSection({
+  type,
+  label,
+  icon,
+  color,
+  index,
+  elementFull,
+  client,
+  fieldValues,
+  onSaveField,
+  profileText,
+  bibleText,
+  voiceText,
+  transcript,
+}: {
+  type: 'page' | 'email'
+  label: string
+  icon: string
+  color: { bg: string; border: string; text: string; buttonBg: string; buttonHover: string }
+  index: number
+  elementFull: string
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+  profileText: string
+  bibleText: string
+  voiceText: string
+  transcript: string
+}) {
+  const [generating, setGenerating] = useState(false)
+  const [editingDoc, setEditingDoc] = useState(false)
+  const [editText, setEditText] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const textKey = `element_${index}_${type}_text`
+  const notesKey = `element_${index}_${type}_notes`
+  const approvedKey = `element_${index}_${type}_approved`
+  const copyText = fieldValues.get(`copy-bible:${textKey}`) || ''
+  const userNotes = fieldValues.get(`copy-bible:${notesKey}`) || ''
+  const isApproved = fieldValues.get(`copy-bible:${approvedKey}`) === 'true'
+
+  const handleGenerate = async () => {
+    setGenerating(true)
+    try {
+      const result = await streamGenerate({
+        documentType: type === 'page' ? 'copy-element-page' : 'copy-element-email',
+        clientName: client.name,
+        brandName: client.brand,
+        transcript,
+        clientProfile: profileText,
+        researchBible: bibleText,
+        brandVoice: voiceText,
+        funnelElements: elementFull,
+        userNotes: userNotes || undefined,
+      })
+      let text = result.text
+      if (result.truncated) text += '\n\n⚠️ OUTPUT WAS TRUNCATED — please regenerate or edit manually.'
+      if (text) {
+        await onSaveField('copy-bible', textKey, text)
+        if (isApproved) await onSaveField('copy-bible', approvedKey, 'false')
+      } else {
+        alert('No content generated. Please try again.')
+      }
+    } catch (err) {
+      alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}`)
+    }
+    setGenerating(false)
+  }
+
+  const handleApprove = async () => {
+    setSaving(true)
+    const safeLabel = label.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '_')
+    saveToDrive(`${client.name}_${type === 'page' ? 'PageCopy' : 'Emails'}_${safeLabel}`, copyText)
+    await onSaveField('copy-bible', approvedKey, 'true')
+    setSaving(false)
+  }
+
+  return (
+    <div className={`rounded-lg border ${color.border} ${isApproved ? 'bg-green-50/30' : color.bg} p-3 space-y-2`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">{icon}</span>
+          <span className={`text-xs font-bold uppercase tracking-wider ${color.text}`}>{label}</span>
+        </div>
+        {isApproved && <span className="text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
+        {copyText && !isApproved && <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded">DRAFT</span>}
+      </div>
+
+      {/* Notes */}
+      <textarea
+        value={userNotes}
+        onChange={(e) => onSaveField('copy-bible', notesKey, e.target.value)}
+        placeholder={`Your notes for the ${type === 'page' ? 'page copy' : 'email sequence'}...`}
+        className="w-full border border-stone-200 rounded-lg p-2 text-xs text-stone-700 leading-relaxed min-h-[50px] focus:outline-none focus:ring-2 focus:ring-orange-300 placeholder:text-stone-400 resize-y"
+      />
+
+      {/* Generate */}
+      {!generating && (
+        <button onClick={handleGenerate} className={`w-full px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+          copyText ? `bg-white border ${color.border} ${color.text} hover:${color.bg}` : `${color.buttonBg} text-white ${color.buttonHover}`
+        }`}>
+          {copyText ? 'Regenerate' : 'Generate'}
+        </button>
+      )}
+      {generating && <p className={`text-xs ${color.text} animate-pulse text-center py-2`}>Generating {type === 'page' ? 'page copy' : 'email sequence'}...</p>}
+
+      {/* Content */}
+      {copyText && !editingDoc && (
+        <div className="space-y-2">
+          <div className="bg-white border border-stone-200 rounded-lg p-3 max-h-64 overflow-y-auto">
+            <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed">{
+              copyText.split('\n').map((line, i) => {
+                if (line.includes('GAP:') || line.includes('[ASSUMPTION:')) return <span key={i} className="bg-yellow-200 text-yellow-900 px-1 rounded">{line}{'\n'}</span>
+                return <span key={i}>{line}{'\n'}</span>
+              })
+            }</pre>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => { setEditText(copyText); setEditingDoc(true) }} className="flex-1 bg-white border border-stone-300 text-stone-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-stone-50 cursor-pointer">Edit</button>
+            <button onClick={handleGenerate} disabled={generating} className={`flex-1 bg-white border ${color.border} ${color.text} px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer disabled:opacity-50`}>Regenerate</button>
+            {!isApproved ? (
+              <button onClick={handleApprove} disabled={saving} className="flex-1 bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-green-700 cursor-pointer disabled:opacity-50">
+                {saving ? 'Saving...' : 'Approve & Save ✓'}
+              </button>
+            ) : (
+              <button onClick={() => onSaveField('copy-bible', approvedKey, 'false')} className="flex-1 bg-white border border-amber-300 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-amber-50 cursor-pointer">Unapprove</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Editing */}
+      {editingDoc && (
+        <div className="space-y-2">
+          <textarea value={editText} onChange={(e) => setEditText(e.target.value)} className={`w-full border ${color.border} rounded-lg p-3 text-xs text-stone-700 font-sans leading-relaxed min-h-[200px] focus:outline-none focus:ring-2 focus:ring-orange-400`} />
+          <div className="flex gap-2">
+            <button onClick={() => { setEditingDoc(false); setEditText('') }} className="flex-1 bg-white border border-stone-300 text-stone-600 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">Cancel</button>
+            <button onClick={async () => { await onSaveField('copy-bible', textKey, editText); setEditingDoc(false); setEditText('') }} className={`flex-1 ${color.buttonBg} text-white px-3 py-1.5 rounded-lg text-xs font-semibold ${color.buttonHover} cursor-pointer`}>Save Changes</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Copy Bible Element Card — Dropdown with Page Copy + Email Sequence ──
+const PAGE_COLOR = { bg: 'bg-blue-50/50', border: 'border-blue-200', text: 'text-blue-700', buttonBg: 'bg-blue-600', buttonHover: 'hover:bg-blue-700' }
+const EMAIL_COLOR = { bg: 'bg-purple-50/50', border: 'border-purple-200', text: 'text-purple-700', buttonBg: 'bg-purple-600', buttonHover: 'hover:bg-purple-700' }
+
 function CopyBibleElementCard({
   index,
   elementLabel,
@@ -1786,136 +2012,16 @@ function CopyBibleElementCard({
   transcript: string
 }) {
   const [open, setOpen] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [editingDoc, setEditingDoc] = useState(false)
-  const [editText, setEditText] = useState('')
-  const [savingToDrive, setSavingToDrive] = useState(false)
 
-  const fieldKey = `element_${index}_text`
-  const notesKey = `element_${index}_notes`
-  const approvedKey = `element_${index}_approved`
-  const copyText = fieldValues.get(`copy-bible:${fieldKey}`) || ''
-  const userNotes = fieldValues.get(`copy-bible:${notesKey}`) || ''
-  const isApproved = fieldValues.get(`copy-bible:${approvedKey}`) === 'true'
-
-  const handleGenerate = async () => {
-    setGenerating(true)
-    try {
-      const res = await fetch('/api/generate-document', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          documentType: 'copy-bible-element',
-          clientName: client.name,
-          brandName: client.brand,
-          transcript,
-          clientProfile: profileText,
-          researchBible: bibleText,
-          brandVoice: voiceText,
-          funnelElements: elementFull,
-          userNotes: userNotes || undefined,
-        }),
-      })
-
-      if (!res.ok) {
-        const errText = await res.text()
-        let errMsg = errText
-        try { errMsg = JSON.parse(errText).error } catch {}
-        alert(`Error: ${errMsg}`)
-        setGenerating(false)
-        return
-      }
-
-      const reader = res.body?.getReader()
-      if (!reader) { alert('No response stream'); setGenerating(false); return }
-      const decoder = new TextDecoder()
-      let fullText = ''
-      let buffer = ''
-      let stopReason = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-        for (const line of lines) {
-          const trimmed = line.trim()
-          if (trimmed.startsWith('data: ')) {
-            const data = trimmed.slice(6)
-            if (data === '[DONE]') continue
-            try {
-              const parsed = JSON.parse(data)
-              if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
-              if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) stopReason = parsed.delta.stop_reason
-            } catch {}
-          }
-        }
-      }
-      if (buffer.trim().startsWith('data: ')) {
-        try {
-          const parsed = JSON.parse(buffer.trim().slice(6))
-          if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
-          if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) stopReason = parsed.delta.stop_reason
-        } catch {}
-      }
-      if (stopReason === 'max_tokens') {
-        fullText += '\n\n⚠️ OUTPUT WAS TRUNCATED — exceeded token limit. Please regenerate or edit manually.'
-      }
-      if (fullText) {
-        await onSaveField('copy-bible', fieldKey, fullText)
-        if (isApproved) await onSaveField('copy-bible', approvedKey, 'false')
-      } else {
-        alert('No content generated. Please try again.')
-      }
-    } catch (err) {
-      alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}`)
-    }
-    setGenerating(false)
-  }
-
-  const handleApprove = async () => {
-    setSavingToDrive(true)
-    const content = copyText
-    const safeLabel = elementLabel.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '_')
-    const title = `${client.name}_CopyBible_${safeLabel}`
-    const scriptUrl = process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL
-
-    if (scriptUrl) {
-      try {
-        const form = document.createElement('form')
-        form.method = 'POST'
-        form.action = scriptUrl
-        form.target = '_blank'
-        const addField = (name: string, value: string) => {
-          const input = document.createElement('input')
-          input.type = 'hidden'
-          input.name = name
-          input.value = value
-          form.appendChild(input)
-        }
-        addField('title', title)
-        addField('content', content)
-        document.body.appendChild(form)
-        form.submit()
-        document.body.removeChild(form)
-      } catch {
-        await navigator.clipboard.writeText(content)
-        window.open('https://docs.google.com/document/create', '_blank')
-        alert(`Content copied to clipboard — paste into the new doc.\nName it: ${title}`)
-      }
-    } else {
-      await navigator.clipboard.writeText(content)
-      window.open('https://docs.google.com/document/create', '_blank')
-      alert(`Content copied to clipboard — paste it into the new doc.\nName it: ${title}`)
-    }
-    await onSaveField('copy-bible', approvedKey, 'true')
-    setSavingToDrive(false)
-  }
+  const pageApproved = fieldValues.get(`copy-bible:element_${index}_page_approved`) === 'true'
+  const emailApproved = fieldValues.get(`copy-bible:element_${index}_email_approved`) === 'true'
+  const pageText = fieldValues.get(`copy-bible:element_${index}_page_text`) || ''
+  const emailText = fieldValues.get(`copy-bible:element_${index}_email_text`) || ''
+  const bothApproved = pageApproved && emailApproved
+  const hasDraft = !!(pageText || emailText)
 
   return (
-    <div className={`rounded-lg border overflow-hidden ${isApproved ? 'border-green-300 bg-green-50/30' : 'border-stone-200'}`}>
-      {/* Dropdown header */}
+    <div className={`rounded-lg border overflow-hidden ${bothApproved ? 'border-green-300 bg-green-50/30' : 'border-stone-200'}`}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -1923,101 +2029,24 @@ function CopyBibleElementCard({
       >
         <div className="flex items-center gap-2.5">
           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-            isApproved ? 'bg-green-500 text-white' : copyText ? 'bg-orange-500 text-white' : 'bg-stone-300 text-white'
+            bothApproved ? 'bg-green-500 text-white' : hasDraft ? 'bg-orange-500 text-white' : 'bg-stone-300 text-white'
           }`}>
-            {isApproved ? '✓' : copyText ? '📝' : (index + 1)}
+            {bothApproved ? '✓' : (index + 1)}
           </span>
           <span className="text-sm font-semibold text-stone-800 text-left">{elementLabel}</span>
         </div>
-        <div className="flex items-center gap-2">
-          {isApproved && <span className="text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
-          {copyText && !isApproved && <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded">DRAFT</span>}
-          <span className={`text-stone-400 transition-transform ${open ? 'rotate-180' : ''}`}>▼</span>
+        <div className="flex items-center gap-1.5">
+          {pageApproved && <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">PAGE ✓</span>}
+          {emailApproved && <span className="text-[10px] font-bold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">EMAIL ✓</span>}
+          {hasDraft && !bothApproved && <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">DRAFT</span>}
+          <span className={`text-stone-400 transition-transform ml-1 ${open ? 'rotate-180' : ''}`}>▼</span>
         </div>
       </button>
 
-      {/* Dropdown content */}
       {open && (
         <div className="border-t border-stone-200 px-4 py-3 space-y-3">
-          {/* User notes input */}
-          <div>
-            <label className="text-xs font-semibold text-stone-600 block mb-1">Your Notes & Ideas for this element</label>
-            <textarea
-              value={userNotes}
-              onChange={(e) => onSaveField('copy-bible', notesKey, e.target.value)}
-              placeholder="Add your own ideas, directions, or specific requests for this element's copy... (AI will consider these when generating)"
-              className="w-full border border-stone-200 rounded-lg p-2.5 text-xs text-stone-700 leading-relaxed min-h-[60px] focus:outline-none focus:ring-2 focus:ring-orange-300 placeholder:text-stone-400 resize-y"
-            />
-          </div>
-
-          {/* Generate button */}
-          {!generating && (
-            <button
-              onClick={handleGenerate}
-              className={`w-full px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
-                copyText ? 'bg-white border border-orange-300 text-orange-700 hover:bg-orange-50' : 'bg-orange-600 text-white hover:bg-orange-700'
-              }`}
-            >
-              {copyText ? 'Regenerate Copy' : 'Generate Copy'}
-            </button>
-          )}
-          {generating && (
-            <div className="text-center py-3">
-              <p className="text-sm text-orange-600 animate-pulse">Generating copy for {elementLabel}...</p>
-            </div>
-          )}
-
-          {/* Content display */}
-          {copyText && !editingDoc && (
-            <div className="space-y-2">
-              <div className="bg-white border border-stone-200 rounded-lg p-3 max-h-80 overflow-y-auto">
-                <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed">{
-                  copyText.split('\n').map((line, i) => {
-                    if (line.includes('GAP:') || line.includes('[ASSUMPTION:')) {
-                      return <span key={i} className="bg-yellow-200 text-yellow-900 px-1 rounded">{line}{'\n'}</span>
-                    }
-                    return <span key={i}>{line}{'\n'}</span>
-                  })
-                }</pre>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => { setEditText(copyText); setEditingDoc(true) }} className="flex-1 bg-white border border-stone-300 text-stone-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-stone-50 cursor-pointer">
-                  Edit
-                </button>
-                <button onClick={handleGenerate} disabled={generating} className="flex-1 bg-white border border-orange-300 text-orange-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-orange-50 cursor-pointer disabled:opacity-50">
-                  Regenerate
-                </button>
-                {!isApproved ? (
-                  <button onClick={handleApprove} disabled={savingToDrive} className="flex-1 bg-green-600 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-green-700 cursor-pointer disabled:opacity-50">
-                    {savingToDrive ? 'Saving...' : 'Approve & Save to Drive ✓'}
-                  </button>
-                ) : (
-                  <button onClick={() => onSaveField('copy-bible', approvedKey, 'false')} className="flex-1 bg-white border border-amber-300 text-amber-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-amber-50 cursor-pointer">
-                    Unapprove
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Editing */}
-          {editingDoc && (
-            <div className="space-y-2">
-              <textarea
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                className="w-full border border-orange-300 rounded-lg p-3 text-xs text-stone-700 font-sans leading-relaxed min-h-[200px] focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
-              <div className="flex gap-2">
-                <button onClick={() => { setEditingDoc(false); setEditText('') }} className="flex-1 bg-white border border-stone-300 text-stone-600 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer">
-                  Cancel
-                </button>
-                <button onClick={async () => { await onSaveField('copy-bible', fieldKey, editText); setEditingDoc(false); setEditText('') }} className="flex-1 bg-orange-600 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-orange-700 cursor-pointer">
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          )}
+          <CopySubSection type="page" label="Page Copy" icon="📄" color={PAGE_COLOR} index={index} elementFull={elementFull} client={client} fieldValues={fieldValues} onSaveField={onSaveField} profileText={profileText} bibleText={bibleText} voiceText={voiceText} transcript={transcript} />
+          <CopySubSection type="email" label="Email Sequence" icon="✉️" color={EMAIL_COLOR} index={index} elementFull={elementFull} client={client} fieldValues={fieldValues} onSaveField={onSaveField} profileText={profileText} bibleText={bibleText} voiceText={voiceText} transcript={transcript} />
         </div>
       )}
     </div>
@@ -2033,13 +2062,11 @@ function CopyBibleActions({
   fieldValues: Map<string, string>
   onSaveField: (stageKey: string, fieldKey: string, value: string) => void
 }) {
-  // Get all context from previous stages
   const transcript = fieldValues.get('strategy:session_transcript') || ''
   const profileText = fieldValues.get('strategy:client_profile_text') || ''
   const bibleText = fieldValues.get('strategy:research_bible_text') || ''
   const voiceText = fieldValues.get('strategy:brand_voice_text') || ''
 
-  // Pull funnel elements from Funnel Strategy selections + Implementation Plan extras
   const funnelStrategyJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
   const funnelSelectionsRaw = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
   const implExtrasRaw = fieldValues.get('implementation-plan:extra_elements') || '[]'
@@ -2060,14 +2087,13 @@ function CopyBibleActions({
 
   try {
     const extras: { type: string; topic: string }[] = JSON.parse(implExtrasRaw)
-    for (const ex of extras) {
-      elements.push({ label: `${ex.type}: ${ex.topic}`, full: `${ex.type}: ${ex.topic}` })
-    }
+    for (const ex of extras) elements.push({ label: `${ex.type}: ${ex.topic}`, full: `${ex.type}: ${ex.topic}` })
   } catch {}
 
-  // Count progress
-  const approvedCount = elements.filter((_, i) => fieldValues.get(`copy-bible:element_${i}_approved`) === 'true').length
-  const generatedCount = elements.filter((_, i) => fieldValues.get(`copy-bible:element_${i}_text`)).length
+  const totalParts = elements.length * 2
+  const approvedPages = elements.filter((_, i) => fieldValues.get(`copy-bible:element_${i}_page_approved`) === 'true').length
+  const approvedEmails = elements.filter((_, i) => fieldValues.get(`copy-bible:element_${i}_email_approved`) === 'true').length
+  const totalApproved = approvedPages + approvedEmails
 
   return (
     <div className="space-y-3">
@@ -2075,15 +2101,17 @@ function CopyBibleActions({
       <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
         <div className="flex items-center justify-between mb-2">
           <h4 className="text-xs font-bold text-orange-700 uppercase tracking-wider">Copy Bible — {elements.length} Elements</h4>
-          <span className="text-xs text-stone-500">{approvedCount}/{elements.length} approved</span>
+          <span className="text-xs text-stone-500">{totalApproved}/{totalParts} approved</span>
         </div>
         <div className="w-full bg-orange-100 rounded-full h-1.5">
-          <div className="bg-green-500 h-1.5 rounded-full transition-all" style={{ width: `${elements.length > 0 ? (approvedCount / elements.length) * 100 : 0}%` }} />
+          <div className="bg-green-500 h-1.5 rounded-full transition-all" style={{ width: `${totalParts > 0 ? (totalApproved / totalParts) * 100 : 0}%` }} />
         </div>
-        <p className="text-xs text-stone-500 mt-2">Each element gets its own copy document. Generate, review, edit, and approve individually.</p>
+        <div className="flex gap-3 mt-2">
+          <span className="text-xs text-blue-600">📄 {approvedPages}/{elements.length} page copy</span>
+          <span className="text-xs text-purple-600">✉️ {approvedEmails}/{elements.length} email sequences</span>
+        </div>
       </div>
 
-      {/* Element dropdowns */}
       {elements.length === 0 ? (
         <div className="text-center py-4 text-sm text-stone-500">
           No funnel elements found. Complete the Funnel Strategy and Implementation Plan first.
@@ -2105,6 +2133,226 @@ function CopyBibleActions({
               transcript={transcript}
             />
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Brand Bible Actions — Visual identity management ──
+function BrandBibleActions({
+  client,
+  fieldValues,
+  onSaveField,
+  onAdvance,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+  onAdvance: () => void
+}) {
+  const [editingSection, setEditingSection] = useState<string | null>(null)
+
+  const canvaUrl = fieldValues.get('brand-bible:canva_brand_kit_url') || ''
+  const logoUrl = fieldValues.get('brand-bible:logo_url') || ''
+  const logoNotes = fieldValues.get('brand-bible:logo_notes') || ''
+  const primaryColor = fieldValues.get('brand-bible:primary_color') || '#000000'
+  const secondaryColor = fieldValues.get('brand-bible:secondary_color') || '#ffffff'
+  const accentColor = fieldValues.get('brand-bible:accent_color') || ''
+  const extraColors = fieldValues.get('brand-bible:extra_colors') || ''
+  const primaryFont = fieldValues.get('brand-bible:primary_font') || ''
+  const secondaryFont = fieldValues.get('brand-bible:secondary_font') || ''
+  const fontNotes = fieldValues.get('brand-bible:font_notes') || ''
+  const imageryStyle = fieldValues.get('brand-bible:imagery_style') || ''
+  const brandTone = fieldValues.get('brand-bible:brand_tone') || ''
+  const designNotes = fieldValues.get('brand-bible:design_notes') || ''
+  const isComplete = fieldValues.get('brand-bible:brand_bible_complete') === 'true'
+
+  // Check if minimum required fields are filled
+  const hasMinimum = !!(primaryColor && primaryFont && (canvaUrl || logoUrl || logoNotes))
+
+  const handleDownloadPDF = () => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) { alert('Please allow popups to download the PDF.'); return }
+    const colorBox = (c: string, label: string) => c ? `<div style="display:inline-flex;align-items:center;gap:8px;margin-right:16px;margin-bottom:8px"><div style="width:40px;height:40px;border-radius:8px;background:${c};border:1px solid #ddd"></div><div><div style="font-size:12px;font-weight:700">${label}</div><div style="font-size:11px;color:#666">${c}</div></div></div>` : ''
+    printWindow.document.write(`
+      <html><head><title>${client.name} — Brand Bible</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
+        h1 { font-size: 28px; margin-bottom: 4px; }
+        h2 { font-size: 18px; margin-top: 32px; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        .subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
+        .section { margin-bottom: 24px; }
+        .field-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 4px; }
+        .field-value { font-size: 14px; margin-bottom: 12px; }
+        .colors { display: flex; flex-wrap: wrap; margin-bottom: 12px; }
+        @media print { body { padding: 20px; } }
+      </style></head><body>
+      <h1>${client.name} — Brand Bible</h1>
+      <div class="subtitle">${client.brand || ''} • Visual Identity Guide</div>
+      ${canvaUrl ? `<div class="section"><div class="field-label">Canva Brand Kit</div><div class="field-value"><a href="${canvaUrl}">${canvaUrl}</a></div></div>` : ''}
+      <h2>Logo</h2>
+      <div class="section">
+        ${logoUrl ? `<div class="field-label">Logo URL</div><div class="field-value">${logoUrl}</div>` : ''}
+        ${logoNotes ? `<div class="field-label">Logo Notes</div><div class="field-value">${logoNotes}</div>` : ''}
+      </div>
+      <h2>Colours</h2>
+      <div class="colors">
+        ${colorBox(primaryColor, 'Primary')}
+        ${colorBox(secondaryColor, 'Secondary')}
+        ${colorBox(accentColor, 'Accent')}
+      </div>
+      ${extraColors ? `<div class="field-label">Additional Colours</div><div class="field-value">${extraColors}</div>` : ''}
+      <h2>Typography</h2>
+      <div class="section">
+        <div class="field-label">Primary Font (Headings)</div>
+        <div class="field-value" style="font-size:20px;font-weight:700">${primaryFont || 'Not set'}</div>
+        <div class="field-label">Secondary Font (Body)</div>
+        <div class="field-value">${secondaryFont || 'Not set'}</div>
+        ${fontNotes ? `<div class="field-label">Font Notes</div><div class="field-value">${fontNotes}</div>` : ''}
+      </div>
+      <h2>Imagery & Style</h2>
+      <div class="section">
+        ${imageryStyle ? `<div class="field-label">Imagery Style</div><div class="field-value">${imageryStyle}</div>` : ''}
+        ${brandTone ? `<div class="field-label">Brand Tone / Mood</div><div class="field-value">${brandTone}</div>` : ''}
+        ${designNotes ? `<div class="field-label">Design Notes</div><div class="field-value">${designNotes}</div>` : ''}
+      </div>
+      <script>window.print();window.close();</script>
+      </body></html>
+    `)
+    printWindow.document.close()
+  }
+
+  const InputField = ({ label, fieldKey, placeholder, type = 'text', multiline = false }: { label: string; fieldKey: string; placeholder: string; type?: string; multiline?: boolean }) => (
+    <div>
+      <label className="text-xs font-semibold text-stone-600 block mb-1">{label}</label>
+      {multiline ? (
+        <textarea
+          value={fieldValues.get(`brand-bible:${fieldKey}`) || ''}
+          onChange={(e) => onSaveField('brand-bible', fieldKey, e.target.value)}
+          placeholder={placeholder}
+          className="w-full border border-stone-200 rounded-lg p-2.5 text-xs text-stone-700 leading-relaxed min-h-[60px] focus:outline-none focus:ring-2 focus:ring-pink-300 placeholder:text-stone-400 resize-y"
+        />
+      ) : type === 'color' ? (
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={fieldValues.get(`brand-bible:${fieldKey}`) || '#000000'}
+            onChange={(e) => onSaveField('brand-bible', fieldKey, e.target.value)}
+            className="w-10 h-10 rounded-lg border border-stone-200 cursor-pointer"
+          />
+          <input
+            type="text"
+            value={fieldValues.get(`brand-bible:${fieldKey}`) || ''}
+            onChange={(e) => onSaveField('brand-bible', fieldKey, e.target.value)}
+            placeholder="#000000"
+            className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-xs text-stone-700 focus:outline-none focus:ring-2 focus:ring-pink-300"
+          />
+        </div>
+      ) : (
+        <input
+          type="text"
+          value={fieldValues.get(`brand-bible:${fieldKey}`) || ''}
+          onChange={(e) => onSaveField('brand-bible', fieldKey, e.target.value)}
+          placeholder={placeholder}
+          className="w-full border border-stone-200 rounded-lg px-3 py-2 text-xs text-stone-700 focus:outline-none focus:ring-2 focus:ring-pink-300 placeholder:text-stone-400"
+        />
+      )}
+    </div>
+  )
+
+  const Section = ({ title, icon, children, id }: { title: string; icon: string; children: React.ReactNode; id: string }) => {
+    const isOpen = editingSection === id
+    return (
+      <div className="border border-stone-200 rounded-lg overflow-hidden">
+        <button type="button" onClick={() => setEditingSection(isOpen ? null : id)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-stone-50 transition-colors cursor-pointer">
+          <span className="text-sm font-semibold text-stone-800 flex items-center gap-2"><span>{icon}</span>{title}</span>
+          <span className={`text-stone-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+        </button>
+        {isOpen && <div className="border-t border-stone-200 px-4 py-3 space-y-3">{children}</div>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Canva Brand Kit link */}
+      <div className="bg-pink-50 border border-pink-200 rounded-lg p-3 space-y-2">
+        <h4 className="text-xs font-bold text-pink-700 uppercase tracking-wider">Canva Brand Kit</h4>
+        <p className="text-xs text-stone-500">If the client has an existing Canva Brand Kit, paste the URL here. Otherwise, fill in the sections below to build one.</p>
+        <input
+          type="text"
+          value={canvaUrl}
+          onChange={(e) => onSaveField('brand-bible', 'canva_brand_kit_url', e.target.value)}
+          placeholder="https://www.canva.com/brand/..."
+          className="w-full border border-pink-200 rounded-lg px-3 py-2 text-xs text-stone-700 focus:outline-none focus:ring-2 focus:ring-pink-300 placeholder:text-stone-400"
+        />
+        {canvaUrl && (
+          <a href={canvaUrl} target="_blank" rel="noopener noreferrer" className="inline-block text-xs text-pink-600 font-medium hover:text-pink-800 underline">
+            Open Canva Brand Kit →
+          </a>
+        )}
+      </div>
+
+      {/* Build Brand Bible sections */}
+      <Section title="Logo" icon="🎨" id="logo">
+        <InputField label="Logo URL (Google Drive, Canva, or direct link)" fieldKey="logo_url" placeholder="https://drive.google.com/... or paste image URL" />
+        <InputField label="Logo usage notes" fieldKey="logo_notes" placeholder="Minimum size, clear space rules, when to use which version..." multiline />
+      </Section>
+
+      <Section title="Colours" icon="🎨" id="colours">
+        <div className="grid grid-cols-3 gap-3">
+          <InputField label="Primary" fieldKey="primary_color" placeholder="#000000" type="color" />
+          <InputField label="Secondary" fieldKey="secondary_color" placeholder="#ffffff" type="color" />
+          <InputField label="Accent" fieldKey="accent_color" placeholder="#..." type="color" />
+        </div>
+        <InputField label="Additional colours (hex codes, comma separated)" fieldKey="extra_colors" placeholder="#F5A623, #4A90D9, ..." />
+      </Section>
+
+      <Section title="Typography" icon="🔤" id="typography">
+        <InputField label="Primary Font (Headings)" fieldKey="primary_font" placeholder="e.g. Playfair Display, Montserrat Bold..." />
+        <InputField label="Secondary Font (Body text)" fieldKey="secondary_font" placeholder="e.g. Open Sans, Lato, Inter..." />
+        <InputField label="Font usage notes" fieldKey="font_notes" placeholder="Sizes, weights, when to use which font..." multiline />
+      </Section>
+
+      <Section title="Imagery & Style" icon="📸" id="imagery">
+        <InputField label="Imagery style" fieldKey="imagery_style" placeholder="e.g. Warm, authentic photography. No stock photos. Earthy tones with natural lighting..." multiline />
+        <InputField label="Brand tone / mood" fieldKey="brand_tone" placeholder="e.g. Empowering, warm, professional but approachable, feminine energy..." multiline />
+        <InputField label="Design notes" fieldKey="design_notes" placeholder="Any additional design guidelines, pattern usage, icon style, etc." multiline />
+      </Section>
+
+      {/* Actions */}
+      <div className="flex gap-2">
+        <button
+          onClick={handleDownloadPDF}
+          disabled={!hasMinimum}
+          className="flex-1 bg-pink-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-pink-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Download Brand Bible PDF
+        </button>
+      </div>
+
+      {/* Complete & Advance */}
+      {!isComplete ? (
+        <button
+          type="button"
+          onClick={async () => {
+            if (!hasMinimum) {
+              alert('Please fill in at least: a colour and a font, plus either a Canva link or logo info.')
+              return
+            }
+            await onSaveField('brand-bible', 'brand_bible_complete', 'true')
+            onAdvance()
+          }}
+          disabled={!hasMinimum}
+          className="w-full bg-green-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {hasMinimum ? 'Complete Brand Bible & Move to Production →' : 'Fill in required fields to continue'}
+        </button>
+      ) : (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+          <p className="text-sm font-semibold text-green-700">✓ Brand Bible complete</p>
+          <button onClick={async () => { await onSaveField('brand-bible', 'brand_bible_complete', 'false') }} className="text-xs text-amber-600 hover:text-amber-800 mt-1 cursor-pointer">Reopen for editing</button>
         </div>
       )}
     </div>
@@ -3161,9 +3409,16 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       fieldValues={fieldValues}
                       onSaveField={handleSaveField}
                     />
+                  ) : stage.key === 'brand-bible' ? (
+                    <BrandBibleActions
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                      onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
+                    />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">

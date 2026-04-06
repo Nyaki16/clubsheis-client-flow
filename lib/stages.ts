@@ -17,10 +17,10 @@ export const ADS_EMAIL_SOCIAL_TRACKS = [
 
 export const PACKAGE_BRANCHES: Record<string, string[]> = {
   'ghutte-only': [],
-  'page-build': ['funnel-map', 'copy-bible'],
-  'content-day': ['funnel-map', 'copy-bible', 'content-production'],
-  'ads-email-social': ['funnel-map', 'copy-bible', 'ads-email-social'],
-  'full-build': ['funnel-map', 'copy-bible'],
+  'page-build': ['funnel-map', 'copy-bible', 'brand-bible'],
+  'content-day': ['funnel-map', 'copy-bible', 'brand-bible', 'content-production'],
+  'ads-email-social': ['funnel-map', 'copy-bible', 'brand-bible', 'ads-email-social'],
+  'full-build': ['funnel-map', 'copy-bible', 'brand-bible'],
 }
 
 export const STAGES: StageDefinition[] = [
@@ -254,8 +254,31 @@ export const STAGES: StageDefinition[] = [
     nextActionPrompt: 'Generate, review, and approve the Copy Bible, then move to production.',
   },
   {
-    key: 'content-production',
+    key: 'brand-bible',
     num: '6B',
+    name: 'Brand Bible',
+    summary: 'The Brand Bible contains the client\'s visual identity — logo, colours, fonts, imagery style, and design guidelines. Connect an existing Canva Brand Kit or build one from scratch. This must be completed before moving to production.',
+    color: '#DB2777',
+    colorSoft: 'rgba(219,39,119,0.06)',
+    triggerLabel: 'Trigger: Copy Bible approved',
+    triggerColor: 'pink',
+    guide: [
+      'Check if the client already has a Canva Brand Kit — if so, link it here.',
+      'If no brand kit exists, build one: add logo, primary/secondary colours, fonts, and imagery direction.',
+      'You can build the brand kit here OR create it in Canva and link back.',
+      'Download the Brand Bible as a PDF for use across all projects.',
+      'The Brand Bible must be marked as complete before production stages unlock.',
+    ],
+    substeps: [],
+    dataFields: [],
+    conditionalLogic: [
+      { condition: 'Brand Bible complete', result: 'Move to production stages' },
+    ],
+    nextActionPrompt: 'Complete the Brand Bible — connect Canva or build from scratch — then move to production.',
+  },
+  {
+    key: 'content-production',
+    num: '6C',
     name: 'Branch: Content Production',
     summary: 'The full pre-production pipeline: Creative Brief, Content Plan, Scripts, Production Day, Post-Production, and Delivery. Each step has a gate checkpoint — nothing moves forward without approval.',
     color: '#0D9488',
@@ -299,7 +322,7 @@ export const STAGES: StageDefinition[] = [
   },
   {
     key: 'ads-email-social',
-    num: '6C',
+    num: '6D',
     name: 'Branch: Ads + Email + Social',
     summary: 'Three parallel tracks running simultaneously: Paid Ads, Email Sequences, and Social Content. Each track has its own progress — the Account Manager can see which track needs attention at a glance.',
     color: '#E11D48',
@@ -545,9 +568,9 @@ export function getActiveStagesForPackage(pkg: string): string[] {
     return [...core, ...closing, 'wrapup']
   }
 
-  // Full Build: funnel map, copy bible, no retainer
+  // Full Build: funnel map, copy bible, brand bible, no retainer
   if (pkg === 'full-build') {
-    return [...core, 'funnel-map', 'copy-bible', ...closing, 'wrapup']
+    return [...core, 'funnel-map', 'copy-bible', 'brand-bible', ...closing, 'wrapup']
   }
 
   return [

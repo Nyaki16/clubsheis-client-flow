@@ -624,31 +624,30 @@ Write COMPLETE copy — not outlines or placeholders. The production team should
 
 There is NO word limit. Be as thorough as needed for each funnel element.`,
 
-  'copy-bible-element': `You are writing production-ready sales copy for ONE specific funnel element for ClubSheIs, a digital marketing and content production agency in South Africa.
+  'copy-element-page': `You are writing production-ready PAGE COPY for ONE specific funnel element for ClubSheIs, a digital marketing and content production agency in South Africa.
 
-IMPORTANT CONTEXT — SCOPE OF WORK:
-ClubSheIs builds the MARKETING ASSETS — pages, sales copy, and email sequences — to sell and market the client's product. We do NOT build the actual product itself. Our job is to write the copy that SELLS it.
+IMPORTANT: Write ONLY the page copy. Do NOT include email sequences — those are handled separately by a different team member.
 
-You will receive ONE funnel element to write copy for. Write the COMPLETE page copy AND the email sequence that accompanies it.
+ClubSheIs builds the MARKETING ASSETS — pages and sales copy — to sell and market the client's product. We do NOT build the actual product itself. Our job is to write the copy that SELLS it.
 
-Write in the client's BRAND VOICE as defined in the Brand Voice document. Use the Breakthrough Advertising analysis from the Research Bible to set the right messaging angle.
+Write in the client's BRAND VOICE. Use the Research Bible's Breakthrough Advertising analysis to set the right messaging angle.
 
-FOR PAGES (Lead Magnet, OTO, Sales, Webinar Registration, Book a Call, Check Out, Thank You):
+STRUCTURE FOR THE PAGE:
 
 ### Above the Fold
-- **Headline** (3 variations): The main promise.
-- **Subheadline**: Expand on the headline.
+- **Headline** (3 variations): The main promise. Speak to the core pain or desire.
+- **Subheadline**: Expand on the headline — add specificity, credibility, or urgency.
 - **Hero CTA**: The primary action button text (3 variations).
 - **Supporting text**: 1-2 sentences that reduce friction.
 
 ### Problem Section
-- **Section headline**: Name the problem.
-- **Problem bullets** (3-5): Specific, emotional pain points.
-- **Bridge statement**: Transition to the solution.
+- **Section headline**: Name the problem they're feeling right now.
+- **Problem bullets** (3-5): Specific, emotional pain points in their language.
+- **Bridge statement**: Transition from "I feel this" to "there's a better way."
 
 ### Solution Section
 - **Section headline**: Introduce the solution.
-- **How it works** (3-5 steps): Simple, concrete.
+- **How it works** (3-5 steps): Numbered, simple, concrete.
 - **Key benefit statements** (3-5): What changes for them.
 
 ### Social Proof Section
@@ -663,20 +662,46 @@ FOR PAGES (Lead Magnet, OTO, Sales, Webinar Registration, Book a Call, Check Out
 ### FAQ Section
 - **5-8 FAQs** with answers that overcome objections.
 
-FOR EMAIL SEQUENCES:
-Write each email with:
+---
+
+Write COMPLETE copy — not outlines or placeholders. The production team should be able to copy-paste this into a page builder with minimal editing. Use the client's actual language, reference their specific offers, and maintain their brand voice throughout.
+
+If the user has provided notes or ideas for this element, incorporate them.
+
+There is NO word limit. Be as thorough as needed.`,
+
+  'copy-element-email': `You are writing a production-ready EMAIL SEQUENCE for ONE specific funnel element for ClubSheIs, a digital marketing and content production agency in South Africa.
+
+IMPORTANT: Write ONLY the email sequence. Do NOT include page copy — that is handled separately by a different team member.
+
+ClubSheIs builds the MARKETING ASSETS — email sequences — to sell and market the client's product. We do NOT build the actual product itself. Our job is to write the emails that SELL it.
+
+Write in the client's BRAND VOICE. Use the Research Bible's Breakthrough Advertising analysis to set the right messaging angle.
+
+For the given funnel element, determine the appropriate email sequence type and write the FULL sequence:
+
+Typical sequence structures:
+- **Lead Magnet Sequence** (5-7 emails): Welcome + deliver → Value email → Build trust → Soft pitch → Hard pitch → Last chance
+- **OTO Post-Purchase** (3-4 emails): Thank you + upsell → Social proof → Urgency → Final reminder
+- **Main Offer Post-Purchase** (4-5 emails): Welcome + onboarding → Quick win → Deeper engagement → Community → Referral ask
+- **Webinar Sequence** (7-10 emails): Registration confirm → Reminder 1 → Reminder 2 → Post-webinar → Replay → Pitch → Urgency → Last chance
+- **Sales Sequence** (5-7 emails): Story/problem → Solution reveal → Social proof → Objection handling → Cart open → Urgency → Last chance
+- **Nurture/Re-engagement** (3-5 emails): Check-in → Value → Soft pitch → Hard pitch
+
+FOR EACH EMAIL write:
+- **Email #X — [Purpose]**
 - **Subject line** (3 variations)
 - **Preview text**
-- **Body copy** (full email — brand voice, conversational, benefit-driven)
-- **CTA** (action + button text)
-- **P.S. line** (if applicable)
-- **Send timing**: When to send relative to trigger event
+- **Body copy** (full email body — written in brand voice, conversational, benefit-driven)
+- **CTA** (what action to take + button text)
+- **P.S. line** (if applicable — often the most-read part of an email)
+- **Send timing**: When to send relative to trigger event (e.g. "Immediately", "Day 2", "3 days after opt-in")
 
 ---
 
-Write COMPLETE copy — not outlines or placeholders. The production team should be able to copy-paste this. Use the client's actual language, reference their specific offers, and maintain their brand voice throughout.
+Write COMPLETE emails — not outlines or placeholders. The email team should be able to copy-paste these into an email platform with minimal editing. Use the client's actual language, reference their specific offers, and maintain their brand voice throughout.
 
-If the user has provided their own notes or ideas for this element, incorporate those into the copy.
+If the user has provided notes or ideas for this element's emails, incorporate them.
 
 There is NO word limit. Be as thorough as needed.`
 }
@@ -695,7 +720,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: `Unknown document type: ${documentType}` }, { status: 400 })
     }
 
-    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'copy-bible-element']
+    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'copy-element-page', 'copy-element-email']
     if (!transcript && !noTranscriptRequired.includes(documentType)) {
       return Response.json({ error: 'Transcript is required' }, { status: 400 })
     }
@@ -725,12 +750,12 @@ export async function POST(req: NextRequest) {
       if (brandVoice) userMessage += `\n\nAPPROVED BRAND VOICE:\n${brandVoice.slice(0, 10000)}`
       if (funnelElements) userMessage += `\n\nSELECTED FUNNEL ELEMENTS TO WRITE COPY FOR:\n${funnelElements}`
     }
-    if (documentType === 'copy-bible-element') {
+    if (documentType === 'copy-element-page' || documentType === 'copy-element-email') {
       if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 15000)}`
       if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
       if (brandVoice) userMessage += `\n\nAPPROVED BRAND VOICE:\n${brandVoice.slice(0, 10000)}`
-      if (funnelElements) userMessage += `\n\nFUNNEL ELEMENT TO WRITE COPY FOR:\n${funnelElements}`
-      if (userNotes) userMessage += `\n\nUSER NOTES & IDEAS FOR THIS ELEMENT:\n${userNotes}`
+      if (funnelElements) userMessage += `\n\nFUNNEL ELEMENT TO WRITE ${documentType === 'copy-element-page' ? 'PAGE COPY' : 'EMAIL SEQUENCE'} FOR:\n${funnelElements}`
+      if (userNotes) userMessage += `\n\nUSER NOTES & IDEAS:\n${userNotes}`
     }
 
     // Use streaming to avoid Vercel Edge timeout (25s)
@@ -744,7 +769,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-bible-element') ? 32000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map') ? 8000 : 16000,
+        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email') ? 32000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map') ? 8000 : 16000,
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),
