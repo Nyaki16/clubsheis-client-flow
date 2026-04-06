@@ -840,6 +840,8 @@ function StrategyActions({
     setGenerating('')
   }
 
+  const [savingToDrive, setSavingToDrive] = useState('')
+
   const handleApprove = async (docType: string) => {
     const key = docType === 'client-profile' ? 'client_profile_approved'
       : docType === 'research-bible' ? 'research_bible_approved'
@@ -851,14 +853,37 @@ function StrategyActions({
       : docType === 'research-bible' ? 'Research Bible'
       : 'Brand Voice'
     const text = fieldValues.get(`strategy:${textKey}`) || ''
-    await onSaveField('strategy', key, 'true')
+    const docTitle = `${client.name}_${docName.replace(/\s+/g, '')}`
 
-    // Copy content to clipboard and open new Google Doc
+    setSavingToDrive(docType)
+
     try {
-      await navigator.clipboard.writeText(text)
-    } catch { /* clipboard may fail silently */ }
-    window.open('https://docs.google.com/document/create', '_blank')
-    alert(`${docName} approved! ✅\n\nA new Google Doc has been opened.\nThe content has been copied to your clipboard — paste it into the doc.\n\nName the doc: ${client.name}_${docName.replace(/\s+/g, '')}\nSave it in the client's Google Drive folder.`)
+      const res = await fetch('/api/create-google-doc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: docTitle, content: text }),
+      })
+      const data = await res.json()
+
+      if (data.success && data.docUrl) {
+        await onSaveField('strategy', key, 'true')
+        await onSaveField('strategy', `${textKey.replace('_text', '')}_doc_url`, data.docUrl)
+        window.open(data.docUrl, '_blank')
+      } else {
+        // Fallback: copy to clipboard and open blank doc
+        try { await navigator.clipboard.writeText(text) } catch {}
+        await onSaveField('strategy', key, 'true')
+        window.open('https://docs.google.com/document/create', '_blank')
+        alert(`Could not auto-create Google Doc (${data.error || 'unknown error'}).\n\nContent has been copied to your clipboard — paste it into the new doc.\nName it: ${docTitle}`)
+      }
+    } catch {
+      // Fallback: copy to clipboard and open blank doc
+      try { await navigator.clipboard.writeText(text) } catch {}
+      await onSaveField('strategy', key, 'true')
+      window.open('https://docs.google.com/document/create', '_blank')
+      alert(`Could not connect to Google Docs API.\n\nContent has been copied to your clipboard — paste it into the new doc.\nName it: ${docTitle}`)
+    }
+    setSavingToDrive('')
   }
 
   const handleUnapprove = async (docType: string) => {
@@ -891,6 +916,10 @@ function StrategyActions({
     alert('Documents marked as uploaded. Open Google Drive and ClickUp to link them.')
   }
 
+  const profileDocUrl = fieldValues.get('strategy:client_profile_doc_url') || ''
+  const bibleDocUrl = fieldValues.get('strategy:research_bible_doc_url') || ''
+  const voiceDocUrl = fieldValues.get('strategy:brand_voice_doc_url') || ''
+
   const DOCS = [
     {
       key: 'client-profile',
@@ -900,15 +929,17 @@ function StrategyActions({
       approved: profileApproved,
       canGenerate: true,
       color: 'purple',
+      docUrl: profileDocUrl,
     },
     {
       key: 'research-bible',
       title: 'Research Bible',
-      description: 'Deep audience analysis, market sophistication, messaging strategy, content pillars.',
+      description: '7-part research bible: intake, market research, Schwartz analysis, competitors, content intelligence.',
       text: bibleText,
       approved: bibleApproved,
       canGenerate: profileApproved,
       color: 'blue',
+      docUrl: bibleDocUrl,
     },
     {
       key: 'brand-voice',
@@ -918,6 +949,7 @@ function StrategyActions({
       approved: voiceApproved,
       canGenerate: bibleApproved,
       color: 'amber',
+      docUrl: voiceDocUrl,
     },
   ]
 
@@ -948,7 +980,14 @@ function StrategyActions({
                 </span>
                 <h4 className="text-sm font-bold text-stone-800">{doc.title}</h4>
               </div>
-              {doc.approved && <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
+              <div className="flex items-center gap-2">
+                {doc.approved && doc.docUrl && (
+                  <a href={doc.docUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-600 hover:text-blue-800 underline">
+                    Open in Drive
+                  </a>
+                )}
+                {doc.approved && <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
+              </div>
               {isLocked && <span className="text-xs text-stone-400">Locked — approve previous doc first</span>}
             </div>
             <p className="text-xs text-stone-500">{doc.description}</p>
@@ -998,9 +1037,10 @@ function StrategyActions({
                   {!doc.approved ? (
                     <button
                       onClick={() => handleApprove(doc.key)}
-                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
+                      disabled={savingToDrive === doc.key}
+                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      Approve & Save to Drive ✓
+                      {savingToDrive === doc.key ? 'Creating Google Doc...' : 'Approve & Save to Drive ✓'}
                     </button>
                   ) : (
                     <button
