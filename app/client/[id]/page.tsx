@@ -4341,6 +4341,105 @@ function EmailContentEditor({ content, onChange, readOnly }: { content: string; 
   )
 }
 
+// ── Publish hosted proposal link ──
+function PublishProposalSection({
+  client,
+  fieldValues,
+  onSaveField,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+}) {
+  const isPublished = fieldValues.get('proposal:published') === 'true'
+  const [copied, setCopied] = useState(false)
+  const proposalUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/proposal/${client.id}`
+    : `/proposal/${client.id}`
+
+  const handlePublish = async () => {
+    await onSaveField('proposal', 'published', 'true')
+  }
+
+  const handleUnpublish = async () => {
+    await onSaveField('proposal', 'published', 'false')
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(proposalUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 3000)
+  }
+
+  return (
+    <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
+      <div className="px-4 py-3 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
+          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-semibold text-stone-800">Hosted Proposal</h4>
+          <p className="text-xs text-stone-500">
+            {isPublished ? 'Live — client can view this link' : 'Publish to create a shareable proposal page'}
+          </p>
+        </div>
+
+        {isPublished ? (
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-xs text-green-600 font-medium">Live</span>
+          </div>
+        ) : (
+          <button
+            onClick={handlePublish}
+            className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Publish
+          </button>
+        )}
+      </div>
+
+      {isPublished && (
+        <div className="border-t border-stone-100 px-4 py-3 bg-blue-50/50">
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              type="text"
+              readOnly
+              value={proposalUrl}
+              className="flex-1 text-xs text-blue-700 bg-white border border-blue-200 rounded-lg px-3 py-2 font-mono"
+            />
+            <button
+              onClick={handleCopy}
+              className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                copied ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+              }`}
+            >
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+            <a
+              href={proposalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-200 transition-colors"
+            >
+              Preview
+            </a>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] text-stone-400">Share this link with the client instead of sending the email</p>
+            <button
+              onClick={handleUnpublish}
+              className="text-[11px] text-red-400 hover:text-red-600 transition-colors"
+            >
+              Unpublish
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Proposal / Thank-You review component for Stage 2 ──
 function ProposalReview({
   client,
@@ -4390,9 +4489,14 @@ function ProposalReview({
         ? `Thank you for chatting with ClubSheIs`
         : `ClubSheIs Proposal for ${client.brand || client.name}`
 
+      const isPublished = fieldValues.get('proposal:published') === 'true'
+      const proposalLink = isPublished ? `${window.location.origin}/proposal/${client.id}` : ''
+
       const body = isThankYou
         ? emailContent
-        : `Hi ${client.name},\n\nPlease find our proposal below. We've also attached our About Us document for your reference.\n\n---\n\n${emailContent}\n\n---\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
+        : isPublished
+          ? `Hi ${client.name},\n\nWe've put together a proposal for you. You can view it here:\n\n${proposalLink}\n\nWe've also attached our About Us document for your reference.\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
+          : `Hi ${client.name},\n\nPlease find our proposal below. We've also attached our About Us document for your reference.\n\n---\n\n${emailContent}\n\n---\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
 
       const res = await fetch('/api/send-email', {
         method: 'POST',
@@ -4511,6 +4615,11 @@ function ProposalReview({
             Preview / Download
           </a>
         </div>
+      )}
+
+      {/* Publish hosted proposal */}
+      {!isThankYou && (
+        <PublishProposalSection client={client} fieldValues={fieldValues} onSaveField={onSaveField} />
       )}
 
       {/* Send button */}
