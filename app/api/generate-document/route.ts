@@ -762,7 +762,10 @@ Use clear headings with emojis:
 Be direct, specific, and actionable. Quote specific text differences.
 This report will be used alongside a manual review of the entire build.
 
-If NO live page content was provided, fall back to checking completeness of the approved deliverables only and flag that no live pages were available to check.`
+IMPORTANT NOTES:
+- Email workflows live inside Ghutte (GoHighLevel) and cannot be fetched/scraped. If email workflow URLs are provided but content couldn't be read, flag them for MANUAL review — don't mark as failed.
+- For pages that couldn't be fetched (login-required, timeout, etc.), flag them for manual review and check them against the approved copy based on available information.
+- If NO live page content was provided at all, fall back to checking completeness of the approved deliverables only and flag that no live pages were available to check.`
 }
 
 export async function POST(req: NextRequest) {

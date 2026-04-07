@@ -3305,7 +3305,7 @@ function InternalCheckActions({
                             type="url"
                             value={getLinkUrl(`${d.key}_email`)}
                             onChange={e => onSaveField('internal-check', `link_${d.key}_email`, e.target.value)}
-                            placeholder="https://... (email workflow / automation link)"
+                            placeholder="Ghutte workflow link"
                             className="flex-1 border border-stone-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 bg-white"
                           />
                           {getLinkUrl(`${d.key}_email`).trim() && (
