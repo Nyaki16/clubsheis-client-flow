@@ -3007,8 +3007,8 @@ function ProductionActions({
   )
 }
 
-// ── Internal Check: 2-person QA sign-off ──
-const CHECK_ITEMS = [
+// ── Internal Check: AI QA Report + 1 Manual Reviewer ──
+const MANUAL_CHECK_ITEMS = [
   { key: 'pages_match_copy', label: 'All pages match the approved Copy Bible' },
   { key: 'brand_consistent', label: 'Brand Bible applied consistently (colours, fonts, logo)' },
   { key: 'funnel_flow_works', label: 'Funnel flow works end-to-end (every link, button, redirect)' },
@@ -3032,132 +3032,271 @@ function InternalCheckActions({
   fieldValues: Map<string, string>
   onSaveField: (stageKey: string, fieldKey: string, value: string) => void
 }) {
-  const reviewer1Name = fieldValues.get('internal-check:reviewer1_name') || ''
-  const reviewer2Name = fieldValues.get('internal-check:reviewer2_name') || ''
-  const reviewer1Signed = fieldValues.get('internal-check:reviewer1_signed') === 'true'
-  const reviewer2Signed = fieldValues.get('internal-check:reviewer2_signed') === 'true'
+  const [generatingQA, setGeneratingQA] = useState(false)
+  const [qaError, setQaError] = useState('')
+  const [qaReportOpen, setQaReportOpen] = useState(true)
+  const [manualOpen, setManualOpen] = useState(true)
+
+  const qaReport = fieldValues.get('internal-check:qa_report') || ''
+  const qaStatus = fieldValues.get('internal-check:qa_status') || '' // 'pass' | 'fail' | 'warning'
+  const reviewerName = fieldValues.get('internal-check:reviewer_name') || ''
+  const reviewerSigned = fieldValues.get('internal-check:reviewer_signed') === 'true'
   const checkNotes = fieldValues.get('internal-check:check_notes') || ''
 
-  const getCheckValue = (reviewer: 1 | 2, key: string) =>
-    fieldValues.get(`internal-check:r${reviewer}_${key}`) || ''
+  const getCheckValue = (key: string) => fieldValues.get(`internal-check:manual_${key}`) || ''
+  const totalChecks = MANUAL_CHECK_ITEMS.length
+  const passed = MANUAL_CHECK_ITEMS.filter(c => getCheckValue(c.key) === 'pass').length
+  const failed = MANUAL_CHECK_ITEMS.filter(c => getCheckValue(c.key) === 'fail').length
+  const allPassed = passed === totalChecks && failed === 0
 
-  const totalChecks = CHECK_ITEMS.length
-  const r1Done = CHECK_ITEMS.filter(c => getCheckValue(1, c.key) === 'pass').length
-  const r2Done = CHECK_ITEMS.filter(c => getCheckValue(2, c.key) === 'pass').length
-  const r1Fails = CHECK_ITEMS.filter(c => getCheckValue(1, c.key) === 'fail').length
-  const r2Fails = CHECK_ITEMS.filter(c => getCheckValue(2, c.key) === 'fail').length
+  // Build context from all stage data for AI QA
+  const buildQAContext = () => {
+    const sections: string[] = []
+    // Client info
+    const brandName = fieldValues.get('onboarding:brand_name') || fieldValues.get('discovery:brand_name') || client.name || ''
+    const pkg = fieldValues.get('onboarding:package') || client.package || ''
+    sections.push(`CLIENT: ${brandName}\nPACKAGE: ${pkg}`)
 
-  const bothComplete = r1Done === totalChecks && r2Done === totalChecks && r1Fails === 0 && r2Fails === 0
+    // Funnel strategy
+    const funnelStrategy = fieldValues.get('funnel-strategy:generated_text')
+    if (funnelStrategy) sections.push(`FUNNEL STRATEGY:\n${funnelStrategy.slice(0, 3000)}`)
 
-  const ReviewerColumn = ({ num, name, signed }: { num: 1 | 2; name: string; signed: boolean }) => (
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2 mb-3">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${signed ? 'bg-green-100 text-green-700' : 'bg-violet-100 text-violet-700'}`}>
-          {num}
-        </div>
-        <div className="flex-1 min-w-0">
-          <input
-            type="text"
-            value={name}
-            onChange={e => onSaveField('internal-check', `reviewer${num}_name`, e.target.value)}
-            placeholder={`Reviewer ${num} name`}
-            className="w-full text-sm font-medium border-b border-stone-200 focus:border-violet-500 outline-none pb-1 bg-transparent"
-          />
-        </div>
-      </div>
+    // Funnel map
+    const funnelMap = fieldValues.get('funnel-map:map_data')
+    if (funnelMap) {
+      try {
+        const mapData = JSON.parse(funnelMap)
+        if (mapData.nodes) sections.push(`FUNNEL MAP: ${mapData.nodes.length} nodes, ${mapData.edges?.length || 0} edges`)
+      } catch {}
+    }
 
-      <div className="space-y-1">
-        {CHECK_ITEMS.map(item => {
-          const val = getCheckValue(num, item.key)
-          return (
-            <div key={item.key} className="flex items-center gap-2 group">
-              <button
-                onClick={() => onSaveField('internal-check', `r${num}_${item.key}`, val === 'pass' ? '' : 'pass')}
-                className={`w-5 h-5 rounded flex-shrink-0 border-2 flex items-center justify-center transition-all ${
-                  val === 'pass' ? 'bg-green-500 border-green-500 text-white' :
-                  val === 'fail' ? 'bg-red-500 border-red-500 text-white' :
-                  'border-stone-300 hover:border-violet-400'
-                }`}
-              >
-                {val === 'pass' && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                {val === 'fail' && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>}
-              </button>
-              <span className={`text-xs flex-1 ${val === 'pass' ? 'text-stone-400 line-through' : val === 'fail' ? 'text-red-600' : 'text-stone-600'}`}>
-                {item.label}
-              </span>
-              {val !== 'fail' && (
-                <button
-                  onClick={() => onSaveField('internal-check', `r${num}_${item.key}`, 'fail')}
-                  className="opacity-0 group-hover:opacity-100 text-[10px] text-red-400 hover:text-red-600 transition-opacity"
-                  title="Flag as failed"
-                >
-                  Flag
-                </button>
-              )}
-            </div>
-          )
-        })}
-      </div>
+    // Copy bible elements
+    const copyElements: string[] = []
+    for (let i = 0; i < 20; i++) {
+      const name = fieldValues.get(`copy-bible:element_${i}_name`)
+      const pageText = fieldValues.get(`copy-bible:element_${i}_page_text`)
+      const emailText = fieldValues.get(`copy-bible:element_${i}_email_text`)
+      if (name) {
+        copyElements.push(`- ${name}: Page copy ${pageText ? 'DONE' : 'MISSING'}, Email sequence ${emailText ? 'DONE' : 'MISSING'}`)
+      }
+    }
+    if (copyElements.length > 0) sections.push(`COPY BIBLE ELEMENTS:\n${copyElements.join('\n')}`)
 
-      {/* Progress */}
-      <div className="mt-3 pt-3 border-t border-stone-100">
-        <div className="flex items-center justify-between text-xs text-stone-500 mb-1">
-          <span>{r1Done + r2Done > 0 ? (num === 1 ? r1Done : r2Done) : 0}/{totalChecks} passed</span>
-          {(num === 1 ? r1Fails : r2Fails) > 0 && (
-            <span className="text-red-500 font-medium">{num === 1 ? r1Fails : r2Fails} flagged</span>
-          )}
-        </div>
-        <div className="w-full bg-stone-100 rounded-full h-1.5">
-          <div
-            className="h-full rounded-full transition-all"
-            style={{
-              width: `${((num === 1 ? r1Done : r2Done) / totalChecks) * 100}%`,
-              backgroundColor: (num === 1 ? r1Fails : r2Fails) > 0 ? '#ef4444' : '#7c3aed',
-            }}
-          />
-        </div>
-      </div>
+    // Brand bible
+    const logo = fieldValues.get('brand-bible:logo_url')
+    const primaryColor = fieldValues.get('brand-bible:primary_color')
+    const font = fieldValues.get('brand-bible:heading_font')
+    sections.push(`BRAND BIBLE:\n- Logo: ${logo ? 'Uploaded' : 'MISSING'}\n- Primary colour: ${primaryColor || 'MISSING'}\n- Font: ${font || 'MISSING'}`)
 
-      {/* Sign-off */}
-      <button
-        onClick={() => onSaveField('internal-check', `reviewer${num}_signed`, signed ? 'false' : 'true')}
-        disabled={!name || (num === 1 ? r1Done : r2Done) < totalChecks || (num === 1 ? r1Fails : r2Fails) > 0}
-        className={`mt-3 w-full text-xs py-2 rounded-lg font-medium transition-all ${
-          signed
-            ? 'bg-green-100 text-green-700 border border-green-200'
-            : name && (num === 1 ? r1Done : r2Done) === totalChecks && (num === 1 ? r1Fails : r2Fails) === 0
-              ? 'bg-violet-600 text-white hover:bg-violet-700'
-              : 'bg-stone-100 text-stone-400 cursor-not-allowed'
-        }`}
-      >
-        {signed ? `Signed off by ${name}` : 'Sign Off'}
-      </button>
-    </div>
-  )
+    // Implementation plan
+    const implPlan = fieldValues.get('implementation-plan:generated_text')
+    if (implPlan) sections.push(`IMPLEMENTATION PLAN:\n${implPlan.slice(0, 2000)}`)
+
+    return sections.join('\n\n---\n\n')
+  }
+
+  const generateQAReport = async () => {
+    setGeneratingQA(true)
+    setQaError('')
+    try {
+      const context = buildQAContext()
+      const result = await streamGenerate({
+        documentType: 'qa-report',
+        clientProfile: context,
+        transcript: '',
+        brandVoice: '',
+        copyBible: '',
+      })
+      onSaveField('internal-check', 'qa_report', result.text)
+      // Parse status from report
+      const lower = result.text.toLowerCase()
+      if (lower.includes('❌') || lower.includes('critical') || lower.includes('missing required')) {
+        onSaveField('internal-check', 'qa_status', 'fail')
+      } else if (lower.includes('⚠️') || lower.includes('warning')) {
+        onSaveField('internal-check', 'qa_status', 'warning')
+      } else {
+        onSaveField('internal-check', 'qa_status', 'pass')
+      }
+    } catch (e: unknown) {
+      setQaError(e instanceof Error ? e.message : 'Failed to generate QA report')
+    } finally {
+      setGeneratingQA(false)
+    }
+  }
+
+  const qaStatusBadge = qaStatus === 'pass'
+    ? { label: 'All Clear', bg: 'bg-green-100', text: 'text-green-700', icon: '✓' }
+    : qaStatus === 'warning'
+      ? { label: 'Warnings Found', bg: 'bg-amber-100', text: 'text-amber-700', icon: '⚠' }
+      : qaStatus === 'fail'
+        ? { label: 'Issues Found', bg: 'bg-red-100', text: 'text-red-700', icon: '✕' }
+        : null
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="bg-white border border-stone-200 rounded-xl p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+      {/* AI QA Report */}
+      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setQaReportOpen(!qaReportOpen)}
+          className="w-full p-5 flex items-center gap-3 hover:bg-stone-50 transition-colors"
+        >
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+          </div>
+          <div className="text-left flex-1">
+            <h3 className="font-semibold text-stone-800">AI QA Report</h3>
+            <p className="text-xs text-stone-500">Automated check of all deliverables against the brief</p>
+          </div>
+          {qaStatusBadge && (
+            <span className={`text-xs ${qaStatusBadge.bg} ${qaStatusBadge.text} px-3 py-1 rounded-full font-semibold`}>
+              {qaStatusBadge.icon} {qaStatusBadge.label}
+            </span>
+          )}
+          <svg className={`w-4 h-4 text-stone-400 transition-transform ${qaReportOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+        </button>
+
+        {qaReportOpen && (
+          <div className="px-5 pb-5 border-t border-stone-100 pt-4">
+            {!qaReport && !generatingQA && (
+              <div className="text-center py-6">
+                <p className="text-sm text-stone-500 mb-3">Generate an AI-powered QA report that checks all deliverables, copy, brand consistency, and funnel structure against the original brief.</p>
+                <button
+                  onClick={generateQAReport}
+                  className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-violet-700 hover:to-purple-700 transition-all"
+                >
+                  Generate QA Report
+                </button>
+              </div>
+            )}
+
+            {generatingQA && (
+              <div className="text-center py-8">
+                <div className="w-8 h-8 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm text-stone-500">Analysing all deliverables...</p>
+              </div>
+            )}
+
+            {qaError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 mb-3">{qaError}</div>
+            )}
+
+            {qaReport && !generatingQA && (
+              <div>
+                <div className="bg-stone-50 border border-stone-200 rounded-lg p-4 text-sm text-stone-700 whitespace-pre-wrap max-h-[500px] overflow-y-auto leading-relaxed">
+                  {qaReport}
+                </div>
+                <button
+                  onClick={generateQAReport}
+                  className="mt-3 text-xs text-violet-600 hover:text-violet-700 font-medium"
+                >
+                  Re-generate Report
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Manual Reviewer Checklist */}
+      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setManualOpen(!manualOpen)}
+          className="w-full p-5 flex items-center gap-3 hover:bg-stone-50 transition-colors"
+        >
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center flex-shrink-0">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </div>
-          <div>
-            <h3 className="font-semibold text-stone-800">Internal Quality Check</h3>
-            <p className="text-xs text-stone-500">Two team members must independently verify the entire build</p>
+          <div className="text-left flex-1">
+            <h3 className="font-semibold text-stone-800">Manual Review</h3>
+            <p className="text-xs text-stone-500">One team member manually tests the entire build</p>
           </div>
-          {bothComplete && reviewer1Signed && reviewer2Signed && (
-            <span className="ml-auto text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">All Clear</span>
+          <span className="text-xs text-stone-400">{passed}/{totalChecks}</span>
+          {reviewerSigned && (
+            <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">Signed Off</span>
           )}
-        </div>
+          <svg className={`w-4 h-4 text-stone-400 transition-transform ${manualOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+        </button>
 
-        {/* Two reviewer columns */}
-        <div className="flex gap-6">
-          <ReviewerColumn num={1} name={reviewer1Name} signed={reviewer1Signed} />
-          <div className="w-px bg-stone-200" />
-          <ReviewerColumn num={2} name={reviewer2Name} signed={reviewer2Signed} />
-        </div>
+        {manualOpen && (
+          <div className="px-5 pb-5 border-t border-stone-100 pt-4">
+            {/* Reviewer name */}
+            <div className="flex items-center gap-2 mb-4">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${reviewerSigned ? 'bg-green-100 text-green-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              </div>
+              <input
+                type="text"
+                value={reviewerName}
+                onChange={e => onSaveField('internal-check', 'reviewer_name', e.target.value)}
+                placeholder="Reviewer name"
+                className="flex-1 text-sm font-medium border-b border-stone-200 focus:border-emerald-500 outline-none pb-1 bg-transparent"
+              />
+            </div>
+
+            {/* Checklist */}
+            <div className="space-y-1.5">
+              {MANUAL_CHECK_ITEMS.map(item => {
+                const val = getCheckValue(item.key)
+                return (
+                  <div key={item.key} className="flex items-center gap-2 group">
+                    <button
+                      onClick={() => onSaveField('internal-check', `manual_${item.key}`, val === 'pass' ? '' : 'pass')}
+                      className={`w-5 h-5 rounded flex-shrink-0 border-2 flex items-center justify-center transition-all ${
+                        val === 'pass' ? 'bg-green-500 border-green-500 text-white' :
+                        val === 'fail' ? 'bg-red-500 border-red-500 text-white' :
+                        'border-stone-300 hover:border-emerald-400'
+                      }`}
+                    >
+                      {val === 'pass' && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                      {val === 'fail' && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>}
+                    </button>
+                    <span className={`text-xs flex-1 ${val === 'pass' ? 'text-stone-400 line-through' : val === 'fail' ? 'text-red-600 font-medium' : 'text-stone-600'}`}>
+                      {item.label}
+                    </span>
+                    {val !== 'fail' && (
+                      <button
+                        onClick={() => onSaveField('internal-check', `manual_${item.key}`, 'fail')}
+                        className="opacity-0 group-hover:opacity-100 text-[10px] text-red-400 hover:text-red-600 transition-opacity"
+                        title="Flag as failed"
+                      >
+                        Flag
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Progress */}
+            <div className="mt-4 pt-3 border-t border-stone-100">
+              <div className="flex items-center justify-between text-xs text-stone-500 mb-1">
+                <span>{passed}/{totalChecks} passed</span>
+                {failed > 0 && <span className="text-red-500 font-medium">{failed} flagged</span>}
+              </div>
+              <div className="w-full bg-stone-100 rounded-full h-1.5">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${(passed / totalChecks) * 100}%`, backgroundColor: failed > 0 ? '#ef4444' : '#10b981' }}
+                />
+              </div>
+            </div>
+
+            {/* Sign-off */}
+            <button
+              onClick={() => onSaveField('internal-check', 'reviewer_signed', reviewerSigned ? 'false' : 'true')}
+              disabled={!reviewerName || !allPassed}
+              className={`mt-3 w-full text-sm py-2.5 rounded-lg font-medium transition-all ${
+                reviewerSigned
+                  ? 'bg-green-100 text-green-700 border border-green-200'
+                  : reviewerName && allPassed
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    : 'bg-stone-100 text-stone-400 cursor-not-allowed'
+              }`}
+            >
+              {reviewerSigned ? `Signed off by ${reviewerName}` : allPassed && reviewerName ? 'Sign Off' : !reviewerName ? 'Enter your name to sign off' : 'Complete all checks to sign off'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Notes */}
@@ -3171,6 +3310,15 @@ function InternalCheckActions({
           className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/20 bg-white resize-none"
         />
       </div>
+
+      {/* Overall status */}
+      {qaStatus && reviewerSigned && (
+        <div className={`rounded-xl p-4 text-center ${qaStatus === 'pass' ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
+          <p className={`text-sm font-semibold ${qaStatus === 'pass' ? 'text-green-700' : 'text-amber-700'}`}>
+            {qaStatus === 'pass' ? '✓ QA Report Clear + Manual Review Signed Off — Ready for Hand Over' : '⚠ QA flagged warnings — review before proceeding to Hand Over'}
+          </p>
+        </div>
+      )}
     </div>
   )
 }

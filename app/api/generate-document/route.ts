@@ -710,7 +710,42 @@ Write COMPLETE emails — not outlines or placeholders. The email team should be
 
 If the user has provided notes or ideas for this element's emails, incorporate them.
 
-There is NO word limit. Be as thorough as needed.`
+There is NO word limit. Be as thorough as needed.`,
+
+  'qa-report': `You are a QA Analyst for ClubSheIs, a digital marketing and content production agency in South Africa. You are reviewing a client build before it goes to the client.
+
+You will receive a summary of everything that has been completed for this client: funnel strategy, funnel map, copy bible elements (page copy + email sequences), brand bible, and implementation plan.
+
+Your job is to produce a thorough QA REPORT that checks:
+
+1. **COMPLETENESS CHECK**
+   - Is every required deliverable present? (funnel strategy, funnel map, copy for each element, email sequences, brand bible)
+   - Are there any elements with missing page copy or email sequences?
+   - Is the brand bible complete (logo, colours, fonts)?
+
+2. **CONSISTENCY CHECK**
+   - Does the funnel map align with the funnel strategy?
+   - Do the copy elements match what's in the funnel map?
+   - Are all mentioned pages/elements accounted for in the copy bible?
+
+3. **QUALITY FLAGS**
+   - Any obvious gaps in the funnel flow (e.g. no thank-you page, no email sequence after opt-in)?
+   - Missing elements that should exist based on the strategy?
+   - Brand bible gaps that could cause inconsistency?
+
+4. **SUMMARY & VERDICT**
+   - Overall status: PASS / WARNINGS / FAIL
+   - List of items that need attention before hand-over
+
+FORMAT:
+Use clear headings with emojis:
+✅ = Pass
+⚠️ = Warning (should fix)
+❌ = Critical (must fix before hand-over)
+
+Be direct, specific, and actionable. This report will be used by a human reviewer who will manually test the build alongside your findings.
+
+Keep the report concise but thorough. Focus on what's missing or inconsistent, not on praising what's done well.`
 }
 
 export async function POST(req: NextRequest) {
@@ -727,7 +762,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: `Unknown document type: ${documentType}` }, { status: 400 })
     }
 
-    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'copy-element-page', 'copy-element-email']
+    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'copy-element-page', 'copy-element-email', 'qa-report']
     if (!transcript && !noTranscriptRequired.includes(documentType)) {
       return Response.json({ error: 'Transcript is required' }, { status: 400 })
     }
@@ -776,7 +811,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email') ? 32000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map') ? 8000 : 16000,
+        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email') ? 32000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map' || documentType === 'qa-report') ? 8000 : 16000,
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),
