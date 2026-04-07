@@ -3573,52 +3573,121 @@ function HandOverActions({
   onSaveField: (stageKey: string, fieldKey: string, value: string) => void
 }) {
   const [generatingDoc, setGeneratingDoc] = useState(false)
+  const [docGenerated, setDocGenerated] = useState(false)
+  const [copied, setCopied] = useState(false)
   const canvaDocUrl = fieldValues.get('handover:canva_doc_url') || ''
   const walkthrough = fieldValues.get('handover:walkthrough_scheduled') || ''
   const handoverNotes = fieldValues.get('handover:notes') || ''
   const sentToClient = fieldValues.get('handover:sent_to_client') === 'true'
+  const generatedHandover = fieldValues.get('handover:generated_doc') || ''
 
   const filledLinks = LINK_FIELDS.filter(f => fieldValues.get(`handover:${f.key}`)?.trim())
 
-  // Generate handover summary for Canva
-  const generateHandoverContent = () => {
-    const brandName = fieldValues.get('onboarding:brand_name') || fieldValues.get('discovery:brand_name') || client.name || 'Client'
-    const pkg = fieldValues.get('onboarding:package') || client.package || ''
+  // Get brand info
+  const brandName = fieldValues.get('onboarding:brand_name') || fieldValues.get('discovery:brand_name') || client.name || 'Client'
+  const pkg = fieldValues.get('onboarding:package') || client.package || ''
 
-    let content = `HAND-OVER DOCUMENT\n\n`
-    content += `Client: ${brandName}\n`
-    content += `Package: ${pkg}\n`
-    content += `Date: ${new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}\n\n`
-    content += `---\n\n`
-    content += `WHAT WE BUILT\n\n`
+  // Build the deliverables list from implementation plan
+  const funnelStrategyJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
+  const funnelSelectionsRaw = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
+  const implExtrasRaw = fieldValues.get('implementation-plan:extra_elements') || '[]'
 
-    // Pull from stage data
-    const funnelStrategy = fieldValues.get('funnel-strategy:generated_text') || ''
-    if (funnelStrategy) {
-      content += `Funnel Strategy: Completed\n`
+  let allElems: FunnelElement[] = []
+  try { if (funnelStrategyJson) allElems = JSON.parse(funnelStrategyJson) } catch {}
+  let selIndices: number[] = []
+  try { selIndices = JSON.parse(funnelSelectionsRaw) } catch {}
+  let extras: { type: string; topic: string }[] = []
+  try { extras = JSON.parse(implExtrasRaw) } catch {}
+
+  const selElems = selIndices.map(i => allElems[i]).filter(Boolean)
+
+  // Generate AI hand-over document
+  const generateHandoverDoc = async () => {
+    setGeneratingDoc(true)
+    try {
+      // Build context with ALL links and deliverables
+      let context = `CLIENT: ${brandName}\nPACKAGE: ${pkg}\nDATE: ${new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}\n\n`
+
+      // Deliverables built
+      context += `DELIVERABLES BUILT:\n`
+      selElems.forEach((el, i) => {
+        context += `${i + 1}. [${el.type}] ${el.topic} — ${el.description}\n`
+        if (el.email_note) context += `   Email sequence: ${el.email_note}\n`
+      })
+      extras.forEach((el, i) => {
+        context += `${selElems.length + i + 1}. [${el.type}] ${el.topic}\n`
+      })
+
+      // Links
+      context += `\nACCESS LINKS:\n`
+      LINK_FIELDS.forEach(f => {
+        const val = fieldValues.get(`handover:${f.key}`)
+        if (val?.trim()) context += `${f.icon} ${f.label}: ${val}\n`
+      })
+
+      // Brand bible info
+      const logo = fieldValues.get('brand-bible:logo_url')
+      const primaryColor = fieldValues.get('brand-bible:primary_color')
+      const headingFont = fieldValues.get('brand-bible:heading_font')
+      context += `\nBRAND:\n- Logo: ${logo ? 'Yes' : 'No'}\n- Primary colour: ${primaryColor || 'N/A'}\n- Font: ${headingFont || 'N/A'}\n`
+
+      // Notes
+      if (handoverNotes) context += `\nNOTES:\n${handoverNotes}\n`
+
+      const result = await streamGenerate({
+        documentType: 'handover-doc',
+        clientProfile: context,
+        transcript: '',
+        brandVoice: '',
+        copyBible: '',
+      })
+      onSaveField('handover', 'generated_doc', result.text)
+      setDocGenerated(true)
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to generate hand-over document')
+    } finally {
+      setGeneratingDoc(false)
     }
+  }
 
-    const copyBibleComplete = fieldValues.get('copy-bible:copy_bible_complete') === 'true'
-    if (copyBibleComplete) content += `Copy Bible: Completed\n`
+  const copyForCanva = async () => {
+    const content = generatedHandover || buildPlainTextHandover()
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 3000)
+      // Open Canva doc creation
+      window.open('https://www.canva.com/design?create&type=doc', '_blank')
+    } catch {
+      // Fallback
+      const ta = document.createElement('textarea')
+      ta.value = content
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 3000)
+      window.open('https://www.canva.com/design?create&type=doc', '_blank')
+    }
+  }
 
-    const brandBibleComplete = fieldValues.get('brand-bible:brand_bible_complete') === 'true'
-    if (brandBibleComplete) content += `Brand Bible: Completed\n`
-
-    content += `\n---\n\n`
-    content += `ACCESS LINKS\n\n`
-
+  const buildPlainTextHandover = () => {
+    let content = `HAND-OVER DOCUMENT\n\nClient: ${brandName}\nPackage: ${pkg}\nDate: ${new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}\n\n`
+    content += `WHAT WE BUILT\n\n`
+    selElems.forEach((el, i) => {
+      content += `${i + 1}. ${el.type}: ${el.topic}\n`
+    })
+    extras.forEach((el, i) => {
+      content += `${selElems.length + i + 1}. ${el.type}: ${el.topic}\n`
+    })
+    content += `\nACCESS LINKS\n\n`
     LINK_FIELDS.forEach(f => {
       const val = fieldValues.get(`handover:${f.key}`)
-      if (val?.trim()) {
-        content += `${f.icon} ${f.label}: ${val}\n`
-      }
+      if (val?.trim()) content += `${f.icon} ${f.label}: ${val}\n`
     })
-
-    content += `\n---\n\n`
-    if (handoverNotes) {
-      content += `NOTES\n${handoverNotes}\n\n`
-    }
-    content += `Prepared by ClubSheIs\n`
+    if (handoverNotes) content += `\nNOTES\n${handoverNotes}\n`
+    content += `\nPrepared by ClubSheIs\n`
     return content
   }
 
@@ -3715,7 +3784,7 @@ function HandOverActions({
         </div>
       </div>
 
-      {/* Canva Document */}
+      {/* Hand-Over Document */}
       <div className="bg-white border border-stone-200 rounded-xl p-5">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center">
@@ -3723,11 +3792,72 @@ function HandOverActions({
           </div>
           <div>
             <h3 className="font-semibold text-stone-800">Hand-Over Document</h3>
-            <p className="text-xs text-stone-500">Create in Canva using the client&apos;s brand, or download a PDF summary</p>
+            <p className="text-xs text-stone-500">Generate the hand-over doc, then create it in Canva with the client&apos;s brand</p>
           </div>
         </div>
 
-        {/* Canva URL */}
+        {/* Step 1: Generate */}
+        {!generatedHandover && !generatingDoc && (
+          <button
+            onClick={generateHandoverDoc}
+            disabled={filledLinks.length === 0}
+            className={`w-full py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 mb-3 ${
+              filledLinks.length === 0
+                ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-teal-600 to-cyan-600 text-white hover:from-teal-700 hover:to-cyan-700'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+            {filledLinks.length === 0 ? 'Add access links above first' : 'Generate Hand-Over Document'}
+          </button>
+        )}
+
+        {generatingDoc && (
+          <div className="text-center py-6">
+            <div className="w-8 h-8 border-3 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm text-stone-500">Writing hand-over document...</p>
+          </div>
+        )}
+
+        {/* Generated content preview */}
+        {generatedHandover && !generatingDoc && (
+          <div className="mb-4">
+            <div className="bg-stone-50 border border-stone-200 rounded-lg p-4 text-sm text-stone-700 whitespace-pre-wrap max-h-[400px] overflow-y-auto leading-relaxed mb-3">
+              {generatedHandover}
+            </div>
+            <button
+              onClick={generateHandoverDoc}
+              className="text-xs text-teal-600 hover:text-teal-700 font-medium"
+            >
+              Re-generate
+            </button>
+          </div>
+        )}
+
+        {/* Step 2: Create in Canva */}
+        {generatedHandover && (
+          <div className="space-y-2 mb-3">
+            <button
+              onClick={copyForCanva}
+              className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-violet-600 text-white rounded-lg text-sm font-medium hover:from-purple-700 hover:to-violet-700 transition-all flex items-center justify-center gap-2"
+            >
+              {copied ? (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  Copied! Paste into Canva →
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+                  Create in Canva
+                </>
+              )}
+            </button>
+            <p className="text-[11px] text-stone-400 text-center">Opens a new Canva Doc with content copied to your clipboard. Paste it in and style with the client&apos;s brand kit.</p>
+          </div>
+        )}
+
+        {/* Canva URL (after creating) */}
         <div className="mb-3">
           <label className="text-xs font-medium text-stone-600 mb-1 block">Canva Document URL</label>
           <div className="flex gap-2">
@@ -3735,7 +3865,7 @@ function HandOverActions({
               type="url"
               value={canvaDocUrl}
               onChange={e => onSaveField('handover', 'canva_doc_url', e.target.value)}
-              placeholder="Paste your Canva hand-over document link..."
+              placeholder="Paste your Canva hand-over document link after creating..."
               className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 bg-white"
             />
             {canvaDocUrl && (
@@ -3745,7 +3875,7 @@ function HandOverActions({
                 rel="noopener noreferrer"
                 className="px-3 py-2 bg-teal-50 text-teal-700 rounded-lg text-sm font-medium hover:bg-teal-100 transition-colors flex items-center gap-1"
               >
-                Open in Canva
+                Open
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
               </a>
             )}
@@ -3755,10 +3885,10 @@ function HandOverActions({
         {/* Download PDF */}
         <button
           onClick={downloadSummaryPdf}
-          className="w-full py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg text-sm font-medium hover:from-green-700 hover:to-emerald-700 transition-all flex items-center justify-center gap-2"
+          className="w-full py-2.5 border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 transition-all flex items-center justify-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-          Download Hand-Over PDF
+          Download as PDF
         </button>
       </div>
 

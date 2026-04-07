@@ -765,7 +765,45 @@ This report will be used alongside a manual review of the entire build.
 IMPORTANT NOTES:
 - Email workflows live inside Ghutte (GoHighLevel) and cannot be fetched/scraped. If email workflow URLs are provided but content couldn't be read, flag them for MANUAL review — don't mark as failed.
 - For pages that couldn't be fetched (login-required, timeout, etc.), flag them for manual review and check them against the approved copy based on available information.
-- If NO live page content was provided at all, fall back to checking completeness of the approved deliverables only and flag that no live pages were available to check.`
+- If NO live page content was provided at all, fall back to checking completeness of the approved deliverables only and flag that no live pages were available to check.`,
+
+  'handover-doc': `You are writing a professional CLIENT HAND-OVER DOCUMENT for ClubSheIs, a digital marketing and content production agency in South Africa.
+
+This document is what the client receives when their build is complete. It should be clear, warm, professional, and easy to follow.
+
+You will receive: client name, package, date, list of deliverables built, all access links, brand info, and any notes.
+
+Write the document in this structure:
+
+1. **WELCOME / INTRO**
+   - A warm, professional opening: "Hi [Client], your build is complete! Here's everything we've created for you."
+   - Brief summary of what was done
+
+2. **WHAT WE BUILT**
+   - List each deliverable with a one-line description of what it is and what it does
+   - Group logically (pages, email sequences, integrations)
+   - Make it clear and non-technical — the client may not be a marketer
+
+3. **YOUR ACCESS LINKS**
+   - List every link with a clear label and brief instruction
+   - Example: "Lead Magnet Page — This is where visitors download your free guide. Share this link on social media and in your bio."
+   - For each link, add a one-line "what to do with this" instruction
+
+4. **HOW YOUR FUNNEL WORKS**
+   - A simple, plain-English walkthrough of the customer journey
+   - "When someone clicks your link → they land on X → they sign up → they get Y emails → they see Z offer"
+   - Keep it simple, no jargon
+
+5. **NEXT STEPS**
+   - What the client needs to do now (share links, monitor, etc.)
+   - Any ongoing support or retainer details
+
+6. **NOTES**
+   - Include any notes provided
+
+Write in a warm but professional tone. Use the client's name. This is a celebration — they've invested in their business and now they have a complete system.
+
+Format with clear headings and bullet points. This will be pasted into a Canva document, so use clean formatting (no markdown syntax like ** or ##, just plain text with clear section headings in CAPS and bullet points with dashes).`
 }
 
 export async function POST(req: NextRequest) {
@@ -782,7 +820,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: `Unknown document type: ${documentType}` }, { status: 400 })
     }
 
-    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'copy-element-page', 'copy-element-email', 'qa-report']
+    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'copy-element-page', 'copy-element-email', 'qa-report', 'handover-doc']
     if (!transcript && !noTranscriptRequired.includes(documentType)) {
       return Response.json({ error: 'Transcript is required' }, { status: 400 })
     }
@@ -831,7 +869,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email') ? 32000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map' || documentType === 'qa-report') ? 8000 : 16000,
+        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email') ? 32000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map' || documentType === 'qa-report' || documentType === 'handover-doc') ? 8000 : 16000,
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),
