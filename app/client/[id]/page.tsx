@@ -3692,7 +3692,6 @@ function HandOverActions({
   }
 
   const downloadSummaryPdf = () => {
-    const content = generateHandoverContent()
     const brandName = fieldValues.get('onboarding:brand_name') || client.name || 'Client'
     const logoUrl = fieldValues.get('brand-bible:logo_url') || ''
     const primaryColor = fieldValues.get('brand-bible:primary_color') || '#7C3AED'
