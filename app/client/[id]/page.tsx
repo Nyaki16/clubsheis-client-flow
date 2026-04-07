@@ -3556,7 +3556,7 @@ const LINK_FIELDS = [
   { key: 'email_platform_url', label: 'Email Platform Login', icon: '📧' },
   { key: 'hosting_url', label: 'Hosting / Systeme.io Login', icon: '🌐' },
   { key: 'analytics_url', label: 'Analytics Dashboard', icon: '📊' },
-  { key: 'social_accounts', label: 'Social Accounts', icon: '📱' },
+  { key: 'social_accounts', label: 'Link in Bio', icon: '🔗' },
   { key: 'drive_folder_url', label: 'Google Drive Folder', icon: '📁' },
   { key: 'canva_brand_url', label: 'Canva Brand Kit', icon: '🎨' },
   { key: 'other_url_1', label: 'Other Link 1', icon: '🔗' },
