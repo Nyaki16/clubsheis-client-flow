@@ -4454,6 +4454,9 @@ function ProposalReview({
   const emailType = fieldValues.get('proposal:email_type') || 'proposal'
   const isThankYou = emailType === 'not-a-fit'
   const [regenerating, setRegenerating] = useState(false)
+  const [showRegenModal, setShowRegenModal] = useState(false)
+  const [regenNotes, setRegenNotes] = useState(fieldValues.get('proposal:regen_notes') || '')
+  const [regenPackage, setRegenPackage] = useState(fieldValues.get('proposal:regen_package') || '')
 
   const savedProposal = fieldValues.get('proposal:generated_text') || ''
   const savedThankYou = fieldValues.get('proposal:thankyou_text') || ''
@@ -4481,8 +4484,11 @@ function ProposalReview({
   }
 
   const handleRegenerate = async () => {
-    if (!confirm('Regenerate the proposal? This will replace the current version.')) return
+    setShowRegenModal(false)
     setRegenerating(true)
+    // Save notes/package for next time
+    if (regenNotes) onSaveField('proposal', 'regen_notes', regenNotes)
+    if (regenPackage) onSaveField('proposal', 'regen_package', regenPackage)
     try {
       const res = await fetch('/api/generate-proposal', {
         method: 'POST',
@@ -4494,6 +4500,8 @@ function ProposalReview({
           needs: fieldValues.get('discovery:client_needs') || fieldValues.get('discovery:notes') || '',
           transcriptNotes: fieldValues.get('discovery:transcript') || fieldValues.get('discovery:call_notes') || '',
           budgetRange: fieldValues.get('discovery:budget') || '',
+          overridePackage: regenPackage || '',
+          additionalNotes: regenNotes || '',
         }),
       })
       const data = await res.json()
@@ -4607,7 +4615,7 @@ function ProposalReview({
           <div className="flex gap-2">
             {!isThankYou && (
               <button
-                onClick={handleRegenerate}
+                onClick={() => setShowRegenModal(true)}
                 disabled={regenerating || editing}
                 className="text-xs border border-amber-300 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer disabled:opacity-50"
               >
@@ -4689,6 +4697,65 @@ function ProposalReview({
           >
             {sending ? 'Sending...' : isThankYou ? 'Send Thank You Email' : 'Send Proposal via Email'}
           </button>
+        </div>
+      )}
+
+      {/* Regenerate Modal */}
+      {showRegenModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowRegenModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-stone-200">
+              <h3 className="text-lg font-bold text-stone-900">Regenerate Proposal</h3>
+              <p className="text-xs text-stone-500 mt-1">Add notes, pick a package, or include extra details before regenerating</p>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {/* Package override */}
+              <div>
+                <label className="text-xs font-semibold text-stone-600 mb-1.5 block">Recommend this package</label>
+                <select
+                  value={regenPackage}
+                  onChange={e => setRegenPackage(e.target.value)}
+                  className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm bg-white text-stone-700"
+                >
+                  <option value="">Auto-select based on discovery call</option>
+                  <option value="Bronze - R3,800/mo">Bronze — R3,800/mo (DIY + Ghutte)</option>
+                  <option value="Silver - R5,500/mo">Silver — R5,500/mo (Content creation)</option>
+                  <option value="Gold/OBM - R7,500/mo">Gold/OBM — R7,500/mo (System building)</option>
+                  <option value="OBM Growth - R12,500/mo">OBM Growth — R12,500/mo (Ads + automation)</option>
+                  <option value="Visibility Ads+Email - R18,500/mo">Visibility Ads+Email — R18,500/mo</option>
+                  <option value="Visibility Full - R25,000/mo">Visibility Full — R25,000/mo</option>
+                  <option value="Custom Full Funnel - from R32,500">Custom Full Funnel — from R32,500</option>
+                </select>
+              </div>
+
+              {/* Additional notes */}
+              <div>
+                <label className="text-xs font-semibold text-stone-600 mb-1.5 block">Additional notes for the AI</label>
+                <textarea
+                  value={regenNotes}
+                  onChange={e => setRegenNotes(e.target.value)}
+                  placeholder="e.g. Include a content day add-on, mention they need 2 funnels not 1, emphasise their urgency to launch before December, change the tone to be more formal..."
+                  rows={4}
+                  className="w-full border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 bg-white resize-none"
+                />
+                <p className="text-[11px] text-stone-400 mt-1">These notes will be included as instructions when generating the proposal</p>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-stone-100 flex gap-3 justify-end">
+              <button
+                onClick={() => setShowRegenModal(false)}
+                className="px-4 py-2 text-sm text-stone-600 hover:bg-stone-50 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRegenerate}
+                className="px-5 py-2 bg-[#B45309] text-white text-sm font-semibold rounded-lg hover:bg-amber-800 transition-colors"
+              >
+                Regenerate Proposal
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

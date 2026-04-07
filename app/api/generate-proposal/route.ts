@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'ANTHROPIC_API_KEY not set.' }, { status: 500 })
     }
 
-    const { clientName, brandName, email, needs, transcriptNotes, budgetRange } = await req.json()
+    const { clientName, brandName, email, needs, transcriptNotes, budgetRange, overridePackage, additionalNotes } = await req.json()
 
     // Trim transcript to avoid huge payloads
     const transcript = (transcriptNotes || '').slice(0, 5000)
@@ -84,7 +84,7 @@ OUR PACKAGES (choose the most suitable based on the discovery call):
    - Best for: clients launching a new product/offer who need a complete funnel
 
 PACKAGES & PAYMENT LINK: https://www.clubsheis.com/products
-
+${overridePackage ? `\nIMPORTANT — USE THIS PACKAGE: The team has specifically chosen "${overridePackage}" for this client. Recommend this package in the proposal and explain why it fits.\n` : ''}${additionalNotes ? `\nADDITIONAL INSTRUCTIONS FROM THE TEAM:\n${additionalNotes}\n\nFollow these instructions carefully when writing the proposal.\n` : ''}
 Write in this structure:
 
 # Proposal for [Brand]
