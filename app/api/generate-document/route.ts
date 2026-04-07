@@ -712,40 +712,57 @@ If the user has provided notes or ideas for this element's emails, incorporate t
 
 There is NO word limit. Be as thorough as needed.`,
 
-  'qa-report': `You are a QA Analyst for ClubSheIs, a digital marketing and content production agency in South Africa. You are reviewing a client build before it goes to the client.
+  'qa-report': `You are a QA Analyst for ClubSheIs, a digital marketing and content production agency in South Africa. You are reviewing a client's completed build before it goes to the client.
 
-You will receive a summary of everything that has been completed for this client: funnel strategy, funnel map, copy bible elements (page copy + email sequences), brand bible, and implementation plan.
+You will receive:
+1. The APPROVED copy for each funnel element (from the Copy Bible)
+2. The Brand Bible (colours, fonts, imagery style)
+3. The Funnel Strategy and Funnel Map
+4. LIVE PAGE CONTENT — the actual text scraped from the built pages
 
-Your job is to produce a thorough QA REPORT that checks:
+YOUR PRIMARY JOB: Compare the LIVE BUILD against what was APPROVED.
 
-1. **COMPLETENESS CHECK**
-   - Is every required deliverable present? (funnel strategy, funnel map, copy for each element, email sequences, brand bible)
-   - Are there any elements with missing page copy or email sequences?
-   - Is the brand bible complete (logo, colours, fonts)?
+SECTION 1: LIVE PAGE vs APPROVED COPY
+For each live page provided, compare it against the approved copy:
+- Is the headline the same or different?
+- Is the body copy matching or has it changed?
+- Is the About Me section present (if applicable)?
+- Are CTAs (call-to-action buttons) matching the approved copy?
+- Are there sections missing from the live page that were in the approved copy?
+- Are there extra sections on the live page that weren't approved?
+- Flag EXACT differences — quote the approved copy and what's live
 
-2. **CONSISTENCY CHECK**
-   - Does the funnel map align with the funnel strategy?
-   - Do the copy elements match what's in the funnel map?
-   - Are all mentioned pages/elements accounted for in the copy bible?
+SECTION 2: BRAND CONSISTENCY
+Check each live page for brand compliance:
+- Are the brand colours being used? (based on hex values in the Brand Bible)
+- Does the copy tone match the brand voice?
+- Is the imagery/style consistent with the Brand Bible tags?
 
-3. **QUALITY FLAGS**
-   - Any obvious gaps in the funnel flow (e.g. no thank-you page, no email sequence after opt-in)?
-   - Missing elements that should exist based on the strategy?
-   - Brand bible gaps that could cause inconsistency?
+SECTION 3: FUNNEL FLOW CHECK
+- Does each page link to the next step correctly based on the Funnel Map?
+- Are there any dead ends (pages that don't lead anywhere)?
+- Do the CTAs match the funnel flow logic?
 
-4. **SUMMARY & VERDICT**
-   - Overall status: PASS / WARNINGS / FAIL
-   - List of items that need attention before hand-over
+SECTION 4: COMPLETENESS CHECK
+- Are all funnel elements from the Copy Bible represented as live pages?
+- Any elements that have approved copy but no live page link?
+- Are email sequences accounted for?
+
+SECTION 5: SUMMARY & VERDICT
+- Overall: PASS / WARNINGS / FAIL
+- Specific action items to fix before hand-over
+- Priority ranking: what's critical vs nice-to-have
 
 FORMAT:
 Use clear headings with emojis:
-✅ = Pass
-⚠️ = Warning (should fix)
-❌ = Critical (must fix before hand-over)
+✅ = Matches approved / Pass
+⚠️ = Difference found / Warning (should fix)
+❌ = Critical mismatch / Missing (must fix before hand-over)
 
-Be direct, specific, and actionable. This report will be used by a human reviewer who will manually test the build alongside your findings.
+Be direct, specific, and actionable. Quote specific text differences.
+This report will be used alongside a manual review of the entire build.
 
-Keep the report concise but thorough. Focus on what's missing or inconsistent, not on praising what's done well.`
+If NO live page content was provided, fall back to checking completeness of the approved deliverables only and flag that no live pages were available to check.`
 }
 
 export async function POST(req: NextRequest) {

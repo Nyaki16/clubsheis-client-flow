@@ -3033,7 +3033,9 @@ function InternalCheckActions({
   onSaveField: (stageKey: string, fieldKey: string, value: string) => void
 }) {
   const [generatingQA, setGeneratingQA] = useState(false)
+  const [fetchingPages, setFetchingPages] = useState(false)
   const [qaError, setQaError] = useState('')
+  const [linksOpen, setLinksOpen] = useState(true)
   const [qaReportOpen, setQaReportOpen] = useState(true)
   const [manualOpen, setManualOpen] = useState(true)
 
@@ -3049,8 +3051,29 @@ function InternalCheckActions({
   const failed = MANUAL_CHECK_ITEMS.filter(c => getCheckValue(c.key) === 'fail').length
   const allPassed = passed === totalChecks && failed === 0
 
-  // Build context from all stage data for AI QA
-  const buildQAContext = () => {
+  // Pull element names from copy bible to auto-populate link labels
+  const funnelElements: { name: string; index: number }[] = []
+  for (let i = 0; i < 20; i++) {
+    const name = fieldValues.get(`copy-bible:element_${i}_name`)
+    if (name) funnelElements.push({ name, index: i })
+  }
+
+  // Extra link slots for things not in copy bible (email platform, automations, etc.)
+  const EXTRA_LINK_SLOTS = [
+    { key: 'email_platform', label: 'Email Platform / Automations' },
+    { key: 'payment_checkout', label: 'Payment / Checkout' },
+    { key: 'analytics', label: 'Analytics / Tracking' },
+    { key: 'custom_1', label: 'Other Link 1' },
+    { key: 'custom_2', label: 'Other Link 2' },
+  ]
+
+  const getLinkUrl = (key: string) => fieldValues.get(`internal-check:link_${key}`) || ''
+  const filledLinkCount = funnelElements.filter(el => getLinkUrl(`element_${el.index}`).trim()).length +
+    EXTRA_LINK_SLOTS.filter(s => getLinkUrl(s.key).trim()).length
+  const totalLinkSlots = funnelElements.length + EXTRA_LINK_SLOTS.length
+
+  // Build context from all stage data + fetched page content for AI QA
+  const buildQAContext = (fetchedPages?: { label: string; url: string; status: string; content: string }[]) => {
     const sections: string[] = []
     // Client info
     const brandName = fieldValues.get('onboarding:brand_name') || fieldValues.get('discovery:brand_name') || client.name || ''
@@ -3066,40 +3089,92 @@ function InternalCheckActions({
     if (funnelMap) {
       try {
         const mapData = JSON.parse(funnelMap)
-        if (mapData.nodes) sections.push(`FUNNEL MAP: ${mapData.nodes.length} nodes, ${mapData.edges?.length || 0} edges`)
+        if (mapData.nodes) {
+          const nodeList = mapData.nodes.map((n: { id: string; label: string; type: string }) => `  - [${n.type}] ${n.label}`).join('\n')
+          sections.push(`FUNNEL MAP (${mapData.nodes.length} nodes):\n${nodeList}`)
+        }
       } catch {}
     }
 
-    // Copy bible elements
-    const copyElements: string[] = []
+    // Copy bible elements with FULL approved copy
     for (let i = 0; i < 20; i++) {
       const name = fieldValues.get(`copy-bible:element_${i}_name`)
+      if (!name) continue
       const pageText = fieldValues.get(`copy-bible:element_${i}_page_text`)
       const emailText = fieldValues.get(`copy-bible:element_${i}_email_text`)
-      if (name) {
-        copyElements.push(`- ${name}: Page copy ${pageText ? 'DONE' : 'MISSING'}, Email sequence ${emailText ? 'DONE' : 'MISSING'}`)
-      }
+      let block = `APPROVED COPY — ${name}:\n`
+      if (pageText) block += `[Page Copy]:\n${pageText.slice(0, 3000)}\n`
+      else block += `[Page Copy]: MISSING\n`
+      if (emailText) block += `[Email Sequence]:\n${emailText.slice(0, 2000)}\n`
+      else block += `[Email Sequence]: MISSING\n`
+      sections.push(block)
     }
-    if (copyElements.length > 0) sections.push(`COPY BIBLE ELEMENTS:\n${copyElements.join('\n')}`)
 
     // Brand bible
     const logo = fieldValues.get('brand-bible:logo_url')
     const primaryColor = fieldValues.get('brand-bible:primary_color')
-    const font = fieldValues.get('brand-bible:heading_font')
-    sections.push(`BRAND BIBLE:\n- Logo: ${logo ? 'Uploaded' : 'MISSING'}\n- Primary colour: ${primaryColor || 'MISSING'}\n- Font: ${font || 'MISSING'}`)
+    const secondaryColor = fieldValues.get('brand-bible:secondary_color')
+    const accentColor = fieldValues.get('brand-bible:accent_color')
+    const headingFont = fieldValues.get('brand-bible:heading_font')
+    const bodyFont = fieldValues.get('brand-bible:body_font')
+    const imagery = fieldValues.get('brand-bible:imagery_tags')
+    sections.push(`BRAND BIBLE:\n- Logo: ${logo ? 'Uploaded' : 'MISSING'}\n- Primary: ${primaryColor || 'MISSING'}\n- Secondary: ${secondaryColor || 'N/A'}\n- Accent: ${accentColor || 'N/A'}\n- Heading font: ${headingFont || 'MISSING'}\n- Body font: ${bodyFont || 'N/A'}\n- Imagery/style: ${imagery || 'N/A'}`)
 
-    // Implementation plan
-    const implPlan = fieldValues.get('implementation-plan:generated_text')
-    if (implPlan) sections.push(`IMPLEMENTATION PLAN:\n${implPlan.slice(0, 2000)}`)
+    // FETCHED LIVE PAGE CONTENT
+    if (fetchedPages && fetchedPages.length > 0) {
+      sections.push('=== LIVE BUILD — FETCHED PAGE CONTENT ===')
+      for (const page of fetchedPages) {
+        if (page.status === 'ok') {
+          sections.push(`LIVE PAGE — ${page.label} (${page.url}):\n${page.content}`)
+        } else {
+          sections.push(`LIVE PAGE — ${page.label} (${page.url}): FAILED TO FETCH — ${page.content}`)
+        }
+      }
+    }
 
     return sections.join('\n\n---\n\n')
   }
 
+  // Collect all filled URLs
+  const collectUrls = () => {
+    const urls: { label: string; url: string }[] = []
+    for (const el of funnelElements) {
+      const url = getLinkUrl(`element_${el.index}`).trim()
+      if (url) urls.push({ label: el.name, url })
+    }
+    for (const slot of EXTRA_LINK_SLOTS) {
+      const url = getLinkUrl(slot.key).trim()
+      if (url) urls.push({ label: slot.label, url })
+    }
+    return urls
+  }
+
   const generateQAReport = async () => {
     setGeneratingQA(true)
+    setFetchingPages(true)
     setQaError('')
     try {
-      const context = buildQAContext()
+      // Step 1: Fetch live page content
+      const urls = collectUrls()
+      let fetchedPages: { label: string; url: string; status: string; content: string }[] = []
+
+      if (urls.length > 0) {
+        try {
+          const fetchRes = await fetch('/api/fetch-page', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls }),
+          })
+          if (fetchRes.ok) {
+            const data = await fetchRes.json()
+            fetchedPages = data.pages || []
+          }
+        } catch {}
+      }
+      setFetchingPages(false)
+
+      // Step 2: Build context with fetched content and generate report
+      const context = buildQAContext(fetchedPages)
       const result = await streamGenerate({
         documentType: 'qa-report',
         clientProfile: context,
@@ -3121,6 +3196,7 @@ function InternalCheckActions({
       setQaError(e instanceof Error ? e.message : 'Failed to generate QA report')
     } finally {
       setGeneratingQA(false)
+      setFetchingPages(false)
     }
   }
 
@@ -3134,6 +3210,84 @@ function InternalCheckActions({
 
   return (
     <div className="space-y-4">
+      {/* Build Links */}
+      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setLinksOpen(!linksOpen)}
+          className="w-full p-5 flex items-center gap-3 hover:bg-stone-50 transition-colors"
+        >
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+          </div>
+          <div className="text-left flex-1">
+            <h3 className="font-semibold text-stone-800">Build Links</h3>
+            <p className="text-xs text-stone-500">Add links to the live build — the QA report will check these pages</p>
+          </div>
+          <span className="text-xs text-stone-400">{filledLinkCount}/{totalLinkSlots} added</span>
+          <svg className={`w-4 h-4 text-stone-400 transition-transform ${linksOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+        </button>
+
+        {linksOpen && (
+          <div className="px-5 pb-5 border-t border-stone-100 pt-4">
+            {funnelElements.length === 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700 mb-4">
+                No funnel elements found. Complete the Copy Bible first to auto-populate element names here.
+              </div>
+            )}
+
+            {/* Funnel element links */}
+            {funnelElements.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Funnel Elements</h4>
+                <div className="space-y-2">
+                  {funnelElements.map(el => (
+                    <div key={el.index} className="flex items-center gap-2">
+                      <span className="text-xs text-stone-500 w-40 flex-shrink-0 truncate" title={el.name}>{el.name}</span>
+                      <input
+                        type="url"
+                        value={getLinkUrl(`element_${el.index}`)}
+                        onChange={e => onSaveField('internal-check', `link_element_${el.index}`, e.target.value)}
+                        placeholder="https://..."
+                        className="flex-1 border border-stone-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 bg-white"
+                      />
+                      {getLinkUrl(`element_${el.index}`).trim() && (
+                        <a href={getLinkUrl(`element_${el.index}`)} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600 flex-shrink-0">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Extra links */}
+            <div>
+              <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Other Assets</h4>
+              <div className="space-y-2">
+                {EXTRA_LINK_SLOTS.map(slot => (
+                  <div key={slot.key} className="flex items-center gap-2">
+                    <span className="text-xs text-stone-500 w-40 flex-shrink-0">{slot.label}</span>
+                    <input
+                      type="url"
+                      value={getLinkUrl(slot.key)}
+                      onChange={e => onSaveField('internal-check', `link_${slot.key}`, e.target.value)}
+                      placeholder="https://..."
+                      className="flex-1 border border-stone-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 bg-white"
+                    />
+                    {getLinkUrl(slot.key).trim() && (
+                      <a href={getLinkUrl(slot.key)} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600 flex-shrink-0">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* AI QA Report */}
       <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
         <button
@@ -3145,7 +3299,7 @@ function InternalCheckActions({
           </div>
           <div className="text-left flex-1">
             <h3 className="font-semibold text-stone-800">AI QA Report</h3>
-            <p className="text-xs text-stone-500">Automated check of all deliverables against the brief</p>
+            <p className="text-xs text-stone-500">Fetches your live pages and checks them against the approved copy &amp; brand</p>
           </div>
           {qaStatusBadge && (
             <span className={`text-xs ${qaStatusBadge.bg} ${qaStatusBadge.text} px-3 py-1 rounded-full font-semibold`}>
@@ -3159,20 +3313,29 @@ function InternalCheckActions({
           <div className="px-5 pb-5 border-t border-stone-100 pt-4">
             {!qaReport && !generatingQA && (
               <div className="text-center py-6">
-                <p className="text-sm text-stone-500 mb-3">Generate an AI-powered QA report that checks all deliverables, copy, brand consistency, and funnel structure against the original brief.</p>
-                <button
-                  onClick={generateQAReport}
-                  className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-violet-700 hover:to-purple-700 transition-all"
-                >
-                  Generate QA Report
-                </button>
+                {filledLinkCount === 0 ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-700">
+                    Add at least one build link above before generating the QA report. The AI needs live page URLs to check against your approved copy and brand.
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-stone-500 mb-1">Ready to QA <strong>{filledLinkCount} page{filledLinkCount !== 1 ? 's' : ''}</strong> against the approved copy bible and brand bible.</p>
+                    <p className="text-xs text-stone-400 mb-4">The AI will fetch each page, read the content, and compare it to what was approved.</p>
+                    <button
+                      onClick={generateQAReport}
+                      className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-violet-700 hover:to-purple-700 transition-all"
+                    >
+                      Generate QA Report
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
             {generatingQA && (
               <div className="text-center py-8">
                 <div className="w-8 h-8 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-sm text-stone-500">Analysing all deliverables...</p>
+                <p className="text-sm text-stone-500">{fetchingPages ? 'Fetching live pages...' : 'Comparing against approved copy & brand...'}</p>
               </div>
             )}
 
