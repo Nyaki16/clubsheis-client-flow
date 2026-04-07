@@ -12,8 +12,8 @@ export async function POST(req: NextRequest) {
     const { clientName, brandName, email, needs, transcriptNotes, budgetRange } = await req.json()
 
     // Trim transcript to avoid huge payloads
-    const transcript = (transcriptNotes || '').slice(0, 3000)
-    const clientNeeds = (needs || '').slice(0, 2000)
+    const transcript = (transcriptNotes || '').slice(0, 5000)
+    const clientNeeds = (needs || '').slice(0, 3000)
 
     const prompt = `You are writing a client proposal for ClubSheIs, a digital marketing and content production agency in South Africa run by Nyaki and Kopano.
 
@@ -28,41 +28,95 @@ ${clientNeeds || 'No notes provided'}
 CALL TRANSCRIPT/LINK:
 ${transcript || 'Not provided'}
 
-IMPORTANT: Do NOT just copy the transcript or notes. Analyse what the client needs and write a professional, personalised proposal.
+IMPORTANT: Do NOT just copy the transcript or notes. Analyse what the client needs and write a professional, personalised proposal. Reference specific things from the call to show you listened.
 
-OUR PACKAGES:
-- Ghutte Only (R3,800/mo) — Platform onboarding, training, monthly strategy
-- New Page Build (from R5,000) — Single landing/sales/opt-in page in Ghutte
-- Content Day (from R8,500) — Long & short form videos in studio, full pre-production
-- Ads + Email + Social (from R12,500/mo) — META ads, email newsletters, social management (any combo)
-- Full Build (from R32,500) — 3-step funnel: Lead Magnet + OTO + Main Product page
+OUR PACKAGES (choose the most suitable based on the discovery call):
+
+1. SMALL BUSINESS - BRONZE (R3,800/month)
+   - Monthly access to Ghutte (our all-in-one marketing platform)
+   - Video tutorials and monthly 1-hour strategy sessions
+   - Best for: clients who want to run their own marketing with guidance
+
+2. SMALL BUSINESS - SILVER (R5,500/month)
+   - Platform access + 30-minute strategy calls
+   - Unlimited platforms
+   - Design/post creation: 12 feed posts monthly (4 reels, 8 static)
+   - Excludes paid ads
+   - Best for: clients who need content creation support
+
+3. SMALL BUSINESS - GOLD / OBM (R7,500/month, minimum 3 months)
+   - System workflow strategy
+   - Ghutte migration
+   - System building: sales workflows, email, social integration, ads setup
+   - Personal training
+   - Best for: clients who need their entire system built and optimised
+
+4. OBM GROWTH SUPPORT (R12,500/month)
+   - META ads management per product category
+   - Website audits
+   - Social media optimisation
+   - List management
+   - Email automation setup
+   - Monthly check-in calls
+   - Best for: clients ready to scale with ads and automation
+
+5. OBM VISIBILITY & GROWTH - Ads + Email (R18,500/month)
+   - META ads management
+   - 2 monthly newsletters
+   - Social optimisation
+   - Website updates
+   - Email automation
+   - 60-minute monthly calls (check-in and strategy)
+   - Best for: clients who want ads + email marketing managed
+
+6. OBM VISIBILITY & GROWTH - Full (R25,000/month)
+   - Meta ads management
+   - 4 monthly newsletters
+   - 16 weekly social posts
+   - Email automation
+   - Website optimisation
+   - Dual 60-minute monthly calls
+   - Best for: clients who want everything managed end-to-end
+
+7. CUSTOM FULL FUNNEL BUILD (from R32,500 once-off)
+   - Sales pages, email automation, ads setup
+   - Personalised pricing based on scope
+   - Best for: clients launching a new product/offer who need a complete funnel
+
+PACKAGES & PAYMENT LINK: https://www.clubsheis.com/products
 
 Write in this structure:
+
 # Proposal for [Brand]
+
 ## Hi [Name],
-Opening — reference something specific from the call. Show you listened.
+Opening — reference something specific from the call. Show you listened. Make it personal and warm.
 
 ## Understanding Your Needs
-Summarise what they need IN YOUR OWN WORDS. Do not paste their notes.
+Summarise what they need IN YOUR OWN WORDS. Show you understand their business, challenges, and goals. Do not paste their notes.
 
 ## What We Recommend
-Recommend the right package(s) and explain why it fits their situation.
+Recommend the right package(s) and explain WHY it fits their specific situation. Reference their goals and how this package addresses them. If two packages could work, present both as options.
 
 ## Scope & Deliverables
-Bullet list of exactly what they receive.
+Bullet list of exactly what they receive with the recommended package.
 
 ## Investment
-Pricing with payment terms (50% deposit, 50% on completion, EFT or Paystack).
+- Package name and exact price from the list above
+- Payment terms: 50% deposit, 50% on completion for once-off builds. Monthly packages billed monthly via EFT or Paystack.
+- ALWAYS include this line: "View packages and pay here: https://www.clubsheis.com/products"
 
 ## Timeline
-When we start and key milestones (typically 4 weeks).
+When we start and key milestones. Be specific (e.g. "Week 1: Onboarding and strategy session. Week 2-3: Build. Week 4: Review and launch.")
 
 ## Next Steps
-Clear call to action.
+1. Review this proposal
+2. Choose your package at https://www.clubsheis.com/products
+3. Once payment is confirmed, we'll send your onboarding form within 24 hours
 
-TONE: Professional but human — like a smart friend who's great at marketing. Not corporate. Not salesy. Confident and clear.
+TONE: Professional but human — like a smart friend who's great at marketing. Not corporate. Not salesy. Confident and clear. South African context.
 
-Keep it under 500 words. Output ONLY the proposal in clean markdown. No preamble or explanation.`
+Keep it under 600 words. Output ONLY the proposal in clean markdown. No preamble or explanation.`
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -73,7 +127,7 @@ Keep it under 500 words. Output ONLY the proposal in clean markdown. No preamble
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 1200,
+        max_tokens: 2000,
         messages: [{ role: 'user', content: prompt }],
       }),
     })
