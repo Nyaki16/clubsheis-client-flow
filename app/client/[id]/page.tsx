@@ -4612,7 +4612,7 @@ function ProposalReview({
                 disabled={regenerating || editing}
                 className="text-xs border border-amber-300 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer disabled:opacity-50"
               >
-                {regenerating ? 'Regenerating...' : 'Regenerate'}
+                {regenerating ? 'Generating...' : '↻ Regenerate'}
               </button>
             )}
             {!editing ? (
