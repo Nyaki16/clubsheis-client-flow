@@ -4454,6 +4454,7 @@ function ProposalReview({
 }) {
   const emailType = fieldValues.get('proposal:email_type') || 'proposal'
   const isThankYou = emailType === 'not-a-fit'
+  const [regenerating, setRegenerating] = useState(false)
 
   const savedProposal = fieldValues.get('proposal:generated_text') || ''
   const savedThankYou = fieldValues.get('proposal:thankyou_text') || ''
@@ -4478,6 +4479,34 @@ function ProposalReview({
 
   const handleStatusChange = async (status: string) => {
     await onSaveField('proposal', 'proposal_status', status)
+  }
+
+  const handleRegenerate = async () => {
+    if (!confirm('Regenerate the proposal? This will replace the current version.')) return
+    setRegenerating(true)
+    try {
+      const res = await fetch('/api/generate-proposal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: client.name,
+          brandName: client.brand,
+          email: client.email,
+          needs: fieldValues.get('discovery:client_needs') || fieldValues.get('discovery:notes') || '',
+          transcriptNotes: fieldValues.get('discovery:transcript') || fieldValues.get('discovery:call_notes') || '',
+          budgetRange: fieldValues.get('discovery:budget') || '',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      if (data.proposal) {
+        await onSaveField('proposal', 'generated_text', data.proposal)
+        await onSaveField('proposal', 'proposal_status', 'Draft')
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to regenerate')
+    }
+    setRegenerating(false)
   }
 
   const handleSendEmail = async () => {
@@ -4577,6 +4606,15 @@ function ProposalReview({
             <p className="text-xs text-stone-500">Review and edit before sending</p>
           </div>
           <div className="flex gap-2">
+            {!isThankYou && (
+              <button
+                onClick={handleRegenerate}
+                disabled={regenerating || editing}
+                className="text-xs border border-amber-300 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {regenerating ? 'Regenerating...' : 'Regenerate'}
+              </button>
+            )}
             {!editing ? (
               <button
                 onClick={() => { setEditDraft(savedContent); setEditing(true) }}
