@@ -3051,16 +3051,40 @@ function InternalCheckActions({
   const failed = MANUAL_CHECK_ITEMS.filter(c => getCheckValue(c.key) === 'fail').length
   const allPassed = passed === totalChecks && failed === 0
 
-  // Pull element names from copy bible to auto-populate link labels
-  const funnelElements: { name: string; index: number }[] = []
-  for (let i = 0; i < 20; i++) {
-    const name = fieldValues.get(`copy-bible:element_${i}_name`)
-    if (name) funnelElements.push({ name, index: i })
-  }
+  // Pull deliverables from implementation plan (funnel strategy selections + extras)
+  const funnelStrategyJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
+  const funnelSelectionsRaw = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
+  const implExtrasRaw = fieldValues.get('implementation-plan:extra_elements') || '[]'
 
-  // Extra link slots for things not in copy bible (email platform, automations, etc.)
-  const EXTRA_LINK_SLOTS = [
-    { key: 'email_platform', label: 'Email Platform / Automations' },
+  let allStrategyElements: FunnelElement[] = []
+  try { if (funnelStrategyJson) allStrategyElements = JSON.parse(funnelStrategyJson) } catch {}
+  let selectedIndices: number[] = []
+  try { selectedIndices = JSON.parse(funnelSelectionsRaw) } catch {}
+  let extraElements: { type: string; topic: string }[] = []
+  try { extraElements = JSON.parse(implExtrasRaw) } catch {}
+
+  const selectedElements = selectedIndices.map(i => allStrategyElements[i]).filter(Boolean)
+
+  // Build deliverable list: each gets a page link + email workflow link
+  const deliverables: { key: string; label: string; type: string; hasEmail: boolean }[] = [
+    ...selectedElements.map((el, i) => ({
+      key: `strategy_${i}`,
+      label: `${el.topic}`,
+      type: el.type,
+      hasEmail: !!el.email_note,
+    })),
+    ...extraElements.map((el, i) => ({
+      key: `extra_${i}`,
+      label: el.topic,
+      type: el.type,
+      hasEmail: false,
+    })),
+  ]
+
+  // Infrastructure links
+  const INFRA_LINKS = [
+    { key: 'domain', label: 'Domain / Main URL' },
+    { key: 'email_platform', label: 'Email Platform' },
     { key: 'payment_checkout', label: 'Payment / Checkout' },
     { key: 'analytics', label: 'Analytics / Tracking' },
     { key: 'custom_1', label: 'Other Link 1' },
@@ -3068,9 +3092,14 @@ function InternalCheckActions({
   ]
 
   const getLinkUrl = (key: string) => fieldValues.get(`internal-check:link_${key}`) || ''
-  const filledLinkCount = funnelElements.filter(el => getLinkUrl(`element_${el.index}`).trim()).length +
-    EXTRA_LINK_SLOTS.filter(s => getLinkUrl(s.key).trim()).length
-  const totalLinkSlots = funnelElements.length + EXTRA_LINK_SLOTS.length
+  const filledLinkCount =
+    deliverables.filter(d => getLinkUrl(`${d.key}_page`).trim()).length +
+    deliverables.filter(d => d.hasEmail && getLinkUrl(`${d.key}_email`).trim()).length +
+    INFRA_LINKS.filter(s => getLinkUrl(s.key).trim()).length
+  const totalLinkSlots =
+    deliverables.length + // page links
+    deliverables.filter(d => d.hasEmail).length + // email links
+    INFRA_LINKS.length
 
   // Build context from all stage data + fetched page content for AI QA
   const buildQAContext = (fetchedPages?: { label: string; url: string; status: string; content: string }[]) => {
@@ -3138,11 +3167,15 @@ function InternalCheckActions({
   // Collect all filled URLs
   const collectUrls = () => {
     const urls: { label: string; url: string }[] = []
-    for (const el of funnelElements) {
-      const url = getLinkUrl(`element_${el.index}`).trim()
-      if (url) urls.push({ label: el.name, url })
+    for (const d of deliverables) {
+      const pageUrl = getLinkUrl(`${d.key}_page`).trim()
+      if (pageUrl) urls.push({ label: `${d.label} (Page)`, url: pageUrl })
+      if (d.hasEmail) {
+        const emailUrl = getLinkUrl(`${d.key}_email`).trim()
+        if (emailUrl) urls.push({ label: `${d.label} (Email Workflow)`, url: emailUrl })
+      }
     }
-    for (const slot of EXTRA_LINK_SLOTS) {
+    for (const slot of INFRA_LINKS) {
       const url = getLinkUrl(slot.key).trim()
       if (url) urls.push({ label: slot.label, url })
     }
@@ -3229,31 +3262,58 @@ function InternalCheckActions({
 
         {linksOpen && (
           <div className="px-5 pb-5 border-t border-stone-100 pt-4">
-            {funnelElements.length === 0 && (
+            {deliverables.length === 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700 mb-4">
-                No funnel elements found. Complete the Copy Bible first to auto-populate element names here.
+                No deliverables found. Complete the Implementation Plan first — your funnel elements will appear here automatically.
               </div>
             )}
 
-            {/* Funnel element links */}
-            {funnelElements.length > 0 && (
-              <div className="mb-4">
-                <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Funnel Elements</h4>
-                <div className="space-y-2">
-                  {funnelElements.map(el => (
-                    <div key={el.index} className="flex items-center gap-2">
-                      <span className="text-xs text-stone-500 w-40 flex-shrink-0 truncate" title={el.name}>{el.name}</span>
-                      <input
-                        type="url"
-                        value={getLinkUrl(`element_${el.index}`)}
-                        onChange={e => onSaveField('internal-check', `link_element_${el.index}`, e.target.value)}
-                        placeholder="https://..."
-                        className="flex-1 border border-stone-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 bg-white"
-                      />
-                      {getLinkUrl(`element_${el.index}`).trim() && (
-                        <a href={getLinkUrl(`element_${el.index}`)} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600 flex-shrink-0">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                        </a>
+            {/* Deliverable links — page + email for each */}
+            {deliverables.length > 0 && (
+              <div className="mb-5">
+                <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Deliverables</h4>
+                <div className="space-y-3">
+                  {deliverables.map(d => (
+                    <div key={d.key} className="bg-stone-50 border border-stone-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider bg-stone-200 px-1.5 py-0.5 rounded">{d.type}</span>
+                        <span className="text-sm font-medium text-stone-800">{d.label}</span>
+                      </div>
+
+                      {/* Page link */}
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-xs text-blue-600 w-20 flex-shrink-0 font-medium">Page</span>
+                        <input
+                          type="url"
+                          value={getLinkUrl(`${d.key}_page`)}
+                          onChange={e => onSaveField('internal-check', `link_${d.key}_page`, e.target.value)}
+                          placeholder="https://... (live page URL)"
+                          className="flex-1 border border-stone-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 bg-white"
+                        />
+                        {getLinkUrl(`${d.key}_page`).trim() && (
+                          <a href={getLinkUrl(`${d.key}_page`)} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600 flex-shrink-0">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                          </a>
+                        )}
+                      </div>
+
+                      {/* Email workflow link */}
+                      {d.hasEmail && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-purple-600 w-20 flex-shrink-0 font-medium">Emails</span>
+                          <input
+                            type="url"
+                            value={getLinkUrl(`${d.key}_email`)}
+                            onChange={e => onSaveField('internal-check', `link_${d.key}_email`, e.target.value)}
+                            placeholder="https://... (email workflow / automation link)"
+                            className="flex-1 border border-stone-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 bg-white"
+                          />
+                          {getLinkUrl(`${d.key}_email`).trim() && (
+                            <a href={getLinkUrl(`${d.key}_email`)} target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:text-purple-600 flex-shrink-0">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            </a>
+                          )}
+                        </div>
                       )}
                     </div>
                   ))}
@@ -3261,13 +3321,13 @@ function InternalCheckActions({
               </div>
             )}
 
-            {/* Extra links */}
+            {/* Infrastructure links */}
             <div>
-              <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Other Assets</h4>
+              <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Infrastructure</h4>
               <div className="space-y-2">
-                {EXTRA_LINK_SLOTS.map(slot => (
+                {INFRA_LINKS.map(slot => (
                   <div key={slot.key} className="flex items-center gap-2">
-                    <span className="text-xs text-stone-500 w-40 flex-shrink-0">{slot.label}</span>
+                    <span className="text-xs text-stone-500 w-36 flex-shrink-0">{slot.label}</span>
                     <input
                       type="url"
                       value={getLinkUrl(slot.key)}
