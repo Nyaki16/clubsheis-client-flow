@@ -43,8 +43,9 @@ export const STAGES: StageDefinition[] = [
     substeps: [],
     dataFields: [
       { key: 'what_they_need', label: 'What they need', placeholder: 'Key notes from the discovery call — what are they looking for?', type: 'textarea' },
+      { key: 'call_transcript', label: 'Call transcript / detailed notes', placeholder: 'Paste the full call transcript or detailed notes here. The more detail you provide, the better the proposal will be.', type: 'textarea' },
       { key: 'lead_status', label: 'Lead status', placeholder: 'Select status', type: 'select', options: ['Good Fit — Send Proposal', 'Not a Fit — Send Thank You', 'Follow Up in Two Weeks'] },
-      { key: 'transcript_link', label: 'Call transcript / notes link', placeholder: 'Paste Google Drive link or upload notes', type: 'text' },
+      { key: 'transcript_link', label: 'Transcript link (optional)', placeholder: 'Google Drive link to full recording/notes', type: 'text' },
     ],
     conditionalLogic: [
       { condition: 'Lead status = "Good Fit — Send Proposal"', result: 'Move to Stage 2: Proposal & Scoping' },

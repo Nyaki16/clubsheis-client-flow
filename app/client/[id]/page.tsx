@@ -366,7 +366,7 @@ function DiscoveryActions({
         brandName: client.brand,
         email: client.email,
         needs: fieldValues.get('discovery:what_they_need') || client.needs,
-        transcriptNotes: fieldValues.get('discovery:transcript_link') || '',
+        transcriptNotes: fieldValues.get('discovery:call_transcript') || '',
         budgetRange: client.budget_range,
       }
       console.log('Payload:', JSON.stringify(payload).slice(0, 200))
@@ -4497,9 +4497,9 @@ function ProposalReview({
           clientName: client.name,
           brandName: client.brand,
           email: client.email,
-          needs: fieldValues.get('discovery:client_needs') || fieldValues.get('discovery:notes') || '',
-          transcriptNotes: fieldValues.get('discovery:transcript') || fieldValues.get('discovery:call_notes') || '',
-          budgetRange: fieldValues.get('discovery:budget') || '',
+          needs: fieldValues.get('discovery:what_they_need') || '',
+          transcriptNotes: fieldValues.get('discovery:call_transcript') || '',
+          budgetRange: client.budget_range || '',
           overridePackage: regenPackage || '',
           additionalNotes: regenNotes || '',
         }),
