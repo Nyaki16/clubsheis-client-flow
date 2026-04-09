@@ -3154,21 +3154,16 @@ function generateProductionTasks(
     const isLeadMagnet = ['lead magnet', 'pdf', 'guide', 'checklist', 'cheat sheet', 'quiz', 'freebie', 'downloadable', 'ebook'].some(p => typeLower.includes(p))
 
     if (isPage || (!isEmail && !isAd && !isSocial && !isLeadMagnet)) {
-      // PAGE BUILD tasks
       elementTasks.push({
         name: `${type}: ${topic}`,
-        description: `Build the ${type.toLowerCase()} — ${description}`,
+        description: `Build the ${type.toLowerCase()} in Ghutte — ${description}`,
         role: 'developer',
         tag: funnelStage,
         elementType: type,
         elementTopic: topic,
         subtasks: [
-          { name: 'Write page copy from Copy Bible', description: `Pull approved copy for this ${type.toLowerCase()} from the Copy Bible. Adapt headlines, body, CTAs.`, role: 'copywriter' },
-          { name: 'Design page layout in Canva/Figma', description: `Design the page layout following the Brand Bible. Include hero, sections, CTA placement, mobile layout.`, role: 'designer' },
-          { name: 'Build page in Ghutte/platform', description: `Develop the page using approved design + copy. Set up forms, buttons, tracking pixels.`, role: 'developer' },
-          { name: 'Connect integrations', description: `Hook up form submissions, email triggers, payment links, tracking pixels, redirects.`, role: 'developer' },
-          { name: 'Mobile responsive check', description: `Test the page on mobile, tablet, and desktop. Fix any layout issues.`, role: 'developer' },
-          { name: 'QA review before client preview', description: `Review the finished page: copy accuracy, brand consistency, all links working, forms submitting.`, role: 'account_manager' },
+          { name: 'Build page in Ghutte using Vibe prompt', description: `Use the pre-production prompt to generate the page in Ghutte. Review output and refine.`, role: 'developer' },
+          { name: 'QA review', description: `Check: copy matches Copy Bible, brand consistent, all links and forms working, CTA visible.`, role: 'account_manager' },
         ],
       })
     }
@@ -3177,17 +3172,14 @@ function generateProductionTasks(
       elementTasks.push({
         name: `Email Sequence: ${topic}`,
         description: emailNote || `Set up the email sequence connected to ${type}: ${topic}`,
-        role: 'copywriter',
+        role: 'developer',
         tag: funnelStage,
         elementType: type,
         elementTopic: topic,
         subtasks: [
-          { name: 'Write email copy from Copy Bible', description: `Pull approved email copy. Write subject lines, preview text, body, CTAs for each email in the sequence.`, role: 'copywriter' },
-          { name: 'Design email template', description: `Create branded email template following Brand Bible. Header, footer, CTA button styles.`, role: 'designer' },
-          { name: 'Build emails in platform', description: `Set up emails in the email platform. Add copy, design, links, merge tags.`, role: 'developer' },
+          { name: 'Build emails in Ghutte', description: `Create emails using approved copy from Copy Bible. Add subject lines, body, CTAs, merge tags.`, role: 'developer' },
           { name: 'Set up automation triggers', description: `Configure triggers: form submission, tag added, time delay, conditional splits.`, role: 'developer' },
-          { name: 'Test email deliverability', description: `Send test emails. Check rendering across Gmail, Outlook, Apple Mail. Verify links and tracking.`, role: 'developer' },
-          { name: 'QA email sequence end-to-end', description: `Trigger the full sequence as a test contact. Verify timing, content, links, unsubscribe.`, role: 'account_manager' },
+          { name: 'QA sequence end-to-end', description: `Trigger the full sequence as a test contact. Verify timing, content, links, unsubscribe.`, role: 'account_manager' },
         ],
       })
     }
@@ -3201,12 +3193,9 @@ function generateProductionTasks(
         elementType: type,
         elementTopic: topic,
         subtasks: [
-          { name: 'Define campaign objective & budget', description: `Set campaign goal (traffic, conversions, leads), daily/lifetime budget, schedule.`, role: 'account_manager' },
-          { name: 'Build audience targeting', description: `Create audiences: interests, lookalikes, retargeting, exclusions.`, role: 'account_manager' },
-          { name: 'Write ad copy variations', description: `Write 3-5 headline variations, primary text, descriptions, CTAs from Copy Bible.`, role: 'copywriter' },
+          { name: 'Set up campaign structure', description: `Create campaign, ad sets, and audiences in the ad platform. Configure budget and schedule.`, role: 'account_manager' },
           { name: 'Design ad creatives', description: `Create image/video ad creatives in multiple formats (1:1, 9:16, 16:9) per Brand Bible.`, role: 'designer' },
-          { name: 'Set up campaign in ad platform', description: `Build the campaign structure: campaign → ad set → ads. Configure tracking pixel, conversions.`, role: 'developer' },
-          { name: 'Creative Director sign-off', description: `Review all ad creative and copy before launch. Check brand alignment and messaging.`, role: 'account_manager' },
+          { name: 'Launch and QA', description: `Go live, verify tracking pixel fires, check ad previews across placements.`, role: 'account_manager' },
         ],
       })
     }
@@ -3215,16 +3204,13 @@ function generateProductionTasks(
       elementTasks.push({
         name: `Social Content: ${topic}`,
         description: description,
-        role: 'copywriter',
+        role: 'account_manager',
         tag: funnelStage,
         elementType: type,
         elementTopic: topic,
         subtasks: [
-          { name: 'Build content calendar', description: `Plan posts for the month: topics, formats (carousel, reel, static), posting schedule.`, role: 'account_manager' },
-          { name: 'Write captions', description: `Write captions for each post. Include hooks, body, CTAs, hashtags.`, role: 'copywriter' },
-          { name: 'Design visuals', description: `Create post visuals: carousel slides, cover images, story templates per Brand Bible.`, role: 'designer' },
-          { name: 'Client batch review', description: `Send full content batch to client for approval before scheduling.`, role: 'account_manager' },
-          { name: 'Schedule posts', description: `Schedule approved content in scheduling tool. Double-check dates, times, captions.`, role: 'developer' },
+          { name: 'Create visuals', description: `Design post visuals: carousel slides, cover images, story templates per Brand Bible.`, role: 'designer' },
+          { name: 'Schedule and publish', description: `Schedule approved content with captions. Double-check dates, times, hashtags.`, role: 'account_manager' },
         ],
       })
     }
@@ -3238,28 +3224,24 @@ function generateProductionTasks(
         elementType: type,
         elementTopic: topic,
         subtasks: [
-          { name: 'Write lead magnet content', description: `Write the content for the ${type.toLowerCase()}: sections, tips, frameworks, CTAs.`, role: 'copywriter' },
-          { name: 'Design lead magnet in Canva', description: `Design the ${type.toLowerCase()} following Brand Bible: cover, layout, typography, imagery.`, role: 'designer' },
-          { name: 'Export and upload', description: `Export as PDF, upload to delivery platform, set up download link.`, role: 'developer' },
-          { name: 'Connect to opt-in flow', description: `Link the lead magnet to the opt-in page form + email automation for delivery.`, role: 'developer' },
+          { name: 'Design in Canva', description: `Design the ${type.toLowerCase()} following Brand Bible: cover, layout, typography, imagery.`, role: 'designer' },
+          { name: 'Upload and connect', description: `Export as PDF, upload to Ghutte, connect to opt-in page form + email automation for delivery.`, role: 'developer' },
         ],
       })
     }
 
-    // If nothing matched (generic element), create a generic task
+    // Generic fallback
     if (elementTasks.length === 0) {
       elementTasks.push({
         name: `${type}: ${topic}`,
         description: description || `Complete the ${type.toLowerCase()} deliverable for ${clientName}.`,
-        role: 'account_manager',
+        role: 'developer',
         tag: funnelStage,
         elementType: type,
         elementTopic: topic,
         subtasks: [
-          { name: 'Write copy/content', description: `Create the copy or content needed for this deliverable.`, role: 'copywriter' },
-          { name: 'Design assets', description: `Design any visual assets needed.`, role: 'designer' },
-          { name: 'Build/implement', description: `Build or implement the deliverable in the platform.`, role: 'developer' },
-          { name: 'QA and review', description: `Review the deliverable against brief, brand, and copy standards.`, role: 'account_manager' },
+          { name: 'Build in Ghutte', description: `Build the deliverable using the Vibe prompt and approved copy.`, role: 'developer' },
+          { name: 'QA review', description: `Review against brief, brand, and copy standards.`, role: 'account_manager' },
         ],
       })
     }
