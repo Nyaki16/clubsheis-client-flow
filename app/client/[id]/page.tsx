@@ -3653,9 +3653,12 @@ function ProductionActions({
 
       {/* Generated tasks preview */}
       {showGenerated && generatedTasks.length > 0 && (
-        <div className="bg-white border border-stone-200 rounded-xl p-5 space-y-3">
-          {/* Header */}
-          <div className="flex items-center justify-between">
+        <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+          {/* Header — clickable to collapse */}
+          <div
+            className="flex items-center justify-between p-5 cursor-pointer hover:bg-stone-50/50 transition-colors"
+            onClick={() => toggleSection('taskBreakdown')}
+          >
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center">
                 <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
@@ -3665,14 +3668,18 @@ function ProductionActions({
                 <p className="text-xs text-stone-500">{activeTasks_gen.length} tasks · {activeTasks_gen.reduce((sum, t) => sum + t.subtasks.length, 0)} subtasks total</p>
               </div>
             </div>
-            <button
-              onClick={handleGenerateTasks}
-              className="text-xs px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 font-medium transition-colors cursor-pointer"
-            >
-              Regenerate
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={e => { e.stopPropagation(); handleGenerateTasks() }}
+                className="text-xs px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 font-medium transition-colors cursor-pointer"
+              >
+                Regenerate
+              </button>
+              <svg className={`w-4 h-4 text-stone-400 transition-transform ${sectionOpen.taskBreakdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </div>
           </div>
 
+          {sectionOpen.taskBreakdown && (<div className="px-5 pb-5 space-y-3">
           {/* Summary bar */}
           <div className="flex items-center justify-between bg-stone-50 rounded-lg px-4 py-3">
             <div className="flex items-center gap-4">
@@ -3906,6 +3913,7 @@ function ProductionActions({
                 </button>
               </div>
             )}
+          </div>)}
           </div>
         )}
 
@@ -4047,12 +4055,19 @@ function ProductionActions({
           </div>
 
           {/* Filter & Task List */}
-          <div className="bg-white border border-stone-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-3">
+          <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+            <div
+              className="flex items-center justify-between p-5 cursor-pointer hover:bg-stone-50/50 transition-colors"
+              onClick={() => toggleSection('tasks')}
+            >
               <h4 className="font-medium text-stone-700 text-sm">Tasks</h4>
-              <span className="text-xs text-stone-400">{filteredTasks.length} of {parentTasks.length}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-stone-400">{filteredTasks.length} of {parentTasks.length}</span>
+                <svg className={`w-4 h-4 text-stone-400 transition-transform ${sectionOpen.tasks ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </div>
             </div>
 
+            {sectionOpen.tasks && (<div className="px-5 pb-5">
             {/* Search + Filter + Sort bar */}
             <div className="flex flex-col sm:flex-row gap-2 mb-4">
               <div className="relative flex-1">
@@ -4244,6 +4259,7 @@ function ProductionActions({
                 })}
               </div>
             )}
+          </div>)}
           </div>
         </>
       )}
