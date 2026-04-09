@@ -899,38 +899,31 @@ function PreProductionPrompts({
       brandTone && `Brand tone: ${brandTone}`,
     ].filter(Boolean).join('\n')
 
-    const voiceSnippet = brandVoice ? brandVoice.slice(0, 500) : ''
+    // Build the fixed parts first to calculate remaining budget for copy + voice
+    const header = `Build a ${el.type.toLowerCase()} for "${el.topic}".`
+    const whatSection = `\n\nWHAT THIS PAGE DOES:\n${el.description || `A ${el.type.toLowerCase()} about ${el.topic}.`}`
+    const brandBlock = `\n\nBRAND GUIDELINES:\n${brandSection || 'Use a clean, modern design with professional colours and readable fonts.'}`
 
-    let prompt = `Build a ${el.type.toLowerCase()} for "${el.topic}".
+    const fixedOverhead = header.length + whatSection.length + brandBlock.length + 50 // buffer for labels
+    const remainingBudget = VIBE_PROMPT_MAX_CHARS - fixedOverhead
 
-WHAT THIS PAGE DOES:
-${el.description || `A ${el.type.toLowerCase()} about ${el.topic}.`}
+    // Allocate: ~20% brand voice, ~80% copy (if copy is available)
+    const voiceBudget = Math.min(Math.floor(remainingBudget * 0.2), 800)
+    const copyBudget = remainingBudget - voiceBudget
 
-BRAND GUIDELINES:
-${brandSection || 'Use a clean, modern design with professional colours and readable fonts.'}
-${voiceSnippet ? `\nBRAND VOICE:\n${voiceSnippet}` : ''}
+    const voiceSnippet = brandVoice ? brandVoice.slice(0, voiceBudget) : ''
+    const copyText = el.pageText || `Write compelling copy for a ${el.type.toLowerCase()} about ${el.topic}. Include a strong headline, supporting body text, social proof, and a clear CTA.`
+    const trimmedCopy = copyText.slice(0, copyBudget)
 
-COPY TO USE:
-${el.pageText || `Write compelling copy for a ${el.type.toLowerCase()} about ${el.topic}. Include a strong headline, supporting body text, social proof, and a clear CTA.`}
-`
+    let prompt = header + whatSection + brandBlock
 
-    if (el.emailText || el.email_note) {
-      prompt += `
-CONNECTED EMAIL SEQUENCE:
-${el.emailText || el.email_note || 'Include a follow-up email sequence triggered by this page.'}
-`
+    if (voiceSnippet) {
+      prompt += `\n\nBRAND VOICE:\n${voiceSnippet}`
     }
 
-    prompt += `
-REQUIREMENTS:
-- Mobile responsive design
-- Fast loading, no unnecessary animations
-- Clear visual hierarchy with one primary CTA above the fold
-- Use the exact brand colours, fonts, and imagery style above
-- Professional layout that builds trust and drives conversions
-`
+    prompt += `\n\nCOPY TO USE:\n${trimmedCopy}`
 
-    // Trim to max chars
+    // Trim final to absolute max
     if (prompt.length > VIBE_PROMPT_MAX_CHARS) {
       prompt = prompt.slice(0, VIBE_PROMPT_MAX_CHARS - 3) + '...'
     }
