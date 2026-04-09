@@ -121,6 +121,19 @@ function StagePanel({
 }) {
   const [expanded, setExpanded] = useState(isCurrent)
 
+  // Auto-expand when stage becomes current, collapse when it stops being current
+  useEffect(() => {
+    if (isCurrent) {
+      setExpanded(true)
+      // Scroll into view after a short delay for render
+      setTimeout(() => {
+        document.getElementById(`stage-${stage.key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    } else {
+      setExpanded(false)
+    }
+  }, [isCurrent, stage.key])
+
   const totalSubsteps = stage.substeps.length
   const completedCount = stage.substeps.filter((_, i) => completions.get(`${stage.key}:${i}`)).length
   const allDone = completedCount === totalSubsteps && totalSubsteps > 0
