@@ -153,11 +153,7 @@ export const STAGES: StageDefinition[] = [
       { label: 'Social accounts linked', description: 'Connect all social profiles (Instagram, LinkedIn, TikTok, YouTube) that need integration.' },
       { label: 'Client access verified', description: 'Ensure the client can log in to Ghutte and see their dashboard. Send login details if needed.' },
     ],
-    dataFields: [
-      { key: 'domain_name', label: 'Domain name', placeholder: 'e.g. clientbrand.com', type: 'text' },
-      { key: 'payment_provider', label: 'Payment provider', placeholder: 'Select', type: 'select', options: ['Paystack', 'Stripe', 'PayFast', 'None — setting up', 'N/A'] },
-      { key: 'tech_notes', label: 'Technical notes', placeholder: 'Any blockers, missing credentials, or special setup requirements...', type: 'textarea' },
-    ],
+    dataFields: [],
     conditionalLogic: [
       { condition: 'All required integrations connected and tested', result: 'Move to Strategy Session' },
       { condition: 'Missing credentials from client', result: 'Follow up with client, stay in this stage' },

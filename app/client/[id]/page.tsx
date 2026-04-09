@@ -811,6 +811,223 @@ function OnboardingActions({
   )
 }
 
+// ── Wordpass — Password Keeper for Tech Onboarding ──
+type WordpassEntry = {
+  service: string
+  url: string
+  username: string
+  password: string
+  notes: string
+}
+
+function WordpassActions({
+  fieldValues,
+  onSaveField,
+}: {
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+}) {
+  const [showForm, setShowForm] = useState(false)
+  const [editIdx, setEditIdx] = useState<number | null>(null)
+  const [form, setForm] = useState<WordpassEntry>({ service: '', url: '', username: '', password: '', notes: '' })
+  const [visiblePasswords, setVisiblePasswords] = useState<Set<number>>(new Set())
+
+  const entriesRaw = fieldValues.get('tech-onboarding:wordpass_entries') || '[]'
+  let entries: WordpassEntry[] = []
+  try { entries = JSON.parse(entriesRaw) } catch {}
+
+  const handleSave = async () => {
+    if (!form.service.trim()) return
+    let updated: WordpassEntry[]
+    if (editIdx !== null) {
+      updated = entries.map((e, i) => i === editIdx ? form : e)
+    } else {
+      updated = [...entries, form]
+    }
+    await onSaveField('tech-onboarding', 'wordpass_entries', JSON.stringify(updated))
+    setForm({ service: '', url: '', username: '', password: '', notes: '' })
+    setShowForm(false)
+    setEditIdx(null)
+  }
+
+  const handleEdit = (idx: number) => {
+    setForm(entries[idx])
+    setEditIdx(idx)
+    setShowForm(true)
+  }
+
+  const handleDelete = async (idx: number) => {
+    const updated = entries.filter((_, i) => i !== idx)
+    await onSaveField('tech-onboarding', 'wordpass_entries', JSON.stringify(updated))
+  }
+
+  const togglePassword = (idx: number) => {
+    setVisiblePasswords(prev => {
+      const next = new Set(prev)
+      next.has(idx) ? next.delete(idx) : next.add(idx)
+      return next
+    })
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+          </div>
+          <div>
+            <h3 className="font-semibold text-stone-800">Wordpass</h3>
+            <p className="text-xs text-stone-500">{entries.length} access detail{entries.length !== 1 ? 's' : ''} saved</p>
+          </div>
+        </div>
+        {!showForm && (
+          <button
+            onClick={() => { setForm({ service: '', url: '', username: '', password: '', notes: '' }); setEditIdx(null); setShowForm(true) }}
+            className="text-xs px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold transition-colors cursor-pointer"
+          >
+            + Add Access
+          </button>
+        )}
+      </div>
+
+      {/* Add/Edit Form */}
+      {showForm && (
+        <div className="border border-cyan-200 bg-cyan-50/30 rounded-lg p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Service / Platform</label>
+              <input
+                type="text"
+                value={form.service}
+                onChange={e => setForm({ ...form, service: e.target.value })}
+                placeholder="e.g. Ghutte, Paystack, Facebook"
+                className="w-full mt-1 text-sm border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">URL</label>
+              <input
+                type="text"
+                value={form.url}
+                onChange={e => setForm({ ...form, url: e.target.value })}
+                placeholder="e.g. https://app.ghutte.com"
+                className="w-full mt-1 text-sm border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Username / Email</label>
+              <input
+                type="text"
+                value={form.username}
+                onChange={e => setForm({ ...form, username: e.target.value })}
+                placeholder="e.g. client@brand.com"
+                className="w-full mt-1 text-sm border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Password</label>
+              <input
+                type="text"
+                value={form.password}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                placeholder="••••••••"
+                className="w-full mt-1 text-sm border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Notes</label>
+            <input
+              type="text"
+              value={form.notes}
+              onChange={e => setForm({ ...form, notes: e.target.value })}
+              placeholder="Any extra details — API keys, account IDs, etc."
+              className="w-full mt-1 text-sm border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSave}
+              disabled={!form.service.trim()}
+              className="text-xs px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {editIdx !== null ? 'Update' : 'Save'}
+            </button>
+            <button
+              onClick={() => { setShowForm(false); setEditIdx(null) }}
+              className="text-xs px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg font-medium transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Entries List */}
+      {entries.length === 0 && !showForm && (
+        <div className="text-center py-6 border border-dashed border-stone-300 rounded-lg bg-stone-50">
+          <svg className="w-8 h-8 text-stone-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+          <p className="text-sm text-stone-500">No access details yet</p>
+          <p className="text-xs text-stone-400">Add logins, API keys, and credentials for this client</p>
+        </div>
+      )}
+
+      {entries.length > 0 && (
+        <div className="space-y-2">
+          {entries.map((entry, idx) => (
+            <div key={idx} className="border border-stone-200 rounded-lg p-3 bg-white hover:border-stone-300 transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-lg bg-cyan-100 text-cyan-700 flex items-center justify-center text-xs font-bold">
+                    {entry.service.slice(0, 2).toUpperCase()}
+                  </span>
+                  <div>
+                    <span className="text-sm font-semibold text-stone-800">{entry.service}</span>
+                    {entry.url && (
+                      <a href={entry.url.startsWith('http') ? entry.url : `https://${entry.url}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-cyan-600 hover:text-cyan-700 ml-2">
+                        {entry.url}
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => handleEdit(idx)} className="text-[10px] px-2 py-1 text-stone-500 hover:text-stone-700 hover:bg-stone-100 rounded transition-colors cursor-pointer">Edit</button>
+                  <button onClick={() => handleDelete(idx)} className="text-[10px] px-2 py-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer">Delete</button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                {entry.username && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-stone-400 shrink-0">User:</span>
+                    <span className="text-stone-700 font-medium">{entry.username}</span>
+                  </div>
+                )}
+                {entry.password && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-stone-400 shrink-0">Pass:</span>
+                    <span className="text-stone-700 font-mono">{visiblePasswords.has(idx) ? entry.password : '••••••••'}</span>
+                    <button
+                      onClick={() => togglePassword(idx)}
+                      className="text-[9px] text-cyan-600 hover:text-cyan-700 cursor-pointer"
+                    >
+                      {visiblePasswords.has(idx) ? 'hide' : 'show'}
+                    </button>
+                  </div>
+                )}
+              </div>
+              {entry.notes && (
+                <p className="text-[11px] text-stone-400 mt-1.5">{entry.notes}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Strategy Session Actions — Sequential document pipeline ──
 function StrategyActions({
   client,
@@ -5820,6 +6037,11 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       fieldValues={fieldValues}
                       onSaveField={handleSaveField}
                     />
+                  ) : stage.key === 'tech-onboarding' ? (
+                    <WordpassActions
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                    />
                   ) : stage.key === 'strategy' ? (
                     <StrategyActions
                       client={client}
@@ -5880,7 +6102,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                     />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'production' || stage.key === 'internal-check' || stage.key === 'handover'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'tech-onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'production' || stage.key === 'internal-check' || stage.key === 'handover'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">
