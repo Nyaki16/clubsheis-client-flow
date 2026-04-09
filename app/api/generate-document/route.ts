@@ -474,7 +474,7 @@ Each element in the array must have these exact fields:
   "type": "The element type (see rules below for exact types per channel)",
   "topic": "The specific campaign name, content topic, or newsletter theme tailored to this client",
   "description": "2-3 sentences explaining what this is, who it targets, and the expected outcome. For META ads, explain the ad format in detail (e.g. 'Single image ad with bold headline overlay, before/after split, client testimonial quote as text overlay — designed for feed placement'). For social content, explain the format clearly so a content creator can produce it (e.g. 'Talking-head Reel, 30-60 seconds, direct to camera with text overlay of key points'). For newsletters, explain the structure and sections.",
-  "email_note": "How this connects to the other channels (e.g. 'Leads from this ad feed into the welcome sequence' or 'Top-performing social content repurposed as newsletter sections')",
+  "channel_link": "How this connects to the other channels (e.g. 'Top-performing social content repurposed as newsletter topics' or 'Ad creative adapted from this social post'). Do NOT reference email sequences — emails are standalone weekly newsletters, not automated sequences.",
   "funnel_stage": "One of Eugene Schwartz's 5 Levels of Awareness: unaware, problem-aware, solution-aware, product-aware, most-aware",
   "reasoning": "1-2 sentences on why this specific strategy suits this client",
   "priority": A number from 1-N indicating implementation order (1 = implement first)

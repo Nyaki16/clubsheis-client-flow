@@ -3205,6 +3205,7 @@ type FunnelElement = {
   topic: string
   description: string
   email_note?: string
+  channel_link?: string
   funnel_stage: string
   reasoning: string
   priority: number
@@ -5539,9 +5540,9 @@ function FunnelStrategyActions({
                               </div>
                               <p className="text-sm font-semibold text-stone-800 mt-0.5">{el.topic}</p>
                               <p className="text-xs text-stone-500 mt-1 leading-relaxed">{el.description}</p>
-                              {el.email_note && (
+                              {(el.email_note || el.channel_link) && (
                                 <p className="text-xs text-purple-500 mt-1 flex items-center gap-1">
-                                  <span className="font-semibold">Email:</span> {el.email_note}
+                                  <span className="font-semibold">{isAdsPackage ? 'Links to:' : 'Email:'}</span> {el.channel_link || el.email_note}
                                 </p>
                               )}
                               <p className="text-xs text-stone-400 mt-1 italic">{el.reasoning}</p>
@@ -5605,13 +5606,20 @@ function FunnelStrategyActions({
           {selections.length > 0 && (
             <div className="space-y-3">
               <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-3">
-                <h4 className="text-xs font-bold text-cyan-700 uppercase tracking-wider mb-1">Selected for this funnel ({selections.length})</h4>
+                <h4 className="text-xs font-bold text-cyan-700 uppercase tracking-wider mb-1">{isAdsPackage ? `Selected for this strategy (${selections.length})` : `Selected for this funnel (${selections.length})`}</h4>
                 <div className="flex flex-wrap gap-1.5">
-                  {selectedElements.map((el, i) => (
-                    <span key={i} className="text-xs bg-cyan-100 text-cyan-800 px-2 py-1 rounded font-medium">
-                      {el.type}: {el.topic}
-                    </span>
-                  ))}
+                  {selectedElements.map((el, i) => {
+                    const chipChannel = isAdsPackage ? getChannelGroup(el.type) : ''
+                    const chipColors = chipChannel === 'paid-media' ? 'bg-rose-100 text-rose-800'
+                      : chipChannel === 'social' ? 'bg-violet-100 text-violet-800'
+                      : chipChannel === 'email' ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-cyan-100 text-cyan-800'
+                    return (
+                      <span key={i} className={`text-xs px-2 py-1 rounded font-medium ${chipColors}`}>
+                        {el.type}: {el.topic}
+                      </span>
+                    )
+                  })}
                 </div>
               </div>
               <button
@@ -5619,7 +5627,7 @@ function FunnelStrategyActions({
                 onClick={onAdvance}
                 className="w-full bg-green-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
               >
-                Confirm Funnel Strategy & Move to Implementation Plan →
+                {isAdsPackage ? 'Confirm Media Strategy & Move to Implementation Plan →' : 'Confirm Funnel Strategy & Move to Implementation Plan →'}
               </button>
             </div>
           )}
