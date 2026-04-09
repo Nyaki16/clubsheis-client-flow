@@ -475,7 +475,7 @@ You MUST respond with ONLY a valid JSON array. No markdown, no explanation, no t
 
 Each element in the array must have these exact fields:
 {
-  "type": "The channel type — use: META Ads Campaign, Google Ads Campaign, Email Newsletter, Email Automation Sequence, Email Welcome Sequence, Social Content Pillar, Social Reel Series, Social Carousel Series, Social Story Series, Retargeting Campaign, Lead Nurture Sequence, Win-Back Sequence, Abandoned Cart Sequence, Post-Purchase Sequence, Content Calendar Theme, Influencer Collaboration, UGC Campaign",
+  "type": "The channel type — use: META Ads Campaign, META Retargeting Campaign, Email Newsletter, Email Automation Sequence, Email Welcome Sequence, Social Content Pillar, Social Reel Series, Social Carousel Series, Social Story Series, Lead Nurture Sequence, Win-Back Sequence, Abandoned Cart Sequence, Post-Purchase Sequence, Content Calendar Theme, Influencer Collaboration, UGC Campaign. NEVER use Google Ads — we only run META (Facebook/Instagram) ads.",
   "topic": "The specific campaign name or content theme tailored to this client",
   "description": "2-3 sentences explaining the strategy — what it does, who it targets, and the expected outcome",
   "email_note": "How this connects to the other channels (e.g. 'Leads from this ad campaign feed into the welcome sequence' or 'Social content repurposed from newsletter topics')",
