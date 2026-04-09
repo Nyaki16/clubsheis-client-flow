@@ -2547,6 +2547,7 @@ function CopySubSection({
   bibleText,
   voiceText,
   transcript,
+  overrideDocType,
 }: {
   type: 'page' | 'email'
   label: string
@@ -2561,6 +2562,7 @@ function CopySubSection({
   bibleText: string
   voiceText: string
   transcript: string
+  overrideDocType?: string
 }) {
   const [generating, setGenerating] = useState(false)
   const [editingDoc, setEditingDoc] = useState(false)
@@ -2578,7 +2580,7 @@ function CopySubSection({
     setGenerating(true)
     try {
       const result = await streamGenerate({
-        documentType: type === 'page' ? 'copy-element-page' : 'copy-element-email',
+        documentType: overrideDocType || (type === 'page' ? 'copy-element-page' : 'copy-element-email'),
         clientName: client.name,
         brandName: client.brand,
         transcript,
@@ -2783,7 +2785,11 @@ function CopyBibleElementCard({
       {open && (
         <div className="border-t border-stone-200 px-4 py-3 space-y-3">
           {isAds ? (
-            <CopySubSection type="page" label={copyInfo.label} icon={copyInfo.icon} color={getChannelColor(elementLabel)} index={index} elementFull={elementFull} client={client} fieldValues={fieldValues} onSaveField={onSaveField} profileText={profileText} bibleText={bibleText} voiceText={voiceText} transcript={transcript} />
+            <CopySubSection type="page" label={copyInfo.label} icon={copyInfo.icon} color={getChannelColor(elementLabel)} index={index} elementFull={elementFull} client={client} fieldValues={fieldValues} onSaveField={onSaveField} profileText={profileText} bibleText={bibleText} voiceText={voiceText} transcript={transcript} overrideDocType={
+              elementLabel.toLowerCase().includes('meta ads') ? 'copy-element-ad'
+              : elementLabel.toLowerCase().includes('email') ? 'copy-element-newsletter'
+              : 'copy-element-social'
+            } />
           ) : (
             <>
               <CopySubSection type="page" label="Page Copy" icon="📄" color={PAGE_COLOR} index={index} elementFull={elementFull} client={client} fieldValues={fieldValues} onSaveField={onSaveField} profileText={profileText} bibleText={bibleText} voiceText={voiceText} transcript={transcript} />

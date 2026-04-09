@@ -787,6 +787,132 @@ If the user has provided notes or ideas for this element's emails, incorporate t
 
 There is NO word limit. Be as thorough as needed.`,
 
+  'copy-element-ad': `You are writing production-ready META AD COPY for ONE specific ad campaign for ClubSheIs, a digital marketing and content production agency in South Africa.
+
+Write in the client's BRAND VOICE. Use the Research Bible and Brand Voice to match their tone.
+
+For the given ad campaign, write the COMPLETE ad copy package:
+
+### AD SET 1 — Primary Version
+- **Primary Text** (the main body copy above the image/video — 125 chars for feed, write 3 variations: short, medium, long)
+- **Headline** (appears below image — 40 chars max, 3 variations)
+- **Description** (appears below headline — 30 chars max, 2 variations)
+- **CTA Button**: Choose the most appropriate (Learn More, Sign Up, Book Now, Shop Now, Download, Watch More, Get Quote, Subscribe)
+- **Link destination**: Where should this ad send people?
+
+### AD SET 2 — Variation (different angle/hook)
+Same structure as above but with a completely different hook/angle.
+
+### CREATIVE BRIEF
+- **Format**: Specify the ad format (single image, video, carousel, etc.) and why
+- **Visual direction**: Describe exactly what the image or video should show — colours, mood, composition, text overlays
+- **Video script** (if video format): Write a 15-30 second script with timestamps
+- **Text overlays**: Any text that should appear on the image/video itself
+- **Aspect ratios**: Feed (1:1), Story (9:16), or both
+
+### AUDIENCE TARGETING
+- **Target audience**: Who this ad is for (demographics, interests, behaviours)
+- **Custom audiences**: Any retargeting or lookalike suggestions
+- **Placement**: Feed, Stories, Reels, or Audience Network
+
+Write COMPLETE, ready-to-use ad copy. The ads team should be able to paste these into Meta Ads Manager directly.
+
+There is NO word limit. Be thorough.`,
+
+  'copy-element-social': `You are writing production-ready SOCIAL MEDIA CONTENT for ONE specific piece of content for ClubSheIs, a digital marketing and content production agency in South Africa.
+
+Write in the client's BRAND VOICE. Match their tone, language, and personality.
+
+Based on the content type, write the COMPLETE content package:
+
+### FOR REELS / VIDEO:
+- **Hook** (first 3 seconds — the most important part, what stops the scroll)
+- **Full Script**: Write the complete talking points or voiceover script with timestamps
+  - 0:00-0:03 — Hook
+  - 0:03-0:15 — Main point
+  - 0:15-0:25 — Supporting detail or story
+  - 0:25-0:30 — CTA
+- **Text overlays**: What text appears on screen at each point
+- **Visual direction**: What's happening visually (B-roll, talking head, etc.)
+- **Caption**: Full Instagram/TikTok caption with line breaks, emojis, and hashtags
+- **CTA**: What action should the viewer take?
+
+### FOR CAROUSELS:
+- **Total slides**: 7-10 slides
+- **Slide 1 (Cover/Hook)**: The headline that makes people swipe. Must be curiosity-driven or value-driven.
+- **Slides 2-8 (Content)**: Write the EXACT text for each slide. Each slide should have:
+  - A bold headline/statement
+  - 1-2 supporting sentences
+  - Visual direction (colour, layout suggestion)
+- **Final Slide (CTA)**: Clear call to action — follow, save, share, link in bio, DM
+- **Caption**: Full caption with context, story, and hashtags
+
+### FOR STATIC POSTS:
+- **Visual direction**: What the image should show — composition, mood, text overlay if any
+- **Caption**: Full caption (use line breaks for readability)
+- **Hashtags**: 15-20 relevant hashtags grouped by reach (broad, niche, branded)
+- **CTA**: What action to take
+
+### FOR STORIES:
+- **Story sequence** (3-5 frames): What each story frame shows
+- **Text/stickers**: Any text overlays, polls, questions, or interactive elements
+- **CTA**: Swipe up, DM, poll response, etc.
+
+### FOR TEXT/LINKEDIN POSTS:
+- **Opening hook** (first line — most important for LinkedIn)
+- **Full post copy**: Written for LinkedIn format (short paragraphs, line breaks)
+- **CTA**: What to do next
+- **Hashtags**: 3-5 LinkedIn-appropriate hashtags
+
+### FOR LIVE:
+- **Show title**: What to name the live
+- **Run sheet**: Minute-by-minute outline (intro, main segments, Q&A, CTA)
+- **Talking points**: Key messages to cover in each segment
+- **CTA**: Where to send viewers after
+
+Write COMPLETE, ready-to-post content. A content creator should be able to take this and produce the content without additional briefing.
+
+There is NO word limit. Be thorough.`,
+
+  'copy-element-newsletter': `You are writing a production-ready WEEKLY EMAIL NEWSLETTER for ClubSheIs, a digital marketing and content production agency in South Africa.
+
+Write in the client's BRAND VOICE. This is a standalone weekly newsletter — NOT an automated email sequence. It's meant to nurture the relationship and drive engagement.
+
+Write the COMPLETE newsletter:
+
+### SUBJECT LINE
+- 3 variations (aim for curiosity, benefit, or urgency — test which works)
+
+### PREVIEW TEXT
+- The snippet that shows after the subject line in the inbox
+
+### NEWSLETTER BODY
+
+**Opening** (personal, story-driven hook — 2-3 sentences that pull the reader in)
+
+**Main Content Section**
+- The core value/insight/lesson of this newsletter
+- Should feel like getting advice from a trusted friend, not a corporate email
+- Use the client's personal stories, experiences, or perspective
+- Include actionable takeaways
+
+**Secondary Section** (optional — could be a tip, resource, client spotlight, or behind-the-scenes)
+
+**CTA Section**
+- Clear call to action tied to the client's main offer
+- Button text (3 variations)
+
+**Sign-off**
+- Personal, warm sign-off in the client's voice
+
+### DESIGN NOTES
+- Suggested layout/format (text-heavy vs visual)
+- Any images or graphics to include
+
+Write a COMPLETE newsletter — not an outline. The email team should be able to build this in their email platform with minimal editing.
+
+There is NO word limit. Be thorough.`,
+
   'qa-report': `You are a QA Analyst for ClubSheIs, a digital marketing and content production agency in South Africa. You are reviewing a client's completed build before it goes to the client.
 
 You will receive:
@@ -895,7 +1021,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: `Unknown document type: ${documentType}` }, { status: 400 })
     }
 
-    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'funnel-strategy-ads', 'copy-element-page', 'copy-element-email', 'qa-report', 'handover-doc']
+    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'funnel-strategy-ads', 'copy-element-page', 'copy-element-email', 'copy-element-ad', 'copy-element-social', 'copy-element-newsletter', 'qa-report', 'handover-doc']
     if (!transcript && !noTranscriptRequired.includes(documentType)) {
       return Response.json({ error: 'Transcript is required' }, { status: 400 })
     }
@@ -925,11 +1051,17 @@ export async function POST(req: NextRequest) {
       if (brandVoice) userMessage += `\n\nAPPROVED BRAND VOICE:\n${brandVoice.slice(0, 10000)}`
       if (funnelElements) userMessage += `\n\nSELECTED FUNNEL ELEMENTS TO WRITE COPY FOR:\n${funnelElements}`
     }
-    if (documentType === 'copy-element-page' || documentType === 'copy-element-email') {
+    if (documentType === 'copy-element-page' || documentType === 'copy-element-email' || documentType === 'copy-element-ad' || documentType === 'copy-element-social' || documentType === 'copy-element-newsletter') {
       if (clientProfile) userMessage += `\n\nCLIENT PROFILE:\n${clientProfile.slice(0, 5000)}`
       if (researchBible) userMessage += `\n\nRESEARCH BIBLE (KEY POINTS):\n${researchBible.slice(0, 5000)}`
       if (brandVoice) userMessage += `\n\nBRAND VOICE:\n${brandVoice.slice(0, 4000)}`
-      if (funnelElements) userMessage += `\n\nFUNNEL ELEMENT TO WRITE ${documentType === 'copy-element-page' ? 'PAGE COPY' : 'EMAIL SEQUENCE'} FOR:\n${funnelElements}`
+      const copyLabel = documentType === 'copy-element-page' ? 'PAGE COPY'
+        : documentType === 'copy-element-email' ? 'EMAIL SEQUENCE'
+        : documentType === 'copy-element-ad' ? 'META AD COPY'
+        : documentType === 'copy-element-social' ? 'SOCIAL CONTENT'
+        : documentType === 'copy-element-newsletter' ? 'NEWSLETTER COPY'
+        : 'COPY'
+      if (funnelElements) userMessage += `\n\nELEMENT TO WRITE ${copyLabel} FOR:\n${funnelElements}`
       if (userNotes) userMessage += `\n\nUSER NOTES & IDEAS:\n${userNotes}`
     }
 
@@ -944,7 +1076,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email') ? 32000 : documentType === 'funnel-strategy-ads' ? 16000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map' || documentType === 'qa-report' || documentType === 'handover-doc') ? 8000 : 16000,
+        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email' || documentType === 'copy-element-ad' || documentType === 'copy-element-social' || documentType === 'copy-element-newsletter') ? 32000 : documentType === 'funnel-strategy-ads' ? 16000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map' || documentType === 'qa-report' || documentType === 'handover-doc') ? 8000 : 16000,
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),
