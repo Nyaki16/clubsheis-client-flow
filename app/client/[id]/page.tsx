@@ -2602,6 +2602,33 @@ function CopySubSection({
 const PAGE_COLOR = { bg: 'bg-blue-50/50', border: 'border-blue-200', text: 'text-blue-700', buttonBg: 'bg-blue-600', buttonHover: 'hover:bg-blue-700' }
 const EMAIL_COLOR = { bg: 'bg-purple-50/50', border: 'border-purple-200', text: 'text-purple-700', buttonBg: 'bg-purple-600', buttonHover: 'hover:bg-purple-700' }
 
+function getCopyLabel(elementLabel: string, pkg: string): { label: string; icon: string } {
+  if (pkg !== 'ads-email-social') return { label: '', icon: '' }
+  const t = elementLabel.toLowerCase()
+  if (t.includes('meta ads')) return { label: 'Ad Copy & Creative Brief', icon: '📣' }
+  if (t.includes('social reel')) return { label: 'Reel Script & Caption', icon: '🎬' }
+  if (t.includes('social carousel')) return { label: 'Carousel Copy & Slides', icon: '🎠' }
+  if (t.includes('social static')) return { label: 'Post Caption & Visual Brief', icon: '📸' }
+  if (t.includes('social story')) return { label: 'Story Script & Brief', icon: '📱' }
+  if (t.includes('social text')) return { label: 'Post Copy', icon: '✍️' }
+  if (t.includes('social live')) return { label: 'Live Show Outline', icon: '🔴' }
+  if (t.includes('social')) return { label: 'Content Copy', icon: '📱' }
+  if (t.includes('email newsletter')) return { label: 'Newsletter Copy', icon: '📧' }
+  if (t.includes('email')) return { label: 'Email Copy', icon: '📧' }
+  return { label: 'Copy', icon: '📝' }
+}
+
+const ADS_COPY_COLOR = { bg: 'bg-rose-50/50', border: 'border-rose-200', text: 'text-rose-700', buttonBg: 'bg-rose-600', buttonHover: 'hover:bg-rose-700' }
+const SOCIAL_COPY_COLOR = { bg: 'bg-violet-50/50', border: 'border-violet-200', text: 'text-violet-700', buttonBg: 'bg-violet-600', buttonHover: 'hover:bg-violet-700' }
+const NEWSLETTER_COPY_COLOR = { bg: 'bg-emerald-50/50', border: 'border-emerald-200', text: 'text-emerald-700', buttonBg: 'bg-emerald-600', buttonHover: 'hover:bg-emerald-700' }
+
+function getChannelColor(elementLabel: string): typeof PAGE_COLOR {
+  const t = elementLabel.toLowerCase()
+  if (t.includes('meta ads')) return ADS_COPY_COLOR
+  if (t.includes('email')) return NEWSLETTER_COPY_COLOR
+  return SOCIAL_COPY_COLOR
+}
+
 function CopyBibleElementCard({
   index,
   elementLabel,
@@ -2626,16 +2653,19 @@ function CopyBibleElementCard({
   transcript: string
 }) {
   const [open, setOpen] = useState(false)
+  const isAds = client.package === 'ads-email-social'
+  const copyInfo = getCopyLabel(elementLabel, client.package)
 
   const pageApproved = fieldValues.get(`copy-bible:element_${index}_page_approved`) === 'true'
   const emailApproved = fieldValues.get(`copy-bible:element_${index}_email_approved`) === 'true'
   const pageText = fieldValues.get(`copy-bible:element_${index}_page_text`) || ''
   const emailText = fieldValues.get(`copy-bible:element_${index}_email_text`) || ''
-  const bothApproved = pageApproved && emailApproved
-  const hasDraft = !!(pageText || emailText)
+
+  const isComplete = isAds ? pageApproved : (pageApproved && emailApproved)
+  const hasDraft = isAds ? !!pageText : !!(pageText || emailText)
 
   return (
-    <div className={`rounded-lg border overflow-hidden ${bothApproved ? 'border-green-300 bg-green-50/30' : 'border-stone-200'}`}>
+    <div className={`rounded-lg border overflow-hidden ${isComplete ? 'border-green-300 bg-green-50/30' : 'border-stone-200'}`}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -2643,24 +2673,43 @@ function CopyBibleElementCard({
       >
         <div className="flex items-center gap-2.5">
           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-            bothApproved ? 'bg-green-500 text-white' : hasDraft ? 'bg-orange-500 text-white' : 'bg-stone-300 text-white'
+            isComplete ? 'bg-green-500 text-white' : hasDraft ? 'bg-orange-500 text-white' : 'bg-stone-300 text-white'
           }`}>
-            {bothApproved ? '✓' : (index + 1)}
+            {isComplete ? '✓' : (index + 1)}
           </span>
           <span className="text-sm font-semibold text-stone-800 text-left">{elementLabel}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          {pageApproved && <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">PAGE ✓</span>}
-          {emailApproved && <span className="text-[10px] font-bold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">EMAIL ✓</span>}
-          {hasDraft && !bothApproved && <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">DRAFT</span>}
+          {isAds ? (
+            <>
+              {pageApproved && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                elementLabel.toLowerCase().includes('meta ads') ? 'text-rose-600 bg-rose-100' :
+                elementLabel.toLowerCase().includes('email') ? 'text-emerald-600 bg-emerald-100' :
+                'text-violet-600 bg-violet-100'
+              }`}>COPY ✓</span>}
+              {hasDraft && !pageApproved && <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">DRAFT</span>}
+            </>
+          ) : (
+            <>
+              {pageApproved && <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">PAGE ✓</span>}
+              {emailApproved && <span className="text-[10px] font-bold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">EMAIL ✓</span>}
+              {hasDraft && !isComplete && <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">DRAFT</span>}
+            </>
+          )}
           <span className={`text-stone-400 transition-transform ml-1 ${open ? 'rotate-180' : ''}`}>▼</span>
         </div>
       </button>
 
       {open && (
         <div className="border-t border-stone-200 px-4 py-3 space-y-3">
-          <CopySubSection type="page" label="Page Copy" icon="📄" color={PAGE_COLOR} index={index} elementFull={elementFull} client={client} fieldValues={fieldValues} onSaveField={onSaveField} profileText={profileText} bibleText={bibleText} voiceText={voiceText} transcript={transcript} />
-          <CopySubSection type="email" label="Email Sequence" icon="✉️" color={EMAIL_COLOR} index={index} elementFull={elementFull} client={client} fieldValues={fieldValues} onSaveField={onSaveField} profileText={profileText} bibleText={bibleText} voiceText={voiceText} transcript={transcript} />
+          {isAds ? (
+            <CopySubSection type="page" label={copyInfo.label} icon={copyInfo.icon} color={getChannelColor(elementLabel)} index={index} elementFull={elementFull} client={client} fieldValues={fieldValues} onSaveField={onSaveField} profileText={profileText} bibleText={bibleText} voiceText={voiceText} transcript={transcript} />
+          ) : (
+            <>
+              <CopySubSection type="page" label="Page Copy" icon="📄" color={PAGE_COLOR} index={index} elementFull={elementFull} client={client} fieldValues={fieldValues} onSaveField={onSaveField} profileText={profileText} bibleText={bibleText} voiceText={voiceText} transcript={transcript} />
+              <CopySubSection type="email" label="Email Sequence" icon="✉️" color={EMAIL_COLOR} index={index} elementFull={elementFull} client={client} fieldValues={fieldValues} onSaveField={onSaveField} profileText={profileText} bibleText={bibleText} voiceText={voiceText} transcript={transcript} />
+            </>
+          )}
         </div>
       )}
     </div>
@@ -2704,9 +2753,10 @@ function CopyBibleActions({
     for (const ex of extras) elements.push({ label: `${ex.type}: ${ex.topic}`, full: `${ex.type}: ${ex.topic}` })
   } catch {}
 
-  const totalParts = elements.length * 2
+  const isAds = client.package === 'ads-email-social'
+  const totalParts = isAds ? elements.length : elements.length * 2
   const approvedPages = elements.filter((_, i) => fieldValues.get(`copy-bible:element_${i}_page_approved`) === 'true').length
-  const approvedEmails = elements.filter((_, i) => fieldValues.get(`copy-bible:element_${i}_email_approved`) === 'true').length
+  const approvedEmails = isAds ? 0 : elements.filter((_, i) => fieldValues.get(`copy-bible:element_${i}_email_approved`) === 'true').length
   const totalApproved = approvedPages + approvedEmails
 
   return (
@@ -2720,10 +2770,18 @@ function CopyBibleActions({
         <div className="w-full bg-orange-100 rounded-full h-1.5">
           <div className="bg-green-500 h-1.5 rounded-full transition-all" style={{ width: `${totalParts > 0 ? (totalApproved / totalParts) * 100 : 0}%` }} />
         </div>
-        <div className="flex gap-3 mt-2">
-          <span className="text-xs text-blue-600">📄 {approvedPages}/{elements.length} page copy</span>
-          <span className="text-xs text-purple-600">✉️ {approvedEmails}/{elements.length} email sequences</span>
-        </div>
+        {isAds ? (
+          <div className="flex gap-3 mt-2">
+            <span className="text-xs text-rose-600">📣 {elements.filter((el) => el.label.toLowerCase().includes('meta ads')).length} ad copy</span>
+            <span className="text-xs text-violet-600">📱 {elements.filter((el) => el.label.toLowerCase().includes('social')).length} social content</span>
+            <span className="text-xs text-emerald-600">📧 {elements.filter((el) => el.label.toLowerCase().includes('email')).length} newsletters</span>
+          </div>
+        ) : (
+          <div className="flex gap-3 mt-2">
+            <span className="text-xs text-blue-600">📄 {approvedPages}/{elements.length} page copy</span>
+            <span className="text-xs text-purple-600">✉️ {approvedEmails}/{elements.length} email sequences</span>
+          </div>
+        )}
       </div>
 
       {elements.length === 0 ? (
