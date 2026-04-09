@@ -1867,8 +1867,69 @@ function ImplementationPlanActions({
         }</p>
       </div>
 
-      {/* Strategy elements by stage */}
-      {selectedElements.length > 0 && (
+      {/* Strategy elements by stage or channel */}
+      {selectedElements.length > 0 && client.package === 'ads-email-social' ? (
+        <div className="space-y-3">
+          {(() => {
+            const getImplChannel = (type: string): string => {
+              const t = type.toLowerCase()
+              if (t.includes('meta ads') || t.includes('retargeting')) return 'paid-media'
+              if (t.includes('email') || t.includes('newsletter')) return 'email'
+              if (t.includes('social') || t.includes('reel') || t.includes('carousel') || t.includes('story') || t.includes('live') || t.includes('content pillar') || t.includes('ugc')) return 'social'
+              return 'other'
+            }
+            const implChannelLabels: Record<string, { label: string; color: string; bg: string; border: string }> = {
+              'paid-media': { label: 'Paid Media', color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
+              'social': { label: 'Social Content', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
+              'email': { label: 'Email Newsletters', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+              'other': { label: 'Other', color: 'text-stone-700', bg: 'bg-stone-50', border: 'border-stone-200' },
+            }
+            const implGetDeliverable = (type: string): string => {
+              const t = type.toLowerCase()
+              if (t.includes('meta ads')) return 'Ad copy, creative brief, audience targeting, and campaign setup'
+              if (t.includes('social reel')) return 'Reel script, caption, and visual direction'
+              if (t.includes('social carousel')) return 'Slide copy for each slide, caption, and visual direction'
+              if (t.includes('social static')) return 'Post caption and visual brief'
+              if (t.includes('social story')) return 'Story script/content and visual brief'
+              if (t.includes('social text')) return 'Post copy for LinkedIn/text platform'
+              if (t.includes('social live')) return 'Live show outline, talking points, and CTA'
+              if (t.includes('email newsletter')) return 'Newsletter copy, subject line, and section structure'
+              return 'Copy and creative brief'
+            }
+            return ['paid-media', 'social', 'email', 'other'].map(channel => {
+              const items = selectedElements.filter(el => getImplChannel(el.type) === channel)
+              if (items.length === 0) return null
+              const info = implChannelLabels[channel]
+              return (
+                <div key={channel}>
+                  <div className={`text-xs font-bold uppercase tracking-wider ${info.color} mb-1.5 flex items-center gap-2`}>
+                    <span className={`inline-block w-2 h-2 rounded-full ${info.bg} ${info.border} border`} />
+                    {info.label} ({items.length})
+                  </div>
+                  <div className="space-y-1.5">
+                    {items.map((el, i) => (
+                      <div key={i} className={`rounded-lg border p-3 ${info.bg} ${info.border}`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-500 text-sm">✓</span>
+                          <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
+                        </div>
+                        <p className="text-sm font-semibold text-stone-800 mt-0.5 ml-6">{el.topic}</p>
+                        <p className="text-xs text-stone-500 mt-0.5 ml-6">{el.description}</p>
+                        <div className="ml-6 mt-2">
+                          <div className={`${info.bg} border ${info.border} rounded-md px-3 py-1.5`}>
+                            <span className={`text-xs font-bold ${info.color} uppercase tracking-wider`}>Deliverable: </span>
+                            <span className="text-xs text-stone-700">{implGetDeliverable(el.type)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })
+          })()}
+        </div>
+      ) : selectedElements.length > 0 && (
         <div className="space-y-3">
           {stageOrder.map(stage => {
             const stageItems = selectedElements.filter(el => el.funnel_stage === stage)
@@ -1909,10 +1970,10 @@ function ImplementationPlanActions({
                               <span className="text-xs text-stone-600">The actual {el.type.toLowerCase()} content</span>
                             </div>
                           )}
-                          {el.email_note && (
+                          {(el.email_note || el.channel_link) && (
                             <div className="bg-purple-50 border border-purple-200 rounded-md px-3 py-1.5">
-                              <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">Email sequence: </span>
-                              <span className="text-xs text-purple-700">{el.email_note}</span>
+                              <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">{client.package === 'ads-email-social' ? 'Links to: ' : 'Email sequence: '}</span>
+                              <span className="text-xs text-purple-700">{el.channel_link || el.email_note}</span>
                             </div>
                           )}
                         </div>
