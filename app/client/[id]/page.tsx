@@ -1107,7 +1107,7 @@ Create a complete, production-ready HTML landing page for "${el.topic}".
 ${el.description || `A ${typeLower} about ${el.topic}.`}
 
 ## Page Type
-${el.type}${el.category ? ` (${el.category})` : ''}
+${el.type}
 
 ---
 
