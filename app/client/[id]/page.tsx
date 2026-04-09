@@ -4049,8 +4049,8 @@ function ProductionActions({
                           {task.name}
                         </span>
 
-                        {/* Priority badge */}
-                        {task.priority && (
+                        {/* Priority badge — only show urgent/high */}
+                        {task.priority && task.priority.priority !== 'normal' && task.priority.priority !== 'low' && (
                           <span
                             className="text-[10px] px-1.5 py-0.5 rounded font-medium"
                             style={{ backgroundColor: task.priority.color + '20', color: task.priority.color }}
