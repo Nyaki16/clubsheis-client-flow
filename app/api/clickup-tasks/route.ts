@@ -172,3 +172,34 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
+
+// DELETE: Remove a task from ClickUp
+export async function DELETE(req: NextRequest) {
+  try {
+    const clickupToken = process.env.CLICKUP_API_TOKEN
+    if (!clickupToken) {
+      return NextResponse.json({ error: 'ClickUp not configured.' }, { status: 500 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    const taskId = searchParams.get('taskId')
+    if (!taskId) {
+      return NextResponse.json({ error: 'taskId is required' }, { status: 400 })
+    }
+
+    const res = await fetch(`${CLICKUP_BASE}/task/${taskId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': clickupToken },
+    })
+
+    if (!res.ok) {
+      const err = await res.text()
+      return NextResponse.json({ error: `Failed to delete: ${err}` }, { status: res.status })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}

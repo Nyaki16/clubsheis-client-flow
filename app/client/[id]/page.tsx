@@ -3396,6 +3396,18 @@ function ProductionActions({
   const [showPicker, setShowPicker] = useState(false)
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set())
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [taskSearch, setTaskSearch] = useState('')
+  const [taskSort, setTaskSort] = useState<'name' | 'status' | 'due'>('name')
+  const [deletingTask, setDeletingTask] = useState<string | null>(null)
+
+  // Section collapse state
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({
+    taskBreakdown: true,
+    clickupBoard: true,
+    progress: true,
+    tasks: true,
+  })
+  const toggleSection = (key: string) => setSectionOpen(prev => ({ ...prev, [key]: !prev[key] }))
 
   // Task generation state
   const [generatedTasks, setGeneratedTasks] = useState<ProductionTask[]>([])
@@ -3538,6 +3550,21 @@ function ProductionActions({
     fetchTasks(listId)
   }
 
+  // Delete a task from ClickUp
+  const handleDeleteTask = async (taskId: string) => {
+    setDeletingTask(taskId)
+    try {
+      const res = await fetch(`/api/clickup-tasks?taskId=${taskId}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setTasks(prev => prev.filter(t => t.id !== taskId && t.parent !== taskId))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete task')
+    } finally {
+      setDeletingTask(null)
+    }
+  }
+
   // Task stats
   const parentTasks = tasks.filter(t => !t.parent)
   const closedStatuses = ['complete', 'closed', 'done', 'approved', 'delivered']
@@ -3547,9 +3574,33 @@ function ProductionActions({
   // Get unique statuses for filter
   const allStatuses = [...new Set(parentTasks.map(t => t.status.status))]
 
-  const filteredTasks = filterStatus === 'all'
-    ? parentTasks
-    : parentTasks.filter(t => t.status.status === filterStatus)
+  // Get role from tags
+  const ROLE_TAGS = ['designer', 'developer', 'copywriter', 'account manager']
+  const getTaskRole = (task: ClickUpTask): string | null => {
+    const roleTag = task.tags.find(t => ROLE_TAGS.includes(t.name.toLowerCase()))
+    return roleTag ? roleTag.name : null
+  }
+
+  // Search + filter + sort
+  const filteredTasks = parentTasks
+    .filter(t => filterStatus === 'all' || t.status.status === filterStatus)
+    .filter(t => {
+      if (!taskSearch) return true
+      const q = taskSearch.toLowerCase()
+      return t.name.toLowerCase().includes(q) || (getTaskRole(t) || '').toLowerCase().includes(q)
+    })
+    .sort((a, b) => {
+      switch (taskSort) {
+        case 'name': return a.name.localeCompare(b.name)
+        case 'status': return a.status.status.localeCompare(b.status.status)
+        case 'due': {
+          const aD = a.due_date ? parseInt(a.due_date) : Infinity
+          const bD = b.due_date ? parseInt(b.due_date) : Infinity
+          return aD - bD
+        }
+        default: return 0
+      }
+    })
 
   const progressPct = parentTasks.length > 0 ? Math.round((completedTasks.length / parentTasks.length) * 100) : 0
 
@@ -3859,8 +3910,11 @@ function ProductionActions({
         )}
 
       {/* ClickUp Link Section */}
-      <div className="bg-white border border-stone-200 rounded-xl p-5">
-        <div className="flex items-center justify-between mb-3">
+      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+        <div
+          className="flex items-center justify-between p-5 cursor-pointer hover:bg-stone-50/50 transition-colors"
+          onClick={() => toggleSection('clickupBoard')}
+        >
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center">
               <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
@@ -3872,24 +3926,26 @@ function ProductionActions({
               )}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             {linkedListId && (
               <button
-                onClick={() => fetchTasks(linkedListId)}
-                className="text-xs px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 transition-colors"
+                onClick={e => { e.stopPropagation(); fetchTasks(linkedListId) }}
+                className="text-xs px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 transition-colors cursor-pointer"
               >
                 Refresh
               </button>
             )}
             <button
-              onClick={openPicker}
-              className="text-xs px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg font-medium transition-colors"
+              onClick={e => { e.stopPropagation(); openPicker() }}
+              className="text-xs px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg font-medium transition-colors cursor-pointer"
             >
               {linkedListId ? 'Change List' : 'Link ClickUp List'}
             </button>
+            <svg className={`w-4 h-4 text-stone-400 transition-transform ${sectionOpen.clickupBoard ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </div>
         </div>
 
+        {sectionOpen.clickupBoard && (<>
         {/* List Picker Modal */}
         {showPicker && (
           <div className="border border-stone-200 rounded-lg bg-stone-50 p-4 mb-4">
@@ -3954,6 +4010,7 @@ function ProductionActions({
             <p className="text-xs text-stone-400">Link a ClickUp list to track production tasks for this client</p>
           </div>
         )}
+        </>)}
       </div>
 
       {/* Progress & Tasks */}
@@ -3991,20 +4048,47 @@ function ProductionActions({
 
           {/* Filter & Task List */}
           <div className="bg-white border border-stone-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
               <h4 className="font-medium text-stone-700 text-sm">Tasks</h4>
-              <div className="flex items-center gap-2">
-                <select
-                  value={filterStatus}
-                  onChange={e => setFilterStatus(e.target.value)}
-                  className="text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white text-stone-600"
-                >
-                  <option value="all">All ({parentTasks.length})</option>
-                  {allStatuses.map(s => (
-                    <option key={s} value={s}>{s} ({parentTasks.filter(t => t.status.status === s).length})</option>
-                  ))}
-                </select>
+              <span className="text-xs text-stone-400">{filteredTasks.length} of {parentTasks.length}</span>
+            </div>
+
+            {/* Search + Filter + Sort bar */}
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+              <div className="relative flex-1">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input
+                  type="text"
+                  placeholder="Search tasks or roles..."
+                  value={taskSearch}
+                  onChange={e => setTaskSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs border border-stone-200 rounded-lg bg-white focus:outline-none focus:border-rose-300 transition-colors"
+                />
+                {taskSearch && (
+                  <button onClick={() => setTaskSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                )}
               </div>
+              <select
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+                className="text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white text-stone-600 cursor-pointer"
+              >
+                <option value="all">All statuses ({parentTasks.length})</option>
+                {allStatuses.map(s => (
+                  <option key={s} value={s}>{s} ({parentTasks.filter(t => t.status.status === s).length})</option>
+                ))}
+              </select>
+              <select
+                value={taskSort}
+                onChange={e => setTaskSort(e.target.value as 'name' | 'status' | 'due')}
+                className="text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white text-stone-600 cursor-pointer"
+              >
+                <option value="name">Sort: Name</option>
+                <option value="status">Sort: Status</option>
+                <option value="due">Sort: Due Date</option>
+              </select>
             </div>
 
             {loading ? (
@@ -4049,34 +4133,22 @@ function ProductionActions({
                           {task.name}
                         </span>
 
-                        {/* Priority badge — only show urgent/high */}
-                        {task.priority && task.priority.priority !== 'normal' && task.priority.priority !== 'low' && (
-                          <span
-                            className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                            style={{ backgroundColor: task.priority.color + '20', color: task.priority.color }}
-                          >
-                            {task.priority.priority}
-                          </span>
-                        )}
-
-                        {/* Assignees */}
-                        {task.assignees.length > 0 && (
-                          <div className="flex -space-x-1">
-                            {task.assignees.slice(0, 3).map((a, i) => (
-                              <div
-                                key={i}
-                                className="w-6 h-6 rounded-full bg-rose-100 border-2 border-white flex items-center justify-center"
-                                title={a.username}
-                              >
-                                {a.profilePicture ? (
-                                  <img src={a.profilePicture} alt={a.username} className="w-full h-full rounded-full object-cover" />
-                                ) : (
-                                  <span className="text-[9px] font-bold text-rose-600">{a.initials || a.username?.slice(0, 2).toUpperCase()}</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        {/* Role badge from tags */}
+                        {(() => {
+                          const role = getTaskRole(task)
+                          if (!role) return null
+                          const roleColors: Record<string, string> = {
+                            designer: 'bg-purple-100 text-purple-700 border-purple-200',
+                            developer: 'bg-blue-100 text-blue-700 border-blue-200',
+                            copywriter: 'bg-amber-100 text-amber-700 border-amber-200',
+                            'account manager': 'bg-green-100 text-green-700 border-green-200',
+                          }
+                          return (
+                            <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border whitespace-nowrap ${roleColors[role.toLowerCase()] || 'bg-stone-100 text-stone-600 border-stone-200'}`}>
+                              {role}
+                            </span>
+                          )
+                        })()}
 
                         {/* Due date */}
                         {dueDate && (
@@ -4092,6 +4164,20 @@ function ProductionActions({
                         >
                           {task.status.status}
                         </span>
+
+                        {/* Delete button */}
+                        <button
+                          onClick={e => { e.stopPropagation(); handleDeleteTask(task.id) }}
+                          disabled={deletingTask === task.id}
+                          className="w-5 h-5 rounded-full text-stone-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                          title="Delete task"
+                        >
+                          {deletingTask === task.id ? (
+                            <div className="w-3 h-3 border border-red-300 border-t-red-600 rounded-full animate-spin" />
+                          ) : (
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          )}
+                        </button>
 
                         {/* Expand arrow */}
                         <svg className={`w-3 h-3 text-stone-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
