@@ -45,6 +45,10 @@ export async function POST(req: NextRequest) {
         if (line.startsWith('- ')) return `<li style="color:#44403c;margin:2px 0 2px 16px">${line.replace('- ', '')}</li>`
         if (line === '---') return '<hr style="border:none;border-top:1px solid #e7e5e4;margin:16px 0">'
         if (line.trim() === '') return '<br>'
+        // Convert proposal links to a styled button
+        if (line.match(/^https?:\/\/.*\/proposal\//)) {
+          return `<div style="text-align:center;margin:24px 0"><a href="${line.trim()}" style="display:inline-block;background-color:#B45309;color:#ffffff;font-weight:600;font-size:16px;padding:14px 32px;border-radius:12px;text-decoration:none">View Your Proposal</a></div>`
+        }
         return `<p style="color:#44403c;margin:4px 0">${line.replace(/\*\*/g, '<strong>').replace(/\*/g, '')}</p>`
       })
       .join('\n')
