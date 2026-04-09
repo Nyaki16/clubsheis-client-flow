@@ -3452,11 +3452,24 @@ function ProductionActions({
     setSending(true)
     setSendResult(null)
     try {
+      // Calculate due date: project deadline - 3 days
+      // Deadline = start_date + 14 days, so task due = start_date + 11 days
+      const timelineStart = fieldValues.get('timeline:start_date') || null
+      let dueTimestamp: number | undefined
+      if (timelineStart) {
+        const start = new Date(timelineStart)
+        const taskDue = new Date(start)
+        taskDue.setDate(taskDue.getDate() + 11) // 14 - 3 = 11 days from start
+        taskDue.setHours(17, 0, 0, 0) // 5pm deadline
+        dueTimestamp = taskDue.getTime()
+      }
+
       const tasksToSend = activeTasks_gen.map(t => ({
         name: t.name,
         description: t.description,
-        tags: [t.tag],
+        tags: [t.tag, ROLE_META[t.role].label.toLowerCase()],
         priority: 3,
+        due_date: dueTimestamp,
         subtasks: t.subtasks.map(s => ({
           name: `[${ROLE_META[s.role].label}] ${s.name}`,
           description: s.description,
