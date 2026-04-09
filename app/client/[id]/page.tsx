@@ -1050,37 +1050,33 @@ ATTACHMENTS PROVIDED:
                           </pre>
                         </div>
 
-                        {/* Attachments */}
-                        <div className="grid grid-cols-2 gap-2">
-                          {/* Brand Kit attachment */}
-                          <div className="border border-pink-200 bg-pink-50/30 rounded-lg p-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-[10px] font-bold text-pink-600 uppercase tracking-wider">2. Brand Kit</span>
-                              <button
-                                onClick={() => handleCopy(buildBrandAttachment(), `brand-${idx}`)}
-                                className="text-[10px] px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded font-semibold transition-colors cursor-pointer"
-                              >
-                                {copiedField === `brand-${idx}` ? '✓ Copied' : 'Copy'}
-                              </button>
+                        {/* Attachment download */}
+                        <div className="border border-violet-200 bg-violet-50/30 rounded-lg p-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+                              <svg className="w-4 h-4 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                             </div>
-                            <p className="text-[10px] text-stone-500">Colours, fonts, imagery, brand voice — paste as attachment in Vibe</p>
-                          </div>
-
-                          {/* Copy Bible attachment */}
-                          <div className="border border-amber-200 bg-amber-50/30 rounded-lg p-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">3. Copy Bible</span>
-                              <button
-                                onClick={() => handleCopy(el.pageText || 'No copy bible text found for this element.', `copy-${idx}`)}
-                                className="text-[10px] px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-semibold transition-colors cursor-pointer"
-                              >
-                                {copiedField === `copy-${idx}` ? '✓ Copied' : 'Copy'}
-                              </button>
+                            <div>
+                              <p className="text-xs font-semibold text-stone-700">brand-and-copy.md</p>
+                              <p className="text-[10px] text-stone-400">Brand Kit + Copy Bible — attach this file in Vibe</p>
                             </div>
-                            <p className="text-[10px] text-stone-500">
-                              {el.pageText ? `${el.pageText.length.toLocaleString()} chars of approved copy` : 'No copy found — check Copy Bible stage'}
-                            </p>
                           </div>
+                          <button
+                            onClick={() => {
+                              const md = `${buildBrandAttachment()}\n\n---\n\n# Copy Bible: ${el.type} — ${el.topic}\n\n${el.pageText || 'No approved copy found for this element.'}${el.emailText ? `\n\n---\n\n# Email Sequence\n\n${el.emailText}` : ''}`
+                              const blob = new Blob([md], { type: 'text/markdown' })
+                              const url = URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = `${el.type.toLowerCase().replace(/\s+/g, '-')}-${el.topic.toLowerCase().replace(/\s+/g, '-').slice(0, 30)}.md`
+                              a.click()
+                              URL.revokeObjectURL(url)
+                            }}
+                            className="text-xs px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            Download .md
+                          </button>
                         </div>
                       </>
                     ) : (
