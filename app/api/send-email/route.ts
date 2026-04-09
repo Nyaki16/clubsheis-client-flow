@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
@@ -13,18 +13,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields: to, subject, body' }, { status: 400 })
     }
 
-    const resendKey = process.env.RESEND_API_KEY
-    if (!resendKey) {
+    const gmailUser = process.env.GMAIL_USER
+    const gmailAppPassword = process.env.GMAIL_APP_PASSWORD
+    if (!gmailUser || !gmailAppPassword) {
       return NextResponse.json(
-        { error: 'Resend API key not configured. Add RESEND_API_KEY to your environment variables.' },
+        { error: 'Gmail credentials not configured. Add GMAIL_USER and GMAIL_APP_PASSWORD to your environment variables.' },
         { status: 500 }
       )
     }
 
-    const resend = new Resend(resendKey)
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: gmailUser,
+        pass: gmailAppPassword,
+      },
+    })
 
-    // Determine sender — use custom domain if verified, otherwise Resend default
-    const fromEmail = process.env.RESEND_FROM_EMAIL || 'ClubSheIs <onboarding@resend.dev>'
+    const fromEmail = process.env.GMAIL_FROM_NAME
+      ? `${process.env.GMAIL_FROM_NAME} <${gmailUser}>`
+      : gmailUser
 
     // Convert body to HTML
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://clubsheis-client-flow.vercel.app'
@@ -61,18 +69,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { error } = await resend.emails.send({
+    await transporter.sendMail({
       from: fromEmail,
-      to: [to],
+      replyTo: gmailUser,
+      to,
       subject,
       text: body,
       html: htmlBody,
       ...(attachments.length > 0 ? { attachments } : {}),
     })
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
 
     return NextResponse.json({ success: true, message: `Email sent to ${to}` })
   } catch (error) {
