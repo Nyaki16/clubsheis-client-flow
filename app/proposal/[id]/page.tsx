@@ -146,7 +146,9 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
           <h3 className="text-sm font-semibold text-stone-800 mb-3 text-center">Ready to get started?</h3>
           <div className="flex gap-3 justify-center">
             <a
-              href={`mailto:info@clubsheis.com?subject=Proposal Accepted — ${encodeURIComponent(client.brand || client.name)}&body=Hi Nyaki %26 Kopano,%0A%0AI'd like to accept the proposal and get started!%0A%0AThanks,%0A${encodeURIComponent(client.name)}`}
+              href="https://www.clubsheis.com/products"
+              target="_blank"
+              rel="noopener noreferrer"
               className="px-6 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition-colors"
             >
               Accept Proposal
@@ -159,7 +161,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
             </a>
           </div>
           <p className="text-xs text-stone-400 text-center mt-3">
-            Clicking these buttons will open an email to info@clubsheis.com
+            Choose your package or reach out with any questions
           </p>
         </div>
 
