@@ -129,6 +129,47 @@ export const STAGES: StageDefinition[] = [
     nextActionPrompt: 'Create the Ghutte account and trigger the welcome workflow. The strategy session date will auto-fill when the client books.',
   },
   {
+    key: 'tech-onboarding',
+    num: '3B',
+    name: 'Technical Onboarding',
+    summary: 'Connect all the technical integrations the client needs on Ghutte — domain, payments, social accounts, tracking pixels, and more. Every item must be checked off before production can start.',
+    color: '#0891B2',
+    colorSoft: 'rgba(8,145,178,0.06)',
+    triggerLabel: 'Trigger: Client onboarding complete',
+    triggerColor: 'cyan',
+    guide: [
+      'Work through each integration in order — some depend on others (e.g. domain must be connected before SSL).',
+      'If the client doesn\'t have an account for a service (e.g. no FB Business Manager), flag it and help them set one up.',
+      'Test each integration after connecting — don\'t just link it, verify it works.',
+      'Document any credentials or access details in the client\'s secure vault.',
+      'Once all required items are checked, the client is technically ready for production.',
+    ],
+    substeps: [
+      { label: 'Domain connected', description: 'Connect the client\'s domain to Ghutte. Verify DNS, SSL certificate active.' },
+      { label: 'Payment provider linked', description: 'Connect Paystack, Stripe, or PayFast. Test a R1 transaction to confirm it works.' },
+      { label: 'Facebook Business Manager connected', description: 'Link the client\'s FB Business Manager. Verify page access and ad account permissions.' },
+      { label: 'Instagram connected', description: 'Connect Instagram business account via FB Business Manager integration.' },
+      { label: 'Google Analytics / GA4 installed', description: 'Add GA4 tracking code to Ghutte. Verify real-time data is flowing.' },
+      { label: 'Meta Pixel installed', description: 'Install the Meta (Facebook) pixel on all pages. Test with Pixel Helper extension.' },
+      { label: 'Google Tag Manager set up', description: 'Install GTM container. Configure tags for analytics, pixel, and conversion tracking.' },
+      { label: 'Email platform connected', description: 'Connect email service (Mailchimp, ActiveCampaign, etc.) to Ghutte. Test opt-in form → email list flow.' },
+      { label: 'Social accounts linked', description: 'Connect all social profiles (LinkedIn, TikTok, YouTube) that need integration.' },
+      { label: 'Custom domain email set up', description: 'Configure custom domain email (e.g. hello@clientdomain.com) if included in scope.' },
+      { label: 'Automations / webhooks tested', description: 'Test any automation triggers between Ghutte and external tools (Zapier, Make, etc.).' },
+      { label: 'Client access verified', description: 'Ensure the client can log in to Ghutte and see their dashboard. Send login details if needed.' },
+    ],
+    dataFields: [
+      { key: 'domain_name', label: 'Domain name', placeholder: 'e.g. clientbrand.com', type: 'text' },
+      { key: 'payment_provider', label: 'Payment provider', placeholder: 'Select', type: 'select', options: ['Paystack', 'Stripe', 'PayFast', 'None — setting up', 'N/A'] },
+      { key: 'tech_notes', label: 'Technical notes', placeholder: 'Any blockers, missing credentials, or special setup requirements...', type: 'textarea' },
+    ],
+    conditionalLogic: [
+      { condition: 'All required integrations connected and tested', result: 'Move to Strategy Session' },
+      { condition: 'Missing credentials from client', result: 'Follow up with client, stay in this stage' },
+    ],
+    nextActionPrompt: 'Complete all technical integrations, then move to the Strategy Session.',
+  },
+  {
     key: 'strategy',
     num: '4',
     name: 'Strategy Session',
@@ -556,7 +597,7 @@ export const STAGES: StageDefinition[] = [
 ]
 
 export function getActiveStagesForPackage(pkg: string): string[] {
-  const core = ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'strategy', 'funnel-strategy', 'implementation-plan']
+  const core = ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'strategy', 'funnel-strategy', 'implementation-plan']
   const closing = ['internal-check', 'handover']
   const branches = PACKAGE_BRANCHES[pkg] || []
 
