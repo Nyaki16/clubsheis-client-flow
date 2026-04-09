@@ -837,7 +837,7 @@ function PreProductionPrompts({
   onSaveField: (stageKey: string, fieldKey: string, value: string) => void
 }) {
   const [generating, setGenerating] = useState<number | null>(null)
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
   const [expandedIdx, setExpandedIdx] = useState<Set<number>>(new Set())
 
   // Load funnel elements
@@ -888,47 +888,43 @@ function PreProductionPrompts({
   const brandTone = fieldValues.get('brand-bible:brand_tone') || ''
   const brandVoice = fieldValues.get('strategy:brand_voice_text') || ''
 
-  const buildPrompt = (el: typeof elements[0]): string => {
-    const brandSection = [
+  // Build brand kit attachment text
+  const buildBrandAttachment = (): string => {
+    const sections = [
+      '# Brand Kit\n',
       primaryColor && `Primary colour: ${primaryColor}`,
       secondaryColor && `Secondary colour: ${secondaryColor}`,
       accentColor && `Accent colour: ${accentColor}`,
       primaryFont && `Heading font: ${primaryFont}`,
       secondaryFont && `Body font: ${secondaryFont}`,
-      imageryStyle && `Imagery style: ${imageryStyle}`,
+      imageryStyle && `\nImagery style: ${imageryStyle}`,
       brandTone && `Brand tone: ${brandTone}`,
+      brandVoice && `\n## Brand Voice\n${brandVoice}`,
     ].filter(Boolean).join('\n')
+    return sections
+  }
 
-    // Build the fixed parts first to calculate remaining budget for copy + voice
-    const header = `Build a ${el.type.toLowerCase()} for "${el.topic}".`
-    const whatSection = `\n\nWHAT THIS PAGE DOES:\n${el.description || `A ${el.type.toLowerCase()} about ${el.topic}.`}`
-    const brandBlock = `\n\nBRAND GUIDELINES:\n${brandSection || 'Use a clean, modern design with professional colours and readable fonts.'}`
+  const buildPrompt = (el: typeof elements[0]): string => {
+    const typeLower = el.type.toLowerCase()
 
-    const fixedOverhead = header.length + whatSection.length + brandBlock.length + 50 // buffer for labels
-    const remainingBudget = VIBE_PROMPT_MAX_CHARS - fixedOverhead
+    return `Build a ${typeLower} for "${el.topic}".
 
-    // Allocate: ~20% brand voice, ~80% copy (if copy is available)
-    const voiceBudget = Math.min(Math.floor(remainingBudget * 0.2), 800)
-    const copyBudget = remainingBudget - voiceBudget
+WHAT THIS PAGE DOES:
+${el.description || `A ${typeLower} about ${el.topic}.`}
 
-    const voiceSnippet = brandVoice ? brandVoice.slice(0, voiceBudget) : ''
-    const copyText = el.pageText || `Write compelling copy for a ${el.type.toLowerCase()} about ${el.topic}. Include a strong headline, supporting body text, social proof, and a clear CTA.`
-    const trimmedCopy = copyText.slice(0, copyBudget)
+INSTRUCTIONS:
+- Use the attached Brand Kit for all colours, fonts, imagery style, and tone of voice
+- Use the attached Copy Bible for all headlines, body text, CTAs, and section content — do not rewrite or paraphrase the copy
+- Build the page directly — no wireframes or mockups needed
+- Clear visual hierarchy with the primary CTA above the fold
+- Professional layout that builds trust and drives conversions
+- Sections should follow the order in the Copy Bible (hero → problem → solution → proof → CTA)
+- Use whitespace generously — don't cram sections together
+- Images should match the imagery style from the Brand Kit
 
-    let prompt = header + whatSection + brandBlock
-
-    if (voiceSnippet) {
-      prompt += `\n\nBRAND VOICE:\n${voiceSnippet}`
-    }
-
-    prompt += `\n\nCOPY TO USE:\n${trimmedCopy}`
-
-    // Trim final to absolute max
-    if (prompt.length > VIBE_PROMPT_MAX_CHARS) {
-      prompt = prompt.slice(0, VIBE_PROMPT_MAX_CHARS - 3) + '...'
-    }
-
-    return prompt.trim()
+ATTACHMENTS PROVIDED:
+1. Brand Kit — colours, fonts, imagery direction, brand voice guide
+2. Copy Bible — approved copy for this specific ${typeLower} (use exactly as written)`.trim()
   }
 
   const handleGenerate = async (idx: number) => {
@@ -948,11 +944,10 @@ function PreProductionPrompts({
     setExpandedIdx(new Set(elements.map((_, i) => i)))
   }
 
-  const handleCopy = (idx: number) => {
-    const prompt = fieldValues.get(`pre-production:prompt_${idx}`) || ''
-    navigator.clipboard.writeText(prompt)
-    setCopiedIdx(idx)
-    setTimeout(() => setCopiedIdx(null), 2000)
+  const handleCopy = (text: string, field: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(null), 2000)
   }
 
   const generatedCount = elements.filter((_, i) => fieldValues.get(`pre-production:prompt_${i}`)).length
@@ -1028,25 +1023,64 @@ function PreProductionPrompts({
                 </div>
 
                 {isExpanded && (
-                  <div className="px-4 pb-4 pt-1 border-t border-stone-100 bg-stone-50/30">
+                  <div className="px-4 pb-4 pt-1 border-t border-stone-100 bg-stone-50/30 space-y-3">
                     {hasPrompt ? (
                       <>
-                        <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed bg-white border border-stone-200 rounded-lg p-3 max-h-80 overflow-y-auto">
-                          {prompt}
-                        </pre>
-                        <div className="flex gap-2 mt-2">
-                          <button
-                            onClick={() => handleCopy(idx)}
-                            className="text-xs px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-semibold transition-colors cursor-pointer"
-                          >
-                            {copiedIdx === idx ? '✓ Copied!' : 'Copy Prompt'}
-                          </button>
-                          <button
-                            onClick={() => handleGenerate(idx)}
-                            className="text-xs px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg font-medium transition-colors cursor-pointer"
-                          >
-                            Regenerate
-                          </button>
+                        {/* Prompt */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[10px] font-bold text-violet-600 uppercase tracking-wider">1. Prompt</span>
+                            <div className="flex gap-1.5">
+                              <button
+                                onClick={() => handleCopy(prompt, `prompt-${idx}`)}
+                                className="text-[10px] px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded font-semibold transition-colors cursor-pointer"
+                              >
+                                {copiedField === `prompt-${idx}` ? '✓ Copied' : 'Copy'}
+                              </button>
+                              <button
+                                onClick={() => handleGenerate(idx)}
+                                className="text-[10px] px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded font-medium transition-colors cursor-pointer"
+                              >
+                                Regen
+                              </button>
+                            </div>
+                          </div>
+                          <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed bg-white border border-stone-200 rounded-lg p-3 max-h-48 overflow-y-auto">
+                            {prompt}
+                          </pre>
+                        </div>
+
+                        {/* Attachments */}
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Brand Kit attachment */}
+                          <div className="border border-pink-200 bg-pink-50/30 rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] font-bold text-pink-600 uppercase tracking-wider">2. Brand Kit</span>
+                              <button
+                                onClick={() => handleCopy(buildBrandAttachment(), `brand-${idx}`)}
+                                className="text-[10px] px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded font-semibold transition-colors cursor-pointer"
+                              >
+                                {copiedField === `brand-${idx}` ? '✓ Copied' : 'Copy'}
+                              </button>
+                            </div>
+                            <p className="text-[10px] text-stone-500">Colours, fonts, imagery, brand voice — paste as attachment in Vibe</p>
+                          </div>
+
+                          {/* Copy Bible attachment */}
+                          <div className="border border-amber-200 bg-amber-50/30 rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">3. Copy Bible</span>
+                              <button
+                                onClick={() => handleCopy(el.pageText || 'No copy bible text found for this element.', `copy-${idx}`)}
+                                className="text-[10px] px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-semibold transition-colors cursor-pointer"
+                              >
+                                {copiedField === `copy-${idx}` ? '✓ Copied' : 'Copy'}
+                              </button>
+                            </div>
+                            <p className="text-[10px] text-stone-500">
+                              {el.pageText ? `${el.pageText.length.toLocaleString()} chars of approved copy` : 'No copy found — check Copy Bible stage'}
+                            </p>
+                          </div>
                         </div>
                       </>
                     ) : (
