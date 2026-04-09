@@ -3637,12 +3637,12 @@ function ProductionActions({
                   const isExpanded = expandedGenTasks.has(idx)
                   const roleMeta = ROLE_META[task.role]
                   const STAGE_TAG_COLORS: Record<string, string> = {
-                    awareness: 'bg-blue-100 text-blue-700',
-                    engagement: 'bg-purple-100 text-purple-700',
-                    conversion: 'bg-green-100 text-green-700',
-                    delivery: 'bg-amber-100 text-amber-700',
-                    retention: 'bg-rose-100 text-rose-700',
-                    custom: 'bg-stone-100 text-stone-600',
+                    awareness: 'bg-blue-200 text-blue-900 border border-blue-300',
+                    engagement: 'bg-purple-200 text-purple-900 border border-purple-300',
+                    conversion: 'bg-green-200 text-green-900 border border-green-300',
+                    delivery: 'bg-amber-200 text-amber-900 border border-amber-300',
+                    retention: 'bg-rose-200 text-rose-900 border border-rose-300',
+                    custom: 'bg-stone-200 text-stone-700 border border-stone-300',
                   }
 
                   if (isRemoved) {
@@ -3664,7 +3664,7 @@ function ProductionActions({
                           setExpandedGenTasks(next)
                         }}
                       >
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${STAGE_TAG_COLORS[task.tag] || STAGE_TAG_COLORS.custom}`}>
+                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-md whitespace-nowrap ${STAGE_TAG_COLORS[task.tag] || STAGE_TAG_COLORS.custom}`}>
                           {task.tag.toUpperCase()}
                         </span>
                         <span className="text-sm font-medium text-stone-800 flex-1">{task.name}</span>
@@ -4075,8 +4075,8 @@ function ProductionActions({
                               {task.tags.map(tag => (
                                 <span
                                   key={tag.name}
-                                  className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                                  style={{ backgroundColor: tag.tag_bg, color: tag.tag_fg }}
+                                  className="text-[10px] px-2.5 py-1 rounded-md font-bold whitespace-nowrap"
+                                  style={{ backgroundColor: tag.tag_bg, color: tag.tag_fg, border: `1px solid ${tag.tag_fg}30` }}
                                 >
                                   {tag.name}
                                 </span>
