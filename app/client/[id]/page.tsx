@@ -104,6 +104,7 @@ function StagePanel({
   actionSlot,
   actionSlotFullWidth,
   timelineStart,
+  clientPackage,
 }: {
   stage: StageDefinition
   isActive: boolean
@@ -120,6 +121,7 @@ function StagePanel({
   actionSlot?: React.ReactNode
   actionSlotFullWidth?: boolean
   timelineStart?: string | null
+  clientPackage?: string
 }) {
   const [expanded, setExpanded] = useState(isCurrent)
 
@@ -179,7 +181,7 @@ function StagePanel({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-stone-900 text-sm sm:text-base">{stage.name}</span>
+            <span className="font-semibold text-stone-900 text-sm sm:text-base">{stage.key === 'funnel-strategy' && clientPackage === 'ads-email-social' ? 'Media Strategy' : stage.name}</span>
             {isCurrent && (
               <span className="text-xs font-semibold text-[#B45309] bg-[rgba(180,83,9,0.06)] px-2 py-0.5 rounded-full">
                 CURRENT
@@ -5394,15 +5396,51 @@ function FunnelStrategyActions({
     await onSaveField('funnel-strategy', 'funnel_selections', JSON.stringify(updatedSelections))
   }
 
-  // Group elements by funnel stage
+  // Group elements by funnel stage or by channel for ads-email-social
+  const isAdsPackage = client.package === 'ads-email-social'
+
+  const getChannelGroup = (type: string): string => {
+    const t = type.toLowerCase()
+    if (t.includes('meta ads') || t.includes('google ads') || t.includes('retargeting') || t.includes('campaign') && (t.includes('ad') || t.includes('paid'))) return 'paid-media'
+    if (t.includes('email') || t.includes('newsletter') || t.includes('nurture') || t.includes('welcome sequence') || t.includes('win-back') || t.includes('abandoned') || t.includes('post-purchase')) return 'email'
+    if (t.includes('social') || t.includes('reel') || t.includes('carousel') || t.includes('story') || t.includes('content pillar') || t.includes('content calendar') || t.includes('ugc') || t.includes('influencer')) return 'social'
+    return 'other'
+  }
+
+  const CHANNEL_LABELS: Record<string, { label: string; color: string; bg: string; border: string }> = {
+    'paid-media': { label: 'Paid Media', color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
+    'social': { label: 'Social', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
+    'email': { label: 'Email', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+    'other': { label: 'Other', color: 'text-stone-700', bg: 'bg-stone-50', border: 'border-stone-200' },
+  }
+
+  const awarenessOrder = ['awareness', 'engagement', 'conversion', 'delivery', 'retention']
+
   const stageOrder = ['awareness', 'engagement', 'conversion', 'delivery', 'retention']
-  const grouped = stageOrder.map(stage => ({
-    stage,
-    items: elements
-      .map((el, idx) => ({ ...el, originalIdx: idx }))
-      .filter(el => el.funnel_stage === stage)
-      .sort((a, b) => a.priority - b.priority),
-  })).filter(g => g.items.length > 0)
+
+  const grouped = isAdsPackage
+    ? ['paid-media', 'social', 'email', 'other'].map(channel => ({
+        stage: channel,
+        items: elements
+          .map((el, idx) => ({ ...el, originalIdx: idx }))
+          .filter(el => getChannelGroup(el.type) === channel)
+          .sort((a, b) => {
+            // Within paid-media and social, sort by awareness level
+            if (channel === 'paid-media' || channel === 'social') {
+              const aIdx = awarenessOrder.indexOf(a.funnel_stage)
+              const bIdx = awarenessOrder.indexOf(b.funnel_stage)
+              if (aIdx !== bIdx) return aIdx - bIdx
+            }
+            return a.priority - b.priority
+          }),
+      })).filter(g => g.items.length > 0)
+    : stageOrder.map(stage => ({
+        stage,
+        items: elements
+          .map((el, idx) => ({ ...el, originalIdx: idx }))
+          .filter(el => el.funnel_stage === stage)
+          .sort((a, b) => a.priority - b.priority),
+      })).filter(g => g.items.length > 0)
 
   const selectedElements = selections.map(i => elements[i]).filter(Boolean)
 
@@ -5429,12 +5467,12 @@ function FunnelStrategyActions({
               : 'bg-cyan-600 text-white hover:bg-cyan-700'
           }`}
         >
-          {elements.length > 0 ? 'Regenerate Suggestions' : !transcript && !profileText ? 'Complete Strategy Session first' : 'Generate Funnel Strategy'}
+          {elements.length > 0 ? 'Regenerate Suggestions' : !transcript && !profileText ? 'Complete Strategy Session first' : isAdsPackage ? 'Generate Media Strategy' : 'Generate Funnel Strategy'}
         </button>
       )}
       {generating && (
         <div className="text-center py-4">
-          <p className="text-sm text-cyan-600 animate-pulse">Analysing client data and generating tailored funnel elements...</p>
+          <p className="text-sm text-cyan-600 animate-pulse">{isAdsPackage ? 'Analysing client data and generating paid media, email, and social strategies...' : 'Analysing client data and generating tailored funnel elements...'}</p>
         </div>
       )}
 
@@ -5454,7 +5492,9 @@ function FunnelStrategyActions({
           </div>
 
           {grouped.map(({ stage, items }) => {
-            const stageInfo = STAGE_LABELS[stage] || { label: stage, color: 'text-stone-700', bg: 'bg-stone-50', border: 'border-stone-200' }
+            const stageInfo = isAdsPackage
+              ? (CHANNEL_LABELS[stage] || { label: stage, color: 'text-stone-700', bg: 'bg-stone-50', border: 'border-stone-200' })
+              : (STAGE_LABELS[stage] || { label: stage, color: 'text-stone-700', bg: 'bg-stone-50', border: 'border-stone-200' })
             return (
               <div key={stage}>
                 <div className={`text-xs font-bold uppercase tracking-wider ${stageInfo.color} mb-2 flex items-center gap-2`}>
@@ -5485,6 +5525,9 @@ function FunnelStrategyActions({
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
                                 <span className="text-xs text-stone-300">#{el.priority}</span>
+                                {isAdsPackage && (stage === 'paid-media' || stage === 'social') && el.funnel_stage && (
+                                  <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500">{el.funnel_stage}</span>
+                                )}
                               </div>
                               <p className="text-sm font-semibold text-stone-800 mt-0.5">{el.topic}</p>
                               <p className="text-xs text-stone-500 mt-1 leading-relaxed">{el.description}</p>
@@ -6610,6 +6653,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                 canAdvance={allDone && !!nextStageKey && !(stage.key === 'awaiting-review' && fieldValues.get('awaiting-review:proposal_status') === 'Declined')}
                 nextStageName={nextStage?.name || 'Next'}
                 timelineStart={fieldValues.get('timeline:start_date') || null}
+                clientPackage={client.package}
                 actionSlot={
                   stage.key === 'discovery' ? (
                     <DiscoveryActions
