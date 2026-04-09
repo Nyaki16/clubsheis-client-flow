@@ -5414,9 +5414,17 @@ function FunnelStrategyActions({
     'other': { label: 'Other', color: 'text-stone-700', bg: 'bg-stone-50', border: 'border-stone-200' },
   }
 
-  const awarenessOrder = ['awareness', 'engagement', 'conversion', 'delivery', 'retention']
+  const awarenessOrder = ['unaware', 'problem-aware', 'solution-aware', 'product-aware', 'most-aware']
 
   const stageOrder = ['awareness', 'engagement', 'conversion', 'delivery', 'retention']
+
+  const AWARENESS_LABELS: Record<string, string> = {
+    'unaware': 'Unaware',
+    'problem-aware': 'Problem Aware',
+    'solution-aware': 'Solution Aware',
+    'product-aware': 'Product Aware',
+    'most-aware': 'Most Aware',
+  }
 
   const grouped = isAdsPackage
     ? ['paid-media', 'social', 'email', 'other'].map(channel => ({
@@ -5526,7 +5534,7 @@ function FunnelStrategyActions({
                                 <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
                                 <span className="text-xs text-stone-300">#{el.priority}</span>
                                 {isAdsPackage && (stage === 'paid-media' || stage === 'social') && el.funnel_stage && (
-                                  <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500">{el.funnel_stage}</span>
+                                  <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500">{AWARENESS_LABELS[el.funnel_stage] || el.funnel_stage}</span>
                                 )}
                               </div>
                               <p className="text-sm font-semibold text-stone-800 mt-0.5">{el.topic}</p>

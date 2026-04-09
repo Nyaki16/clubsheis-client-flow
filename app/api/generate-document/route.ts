@@ -465,33 +465,76 @@ Return ONLY the JSON array. No other text.`,
 
   'funnel-strategy-ads': `You are a senior digital marketing strategist for ClubSheIs, a digital marketing and content production agency in South Africa.
 
-YOUR JOB: This client is on the Ads + Email + Social package. Instead of a funnel build, you need to create a comprehensive PAID ADS, EMAIL MARKETING, and SOCIAL MEDIA STRATEGY tailored to this client's business, audience, and goals.
-
-Analyse the Client Profile, Research Bible, and Brand Voice to recommend specific campaigns, content themes, and strategies across all three channels.
-
-Be SPECIFIC. Not "run Facebook ads" — instead "META Awareness Campaign: Video ads showcasing client transformations targeting women 30-45 in Gauteng interested in leadership development". Not "send newsletters" — instead "Weekly Newsletter: Monday Momentum — 3 actionable business tips + 1 client spotlight + CTA to book a discovery call".
+YOUR JOB: Create a complete PAID ADS, SOCIAL MEDIA, and EMAIL NEWSLETTER strategy for this client based on their Client Profile, Research Bible, and Brand Voice.
 
 You MUST respond with ONLY a valid JSON array. No markdown, no explanation, no text before or after. Just the JSON array.
 
 Each element in the array must have these exact fields:
 {
-  "type": "The channel type — use: META Ads Campaign, META Retargeting Campaign, Email Newsletter, Email Automation Sequence, Email Welcome Sequence, Social Content Pillar, Social Reel Series, Social Carousel Series, Social Story Series, Lead Nurture Sequence, Win-Back Sequence, Abandoned Cart Sequence, Post-Purchase Sequence, Content Calendar Theme, Influencer Collaboration, UGC Campaign. NEVER use Google Ads — we only run META (Facebook/Instagram) ads.",
-  "topic": "The specific campaign name or content theme tailored to this client",
-  "description": "2-3 sentences explaining the strategy — what it does, who it targets, and the expected outcome",
-  "email_note": "How this connects to the other channels (e.g. 'Leads from this ad campaign feed into the welcome sequence' or 'Social content repurposed from newsletter topics')",
-  "funnel_stage": "One of: awareness, engagement, conversion, delivery, retention",
-  "reasoning": "1-2 sentences on why this specific strategy suits this client based on their audience, offers, and market position",
+  "type": "The element type (see rules below for exact types per channel)",
+  "topic": "The specific campaign name, content topic, or newsletter theme tailored to this client",
+  "description": "2-3 sentences explaining what this is, who it targets, and the expected outcome. For META ads, explain the ad format in detail (e.g. 'Single image ad with bold headline overlay, before/after split, client testimonial quote as text overlay — designed for feed placement'). For social content, explain the format clearly so a content creator can produce it (e.g. 'Talking-head Reel, 30-60 seconds, direct to camera with text overlay of key points'). For newsletters, explain the structure and sections.",
+  "email_note": "How this connects to the other channels (e.g. 'Leads from this ad feed into the welcome sequence' or 'Top-performing social content repurposed as newsletter sections')",
+  "funnel_stage": "One of Eugene Schwartz's 5 Levels of Awareness: unaware, problem-aware, solution-aware, product-aware, most-aware",
+  "reasoning": "1-2 sentences on why this specific strategy suits this client",
   "priority": A number from 1-N indicating implementation order (1 = implement first)
 }
 
+=== SECTION 1: META ADS (exactly 10 elements) ===
+Generate exactly 10 META ad campaigns spread across ALL 5 levels of awareness (2 per level):
+- unaware: Ads that interrupt the scroll and introduce a problem they didn't know they had. Educational/curiosity-driven.
+- problem-aware: Ads that agitate the pain point and position the client as someone who understands it.
+- solution-aware: Ads that show the solution exists and this client delivers it. Social proof, case studies, results.
+- product-aware: Ads that present the specific offer/product with details, pricing, and urgency.
+- most-aware: Retargeting ads for warm audiences — testimonials, reminders, limited-time offers, abandoned cart.
+
+Each ad MUST use a DIFFERENT format. Use these META ad formats (each ad must be unique):
+1. Single Image Ad (feed)
+2. Video Ad — Talking Head / Direct to Camera
+3. Carousel Ad (swipeable slides)
+4. Video Ad — B-Roll / Lifestyle Montage
+5. Story/Reel Ad — Vertical Full-Screen
+6. Before & After / Transformation Ad
+7. UGC-Style Testimonial Ad
+8. Text-Heavy Quote/Statement Ad
+9. Behind-the-Scenes Video Ad
+10. Slideshow / Motion Graphics Ad
+
+Type must be "META Ads Campaign" for all 10.
+
+=== SECTION 2: SOCIAL CONTENT (exactly 20 elements) ===
+Generate exactly 20 pieces of social content — a full month content plan distributed across all platforms (Instagram, Facebook, LinkedIn, TikTok as relevant to the client).
+
+Mix of formats:
+- Reels (short-form video, 15-60 seconds) — at least 6
+- Carousels (swipeable educational/storytelling slides) — at least 4
+- Static posts (single image with caption) — at least 4
+- Stories (ephemeral, polls, Q&A, behind-the-scenes) — at least 3
+- Text/thought-leadership posts (LinkedIn-style) — at least 2
+- Live or long-form video — at least 1
+
+Each piece must have a specific topic, not generic. Describe the format clearly enough that a content creator can produce it without additional briefing.
+
+Spread across awareness levels. Type must describe the format, e.g. "Social Reel", "Social Carousel", "Social Static Post", "Social Story", "Social Text Post", "Social Live".
+
+=== SECTION 3: EMAIL NEWSLETTERS (exactly 4 elements) ===
+Generate exactly 4 email newsletters — one per week for the month.
+
+Each newsletter should have:
+- A specific theme/topic that ties into what's happening on social and ads that week
+- A clear structure (e.g. "Personal story opener → 3 tips → CTA to book/buy")
+- Content that nurtures the relationship and drives toward the client's main offer
+
+Type must be "Email Newsletter" for all 4.
+
+=== TOTAL: exactly 34 elements (10 META + 20 Social + 4 Email) ===
+
 IMPORTANT RULES:
-- Recommend 8-15 elements across ALL THREE channels (ads, email, social) — ensure balanced coverage
-- Include at least 2-3 paid ad campaigns, 2-3 email sequences/newsletters, and 3-4 social content strategies
-- Every element MUST have a specific, tailored topic — never generic
-- Show how the channels work TOGETHER (ads drive leads → email nurtures → social builds community)
-- Consider the client's budget and audience behaviour on each platform
-- Priority ordering should reflect what creates the most impact soonest
-- Think about the client's existing audience vs new audience acquisition
+- NEVER use Google Ads — we ONLY run META (Facebook/Instagram) ads
+- Every element must be specific and tailored to this client — never generic
+- Show how channels work together (ads drive traffic → social builds trust → email converts)
+- Priority ordering: 1-10 for META ads, 11-30 for social content, 31-34 for newsletters
+- All content must be appropriate for a South African audience
 
 Return ONLY the JSON array. No other text.`,
 
@@ -901,7 +944,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email') ? 32000 : (documentType === 'funnel-strategy' || documentType === 'funnel-strategy-ads' || documentType === 'funnel-map' || documentType === 'qa-report' || documentType === 'handover-doc') ? 8000 : 16000,
+        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email') ? 32000 : documentType === 'funnel-strategy-ads' ? 16000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map' || documentType === 'qa-report' || documentType === 'handover-doc') ? 8000 : 16000,
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),
