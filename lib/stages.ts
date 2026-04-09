@@ -17,10 +17,10 @@ export const ADS_EMAIL_SOCIAL_TRACKS = [
 
 export const PACKAGE_BRANCHES: Record<string, string[]> = {
   'ghutte-only': [],
-  'page-build': ['funnel-map', 'copy-bible', 'brand-bible', 'production'],
-  'content-day': ['funnel-map', 'copy-bible', 'brand-bible', 'production', 'content-production'],
-  'ads-email-social': ['funnel-map', 'copy-bible', 'brand-bible', 'production', 'ads-email-social'],
-  'full-build': ['funnel-map', 'copy-bible', 'brand-bible', 'production'],
+  'page-build': ['funnel-map', 'copy-bible', 'brand-bible', 'pre-production', 'production'],
+  'content-day': ['funnel-map', 'copy-bible', 'brand-bible', 'pre-production', 'production', 'content-production'],
+  'ads-email-social': ['funnel-map', 'copy-bible', 'brand-bible', 'pre-production', 'production', 'ads-email-social'],
+  'full-build': ['funnel-map', 'copy-bible', 'brand-bible', 'pre-production', 'production'],
 }
 
 export const STAGES: StageDefinition[] = [
@@ -308,6 +308,29 @@ export const STAGES: StageDefinition[] = [
       { condition: 'Brand Bible complete', result: 'Move to production stages' },
     ],
     nextActionPrompt: 'Complete the Brand Bible — connect Canva or build from scratch — then move to production.',
+  },
+  {
+    key: 'pre-production',
+    num: '6C',
+    name: 'Pre-Production Prompts',
+    summary: 'Generate detailed AI prompts for each funnel element using the Brand Bible and Copy Bible. Each prompt is ready to paste into Ghutte\'s Vibe builder to create pages, emails, and assets on-brand.',
+    color: '#7C3AED',
+    colorSoft: 'rgba(124,58,237,0.06)',
+    triggerLabel: 'Trigger: Brand Bible + Copy Bible complete',
+    triggerColor: 'violet',
+    guide: [
+      'Each funnel element from the Implementation Plan gets its own AI prompt.',
+      'Prompts combine the Brand Bible (colours, fonts, imagery) with the Copy Bible (headlines, body, CTAs) for that element.',
+      'Prompts are optimised for Ghutte\'s Vibe coding builder — detailed but within the character limit.',
+      'Review each prompt before using it — tweak if the element needs a specific layout or feature.',
+      'Copy the prompt and paste it directly into Vibe to generate the page or asset.',
+    ],
+    substeps: [],
+    dataFields: [],
+    conditionalLogic: [
+      { condition: 'All prompts generated and reviewed', result: 'Move to Production' },
+    ],
+    nextActionPrompt: 'Generate prompts for each element, then move to Production.',
   },
   {
     key: 'production',
@@ -602,7 +625,7 @@ export function getActiveStagesForPackage(pkg: string): string[] {
 
   // Full Build: funnel map, copy bible, brand bible, production, no retainer
   if (pkg === 'full-build') {
-    return [...core, 'funnel-map', 'copy-bible', 'brand-bible', 'production', 'internal-check', 'handover', 'wrapup']
+    return [...core, 'funnel-map', 'copy-bible', 'brand-bible', 'pre-production', 'production', 'internal-check', 'handover', 'wrapup']
   }
 
   return [

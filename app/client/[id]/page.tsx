@@ -824,6 +824,260 @@ function OnboardingActions({
   )
 }
 
+// ── Pre-Production Prompts — AI prompts for Ghutte Vibe builder ──
+const VIBE_PROMPT_MAX_CHARS = 4000
+
+function PreProductionPrompts({
+  client,
+  fieldValues,
+  onSaveField,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+}) {
+  const [generating, setGenerating] = useState<number | null>(null)
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [expandedIdx, setExpandedIdx] = useState<Set<number>>(new Set())
+
+  // Load funnel elements
+  const funnelJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
+  const selectionsRaw = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
+  const extrasRaw = fieldValues.get('implementation-plan:extra_elements') || '[]'
+
+  let allElements: FunnelElement[] = []
+  try { if (funnelJson) allElements = JSON.parse(funnelJson) } catch {}
+  let selectedIndices: number[] = []
+  try { selectedIndices = JSON.parse(selectionsRaw) } catch {}
+  let extras: { type: string; topic: string }[] = []
+  try { extras = JSON.parse(extrasRaw) } catch {}
+
+  const selectedElements = selectedIndices.map(i => allElements[i]).filter(Boolean)
+
+  // Build element list with copy bible text
+  const elements = selectedElements.map((el, i) => ({
+    type: el.type,
+    topic: el.topic,
+    description: el.description,
+    email_note: el.email_note || '',
+    pageText: fieldValues.get(`copy-bible:element_${i}_page_text`) || '',
+    emailText: fieldValues.get(`copy-bible:element_${i}_email_text`) || '',
+    index: i,
+  }))
+
+  // Add extras
+  extras.forEach((ex, i) => {
+    elements.push({
+      type: ex.type,
+      topic: ex.topic,
+      description: '',
+      email_note: '',
+      pageText: '',
+      emailText: '',
+      index: selectedElements.length + i,
+    })
+  })
+
+  // Brand data
+  const primaryColor = fieldValues.get('brand-bible:primary_color') || ''
+  const secondaryColor = fieldValues.get('brand-bible:secondary_color') || ''
+  const accentColor = fieldValues.get('brand-bible:accent_color') || ''
+  const primaryFont = fieldValues.get('brand-bible:primary_font') || fieldValues.get('brand-bible:heading_font') || ''
+  const secondaryFont = fieldValues.get('brand-bible:secondary_font') || fieldValues.get('brand-bible:body_font') || ''
+  const imageryStyle = fieldValues.get('brand-bible:imagery_style') || fieldValues.get('brand-bible:imagery_tags') || ''
+  const brandTone = fieldValues.get('brand-bible:brand_tone') || ''
+  const brandVoice = fieldValues.get('strategy:brand_voice_text') || ''
+
+  const buildPrompt = (el: typeof elements[0]): string => {
+    const brandSection = [
+      primaryColor && `Primary colour: ${primaryColor}`,
+      secondaryColor && `Secondary colour: ${secondaryColor}`,
+      accentColor && `Accent colour: ${accentColor}`,
+      primaryFont && `Heading font: ${primaryFont}`,
+      secondaryFont && `Body font: ${secondaryFont}`,
+      imageryStyle && `Imagery style: ${imageryStyle}`,
+      brandTone && `Brand tone: ${brandTone}`,
+    ].filter(Boolean).join('\n')
+
+    const voiceSnippet = brandVoice ? brandVoice.slice(0, 500) : ''
+
+    let prompt = `Build a ${el.type.toLowerCase()} for "${el.topic}".
+
+WHAT THIS PAGE DOES:
+${el.description || `A ${el.type.toLowerCase()} about ${el.topic}.`}
+
+BRAND GUIDELINES:
+${brandSection || 'Use a clean, modern design with professional colours and readable fonts.'}
+${voiceSnippet ? `\nBRAND VOICE:\n${voiceSnippet}` : ''}
+
+COPY TO USE:
+${el.pageText || `Write compelling copy for a ${el.type.toLowerCase()} about ${el.topic}. Include a strong headline, supporting body text, social proof, and a clear CTA.`}
+`
+
+    if (el.emailText || el.email_note) {
+      prompt += `
+CONNECTED EMAIL SEQUENCE:
+${el.emailText || el.email_note || 'Include a follow-up email sequence triggered by this page.'}
+`
+    }
+
+    prompt += `
+REQUIREMENTS:
+- Mobile responsive design
+- Fast loading, no unnecessary animations
+- Clear visual hierarchy with one primary CTA above the fold
+- Use the exact brand colours, fonts, and imagery style above
+- Professional layout that builds trust and drives conversions
+`
+
+    // Trim to max chars
+    if (prompt.length > VIBE_PROMPT_MAX_CHARS) {
+      prompt = prompt.slice(0, VIBE_PROMPT_MAX_CHARS - 3) + '...'
+    }
+
+    return prompt.trim()
+  }
+
+  const handleGenerate = async (idx: number) => {
+    const el = elements[idx]
+    const prompt = buildPrompt(el)
+    await onSaveField('pre-production', `prompt_${idx}`, prompt)
+    setExpandedIdx(prev => { const next = new Set(prev); next.add(idx); return next })
+  }
+
+  const handleGenerateAll = async () => {
+    for (let i = 0; i < elements.length; i++) {
+      setGenerating(i)
+      const prompt = buildPrompt(elements[i])
+      await onSaveField('pre-production', `prompt_${i}`, prompt)
+    }
+    setGenerating(null)
+    setExpandedIdx(new Set(elements.map((_, i) => i)))
+  }
+
+  const handleCopy = (idx: number) => {
+    const prompt = fieldValues.get(`pre-production:prompt_${idx}`) || ''
+    navigator.clipboard.writeText(prompt)
+    setCopiedIdx(idx)
+    setTimeout(() => setCopiedIdx(null), 2000)
+  }
+
+  const generatedCount = elements.filter((_, i) => fieldValues.get(`pre-production:prompt_${i}`)).length
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          </div>
+          <div>
+            <h3 className="font-semibold text-stone-800">Vibe Prompts</h3>
+            <p className="text-xs text-stone-500">{generatedCount}/{elements.length} prompts generated · max {VIBE_PROMPT_MAX_CHARS.toLocaleString()} chars each</p>
+          </div>
+        </div>
+        {elements.length > 0 && (
+          <button
+            onClick={handleGenerateAll}
+            disabled={generating !== null}
+            className="text-xs px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-semibold transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {generating !== null ? `Generating ${generating + 1}/${elements.length}...` : generatedCount > 0 ? 'Regenerate All' : 'Generate All Prompts'}
+          </button>
+        )}
+      </div>
+
+      {/* No elements */}
+      {elements.length === 0 && (
+        <div className="text-center py-6 border border-dashed border-stone-300 rounded-lg bg-stone-50">
+          <p className="text-sm text-stone-500">No funnel elements found</p>
+          <p className="text-xs text-stone-400 mt-1">Complete the Funnel Strategy and Implementation Plan first</p>
+        </div>
+      )}
+
+      {/* Element prompts */}
+      {elements.length > 0 && (
+        <div className="space-y-2">
+          {elements.map((el, idx) => {
+            const prompt = fieldValues.get(`pre-production:prompt_${idx}`) || ''
+            const isExpanded = expandedIdx.has(idx)
+            const hasPrompt = !!prompt
+
+            return (
+              <div key={idx} className={`border rounded-lg overflow-hidden ${hasPrompt ? 'border-violet-200' : 'border-stone-200'}`}>
+                <div
+                  className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-stone-50/50 transition-colors"
+                  onClick={() => {
+                    const next = new Set(expandedIdx)
+                    isExpanded ? next.delete(idx) : next.add(idx)
+                    setExpandedIdx(next)
+                  }}
+                >
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${hasPrompt ? 'bg-violet-100 text-violet-700' : 'bg-stone-100 text-stone-400'}`}>
+                    {hasPrompt ? '✓' : idx + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-stone-800">{el.type}: {el.topic}</span>
+                  </div>
+                  {hasPrompt && (
+                    <span className="text-[10px] text-stone-400">{prompt.length.toLocaleString()} chars</span>
+                  )}
+                  {!hasPrompt && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleGenerate(idx) }}
+                      className="text-[10px] px-2 py-1 bg-violet-100 text-violet-700 rounded font-medium hover:bg-violet-200 cursor-pointer"
+                    >
+                      Generate
+                    </button>
+                  )}
+                  <svg className={`w-3 h-3 text-stone-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </div>
+
+                {isExpanded && (
+                  <div className="px-4 pb-4 pt-1 border-t border-stone-100 bg-stone-50/30">
+                    {hasPrompt ? (
+                      <>
+                        <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed bg-white border border-stone-200 rounded-lg p-3 max-h-80 overflow-y-auto">
+                          {prompt}
+                        </pre>
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => handleCopy(idx)}
+                            className="text-xs px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-semibold transition-colors cursor-pointer"
+                          >
+                            {copiedIdx === idx ? '✓ Copied!' : 'Copy Prompt'}
+                          </button>
+                          <button
+                            onClick={() => handleGenerate(idx)}
+                            className="text-xs px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg font-medium transition-colors cursor-pointer"
+                          >
+                            Regenerate
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-4">
+                        <p className="text-xs text-stone-400">No prompt generated yet</p>
+                        <button
+                          onClick={() => handleGenerate(idx)}
+                          className="mt-2 text-xs px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-semibold cursor-pointer"
+                        >
+                          Generate Prompt
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Wordpass — Password Keeper for Tech Onboarding ──
 type WordpassEntry = {
   service: string
@@ -5983,6 +6237,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
             'discovery': { label: 'Onboarding', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
             'strategy': { label: 'Planning & Strategy', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
             'funnel-map': { label: 'Pre-Production', color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
+            'pre-production': { label: 'Vibe Prompts', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
             'production': { label: 'Production', color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
             'internal-check': { label: 'Delivery and Hand Over', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
           }
@@ -6095,6 +6350,12 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       onSaveField={handleSaveField}
                       onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
                     />
+                  ) : stage.key === 'pre-production' ? (
+                    <PreProductionPrompts
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                    />
                   ) : stage.key === 'production' ? (
                     <ProductionActions
                       client={client}
@@ -6115,7 +6376,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                     />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'tech-onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'production' || stage.key === 'internal-check' || stage.key === 'handover'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'tech-onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'pre-production' || stage.key === 'production' || stage.key === 'internal-check' || stage.key === 'handover'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">
