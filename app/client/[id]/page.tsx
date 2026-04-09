@@ -93,6 +93,7 @@ function StagePanel({
   isActive,
   isCurrent,
   isCompleted,
+  hasWarning,
   completions,
   fieldValues,
   onToggleSubstep,
@@ -107,6 +108,7 @@ function StagePanel({
   isActive: boolean
   isCurrent: boolean
   isCompleted: boolean
+  hasWarning: boolean
   completions: Map<string, boolean>
   fieldValues: Map<string, string>
   onToggleSubstep: (stageKey: string, index: number, completed: boolean) => void
@@ -124,12 +126,14 @@ function StagePanel({
   const allDone = completedCount === totalSubsteps && totalSubsteps > 0
 
   return (
-    <div className={`${!isActive && !isCompleted ? 'opacity-40 pointer-events-none' : ''}`}>
+    <div className={`${!isActive && !isCompleted && stage.key !== 'production' ? 'opacity-40 pointer-events-none' : ''}`}>
       {/* Header */}
       <div
         onClick={() => setExpanded(!expanded)}
         className={`flex items-center gap-4 p-4 sm:p-5 bg-white border rounded-xl cursor-pointer transition-all ${
-          isCurrent
+          hasWarning
+            ? 'border-orange-300 ring-1 ring-orange-100'
+            : isCurrent
             ? 'border-[rgba(180,83,9,0.4)] shadow-sm ring-1 ring-[rgba(180,83,9,0.1)]'
             : isCompleted
             ? 'border-green-200 bg-green-50/30'
@@ -140,13 +144,16 @@ function StagePanel({
         <div
           className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 relative"
           style={{
-            background: isCompleted ? 'rgba(22,163,74,0.08)' : stage.colorSoft,
-            color: isCompleted ? '#16A34A' : stage.color,
+            background: hasWarning ? 'rgba(234,88,12,0.1)' : isCompleted ? 'rgba(22,163,74,0.08)' : stage.colorSoft,
+            color: hasWarning ? '#EA580C' : isCompleted ? '#16A34A' : stage.color,
           }}
         >
           {stage.num}
-          {isCompleted && (
+          {isCompleted && !hasWarning && (
             <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold">✓</span>
+          )}
+          {hasWarning && (
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-orange-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold">!</span>
           )}
         </div>
 
@@ -182,7 +189,7 @@ function StagePanel({
       </div>
 
       {/* Expanded detail */}
-      {expanded && (isActive || isCompleted) && (
+      {expanded && (isActive || isCompleted || stage.key === 'production') && (
         <div className="bg-white border border-t-0 border-stone-200 rounded-b-xl -mt-1 p-4 sm:p-6 space-y-6">
           {/* Stage guide */}
           {stage.guide && stage.guide.length > 0 && (
@@ -2617,6 +2624,180 @@ interface ClickUpList { id: string; name: string }
 interface ClickUpFolder { id: string; name: string; lists: ClickUpList[] }
 interface ClickUpSpace { id: string; name: string; folders: ClickUpFolder[]; lists: ClickUpList[] }
 
+// ── Production Task Generation ──
+type TeamRole = 'designer' | 'developer' | 'copywriter' | 'account_manager'
+
+interface ProductionSubtask {
+  name: string
+  description: string
+  role: TeamRole
+}
+
+interface ProductionTask {
+  name: string
+  description: string
+  role: TeamRole
+  tag: string // funnel stage tag
+  subtasks: ProductionSubtask[]
+  elementType: string
+  elementTopic: string
+}
+
+const ROLE_META: Record<TeamRole, { label: string; icon: string; color: string; bg: string; border: string }> = {
+  designer: { label: 'Designer', icon: '🎨', color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
+  developer: { label: 'Developer', icon: '⚙️', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
+  copywriter: { label: 'Copywriter', icon: '✍️', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
+  account_manager: { label: 'Account Manager', icon: '📋', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
+}
+
+function generateProductionTasks(
+  elements: FunnelElement[],
+  extraElements: { type: string; topic: string }[],
+  clientName: string,
+): ProductionTask[] {
+  const tasks: ProductionTask[] = []
+
+  // Map element type to task breakdown
+  const getTasksForElement = (type: string, topic: string, description: string, funnelStage: string, emailNote?: string): ProductionTask[] => {
+    const typeLower = type.toLowerCase()
+    const elementTasks: ProductionTask[] = []
+
+    // Determine what kind of element this is
+    const isPage = ['landing page', 'sales page', 'opt-in page', 'checkout page', 'thank you page', 'lead magnet page', 'oto page', 'main product page', 'webinar registration', 'application page'].some(p => typeLower.includes(p))
+    const isEmail = ['email', 'sequence', 'automation', 'newsletter', 'welcome'].some(p => typeLower.includes(p))
+    const isAd = ['ad', 'campaign', 'meta ad', 'google ad', 'paid'].some(p => typeLower.includes(p))
+    const isSocial = ['social', 'reel', 'carousel', 'post', 'content'].some(p => typeLower.includes(p))
+    const isLeadMagnet = ['lead magnet', 'pdf', 'guide', 'checklist', 'cheat sheet', 'quiz', 'freebie', 'downloadable', 'ebook'].some(p => typeLower.includes(p))
+
+    if (isPage || (!isEmail && !isAd && !isSocial && !isLeadMagnet)) {
+      // PAGE BUILD tasks
+      elementTasks.push({
+        name: `${type}: ${topic}`,
+        description: `Build the ${type.toLowerCase()} — ${description}`,
+        role: 'developer',
+        tag: funnelStage,
+        elementType: type,
+        elementTopic: topic,
+        subtasks: [
+          { name: 'Write page copy from Copy Bible', description: `Pull approved copy for this ${type.toLowerCase()} from the Copy Bible. Adapt headlines, body, CTAs.`, role: 'copywriter' },
+          { name: 'Design page layout in Canva/Figma', description: `Design the page layout following the Brand Bible. Include hero, sections, CTA placement, mobile layout.`, role: 'designer' },
+          { name: 'Build page in Ghutte/platform', description: `Develop the page using approved design + copy. Set up forms, buttons, tracking pixels.`, role: 'developer' },
+          { name: 'Connect integrations', description: `Hook up form submissions, email triggers, payment links, tracking pixels, redirects.`, role: 'developer' },
+          { name: 'Mobile responsive check', description: `Test the page on mobile, tablet, and desktop. Fix any layout issues.`, role: 'developer' },
+          { name: 'QA review before client preview', description: `Review the finished page: copy accuracy, brand consistency, all links working, forms submitting.`, role: 'account_manager' },
+        ],
+      })
+    }
+
+    if (isEmail || emailNote) {
+      elementTasks.push({
+        name: `Email Sequence: ${topic}`,
+        description: emailNote || `Set up the email sequence connected to ${type}: ${topic}`,
+        role: 'copywriter',
+        tag: funnelStage,
+        elementType: type,
+        elementTopic: topic,
+        subtasks: [
+          { name: 'Write email copy from Copy Bible', description: `Pull approved email copy. Write subject lines, preview text, body, CTAs for each email in the sequence.`, role: 'copywriter' },
+          { name: 'Design email template', description: `Create branded email template following Brand Bible. Header, footer, CTA button styles.`, role: 'designer' },
+          { name: 'Build emails in platform', description: `Set up emails in the email platform. Add copy, design, links, merge tags.`, role: 'developer' },
+          { name: 'Set up automation triggers', description: `Configure triggers: form submission, tag added, time delay, conditional splits.`, role: 'developer' },
+          { name: 'Test email deliverability', description: `Send test emails. Check rendering across Gmail, Outlook, Apple Mail. Verify links and tracking.`, role: 'developer' },
+          { name: 'QA email sequence end-to-end', description: `Trigger the full sequence as a test contact. Verify timing, content, links, unsubscribe.`, role: 'account_manager' },
+        ],
+      })
+    }
+
+    if (isAd) {
+      elementTasks.push({
+        name: `Ad Campaign: ${topic}`,
+        description: description,
+        role: 'account_manager',
+        tag: funnelStage,
+        elementType: type,
+        elementTopic: topic,
+        subtasks: [
+          { name: 'Define campaign objective & budget', description: `Set campaign goal (traffic, conversions, leads), daily/lifetime budget, schedule.`, role: 'account_manager' },
+          { name: 'Build audience targeting', description: `Create audiences: interests, lookalikes, retargeting, exclusions.`, role: 'account_manager' },
+          { name: 'Write ad copy variations', description: `Write 3-5 headline variations, primary text, descriptions, CTAs from Copy Bible.`, role: 'copywriter' },
+          { name: 'Design ad creatives', description: `Create image/video ad creatives in multiple formats (1:1, 9:16, 16:9) per Brand Bible.`, role: 'designer' },
+          { name: 'Set up campaign in ad platform', description: `Build the campaign structure: campaign → ad set → ads. Configure tracking pixel, conversions.`, role: 'developer' },
+          { name: 'Creative Director sign-off', description: `Review all ad creative and copy before launch. Check brand alignment and messaging.`, role: 'account_manager' },
+        ],
+      })
+    }
+
+    if (isSocial) {
+      elementTasks.push({
+        name: `Social Content: ${topic}`,
+        description: description,
+        role: 'copywriter',
+        tag: funnelStage,
+        elementType: type,
+        elementTopic: topic,
+        subtasks: [
+          { name: 'Build content calendar', description: `Plan posts for the month: topics, formats (carousel, reel, static), posting schedule.`, role: 'account_manager' },
+          { name: 'Write captions', description: `Write captions for each post. Include hooks, body, CTAs, hashtags.`, role: 'copywriter' },
+          { name: 'Design visuals', description: `Create post visuals: carousel slides, cover images, story templates per Brand Bible.`, role: 'designer' },
+          { name: 'Client batch review', description: `Send full content batch to client for approval before scheduling.`, role: 'account_manager' },
+          { name: 'Schedule posts', description: `Schedule approved content in scheduling tool. Double-check dates, times, captions.`, role: 'developer' },
+        ],
+      })
+    }
+
+    if (isLeadMagnet && !isPage) {
+      elementTasks.push({
+        name: `Lead Magnet: ${topic}`,
+        description: description,
+        role: 'designer',
+        tag: funnelStage,
+        elementType: type,
+        elementTopic: topic,
+        subtasks: [
+          { name: 'Write lead magnet content', description: `Write the content for the ${type.toLowerCase()}: sections, tips, frameworks, CTAs.`, role: 'copywriter' },
+          { name: 'Design lead magnet in Canva', description: `Design the ${type.toLowerCase()} following Brand Bible: cover, layout, typography, imagery.`, role: 'designer' },
+          { name: 'Export and upload', description: `Export as PDF, upload to delivery platform, set up download link.`, role: 'developer' },
+          { name: 'Connect to opt-in flow', description: `Link the lead magnet to the opt-in page form + email automation for delivery.`, role: 'developer' },
+        ],
+      })
+    }
+
+    // If nothing matched (generic element), create a generic task
+    if (elementTasks.length === 0) {
+      elementTasks.push({
+        name: `${type}: ${topic}`,
+        description: description || `Complete the ${type.toLowerCase()} deliverable for ${clientName}.`,
+        role: 'account_manager',
+        tag: funnelStage,
+        elementType: type,
+        elementTopic: topic,
+        subtasks: [
+          { name: 'Write copy/content', description: `Create the copy or content needed for this deliverable.`, role: 'copywriter' },
+          { name: 'Design assets', description: `Design any visual assets needed.`, role: 'designer' },
+          { name: 'Build/implement', description: `Build or implement the deliverable in the platform.`, role: 'developer' },
+          { name: 'QA and review', description: `Review the deliverable against brief, brand, and copy standards.`, role: 'account_manager' },
+        ],
+      })
+    }
+
+    return elementTasks
+  }
+
+  // Process funnel strategy elements
+  for (const el of elements) {
+    const elTasks = getTasksForElement(el.type, el.topic, el.description, el.funnel_stage, el.email_note)
+    tasks.push(...elTasks)
+  }
+
+  // Process extra implementation elements
+  for (const ex of extraElements) {
+    const elTasks = getTasksForElement(ex.type, ex.topic, '', 'custom')
+    tasks.push(...elTasks)
+  }
+
+  return tasks
+}
+
 function ProductionActions({
   client,
   fieldValues,
@@ -2635,8 +2816,88 @@ function ProductionActions({
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set())
   const [filterStatus, setFilterStatus] = useState<string>('all')
 
+  // Task generation state
+  const [generatedTasks, setGeneratedTasks] = useState<ProductionTask[]>([])
+  const [showGenerated, setShowGenerated] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendResult, setSendResult] = useState<{ total: number; created: { name: string; url: string }[] } | null>(null)
+  const [expandedGenTasks, setExpandedGenTasks] = useState<Set<number>>(new Set())
+  const [removedTasks, setRemovedTasks] = useState<Set<number>>(new Set())
+  const [viewMode, setViewMode] = useState<'by-element' | 'by-role'>('by-element')
+
   const linkedListId = fieldValues.get('production:clickup_list_id') || ''
   const linkedListName = fieldValues.get('production:clickup_list_name') || ''
+
+  // Load funnel elements for task generation
+  const funnelStrategyJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
+  const funnelSelectionsRaw = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
+  const implExtrasRaw = fieldValues.get('implementation-plan:extra_elements') || '[]'
+
+  let allStrategyElements: FunnelElement[] = []
+  try { if (funnelStrategyJson) allStrategyElements = JSON.parse(funnelStrategyJson) } catch {}
+  let selectedIndices: number[] = []
+  try { selectedIndices = JSON.parse(funnelSelectionsRaw) } catch {}
+  let extraElements: { type: string; topic: string }[] = []
+  try { extraElements = JSON.parse(implExtrasRaw) } catch {}
+
+  const selectedElements = selectedIndices.map(i => allStrategyElements[i]).filter(Boolean)
+  const totalFunnelElements = selectedElements.length + extraElements.length
+
+  const handleGenerateTasks = () => {
+    const tasks = generateProductionTasks(selectedElements, extraElements, client.name || client.brand)
+    setGeneratedTasks(tasks)
+    setShowGenerated(true)
+    setRemovedTasks(new Set())
+    setSendResult(null)
+    // Expand all by default
+    setExpandedGenTasks(new Set(tasks.map((_, i) => i)))
+  }
+
+  const handleRemoveTask = (idx: number) => {
+    setRemovedTasks(prev => { const next = new Set(prev); next.add(idx); return next })
+  }
+
+  const handleRestoreTask = (idx: number) => {
+    setRemovedTasks(prev => { const next = new Set(prev); next.delete(idx); return next })
+  }
+
+  const activeTasks_gen = generatedTasks.filter((_, i) => !removedTasks.has(i))
+
+  const handleSendToClickUp = async () => {
+    if (!linkedListId) {
+      setError('Link a ClickUp list first before sending tasks.')
+      return
+    }
+    setSending(true)
+    setSendResult(null)
+    try {
+      const tasksToSend = activeTasks_gen.map(t => ({
+        name: t.name,
+        description: t.description,
+        tags: [t.tag],
+        priority: 3,
+        subtasks: t.subtasks.map(s => ({
+          name: `[${ROLE_META[s.role].label}] ${s.name}`,
+          description: s.description,
+        })),
+      }))
+
+      const res = await fetch('/api/clickup-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listId: linkedListId, tasks: tasksToSend }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setSendResult({ total: data.total, created: data.created })
+      // Refresh the ClickUp task list
+      fetchTasks(linkedListId)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to send tasks')
+    } finally {
+      setSending(false)
+    }
+  }
 
   // Fetch tasks when list is linked
   const fetchTasks = useCallback(async (listId: string) => {
@@ -2700,6 +2961,309 @@ function ProductionActions({
 
   return (
     <div className="space-y-4">
+      {/* Let's Get to Building CTA */}
+      {!showGenerated && (
+        <div className="bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-200 rounded-xl p-6">
+          <div className="text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center mx-auto shadow-lg shadow-rose-200">
+              <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-stone-800">Ready to build</h3>
+              <p className="text-sm text-stone-500 mt-1">
+                {totalFunnelElements > 0
+                  ? `${totalFunnelElements} element${totalFunnelElements !== 1 ? 's' : ''} from the Implementation Plan will be broken down into detailed tasks for each team member — Designer, Developer, Copywriter, and Account Manager.`
+                  : 'Generate detailed production tasks for each team member — Designer, Developer, Copywriter, and Account Manager.'}
+              </p>
+            </div>
+            <button
+              onClick={handleGenerateTasks}
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-700 hover:to-orange-600 text-white px-8 py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer shadow-lg shadow-rose-200 hover:shadow-xl hover:shadow-rose-300 hover:-translate-y-0.5"
+            >
+              Let's Get to Building
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* No elements message */}
+      {showGenerated && generatedTasks.length === 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+          <div className="flex items-start gap-3">
+            <span className="text-amber-500 text-lg mt-0.5">⚠</span>
+            <div>
+              <p className="text-sm font-semibold text-amber-800">No funnel elements found</p>
+              <p className="text-xs text-amber-600 mt-1">Go back to the Funnel Strategy and Implementation Plan stages to define what needs to be built. Once elements are confirmed, come back here and the tasks will be generated automatically.</p>
+              <button
+                onClick={() => setShowGenerated(false)}
+                className="mt-3 text-xs font-medium text-amber-700 hover:text-amber-800 cursor-pointer"
+              >
+                ← Back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generated tasks preview */}
+      {showGenerated && generatedTasks.length > 0 && (
+        <div className="bg-white border border-stone-200 rounded-xl p-5 space-y-3">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center">
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-stone-800">Production Task Breakdown</h3>
+                <p className="text-xs text-stone-500">{activeTasks_gen.length} tasks · {activeTasks_gen.reduce((sum, t) => sum + t.subtasks.length, 0)} subtasks total</p>
+              </div>
+            </div>
+            <button
+              onClick={handleGenerateTasks}
+              className="text-xs px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 font-medium transition-colors cursor-pointer"
+            >
+              Regenerate
+            </button>
+          </div>
+
+          {/* Summary bar */}
+          <div className="flex items-center justify-between bg-stone-50 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-semibold text-stone-700">{activeTasks_gen.length} tasks</span>
+              <span className="text-xs text-stone-400">|</span>
+              <span className="text-xs text-stone-500">{activeTasks_gen.reduce((sum, t) => sum + t.subtasks.length, 0)} subtasks total</span>
+            </div>
+              <div className="flex items-center gap-2">
+                <div className="flex bg-white border border-stone-200 rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setViewMode('by-element')}
+                    className={`text-[10px] px-2.5 py-1 font-medium transition-colors ${viewMode === 'by-element' ? 'bg-rose-600 text-white' : 'text-stone-500 hover:bg-stone-50'}`}
+                  >
+                    By Element
+                  </button>
+                  <button
+                    onClick={() => setViewMode('by-role')}
+                    className={`text-[10px] px-2.5 py-1 font-medium transition-colors ${viewMode === 'by-role' ? 'bg-rose-600 text-white' : 'text-stone-500 hover:bg-stone-50'}`}
+                  >
+                    By Role
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Role summary chips */}
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(ROLE_META) as TeamRole[]).map(role => {
+                const roleMeta = ROLE_META[role]
+                const taskCount = activeTasks_gen.filter(t => t.role === role).length
+                const subtaskCount = activeTasks_gen.reduce((sum, t) => sum + t.subtasks.filter(s => s.role === role).length, 0)
+                if (taskCount === 0 && subtaskCount === 0) return null
+                return (
+                  <div key={role} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full ${roleMeta.bg} ${roleMeta.border} border`}>
+                    <span>{roleMeta.icon}</span>
+                    <span className={`font-semibold ${roleMeta.color}`}>{roleMeta.label}</span>
+                    <span className="text-stone-400">·</span>
+                    <span className="text-stone-500">{taskCount} tasks, {subtaskCount} subtasks</span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* View: By Element */}
+            {viewMode === 'by-element' && (
+              <div className="space-y-2">
+                {generatedTasks.map((task, idx) => {
+                  const isRemoved = removedTasks.has(idx)
+                  const isExpanded = expandedGenTasks.has(idx)
+                  const roleMeta = ROLE_META[task.role]
+                  const STAGE_TAG_COLORS: Record<string, string> = {
+                    awareness: 'bg-blue-100 text-blue-700',
+                    engagement: 'bg-purple-100 text-purple-700',
+                    conversion: 'bg-green-100 text-green-700',
+                    delivery: 'bg-amber-100 text-amber-700',
+                    retention: 'bg-rose-100 text-rose-700',
+                    custom: 'bg-stone-100 text-stone-600',
+                  }
+
+                  if (isRemoved) {
+                    return (
+                      <div key={idx} className="flex items-center justify-between px-4 py-2 bg-stone-50 border border-stone-200 rounded-lg opacity-50">
+                        <span className="text-sm text-stone-400 line-through">{task.name}</span>
+                        <button onClick={() => handleRestoreTask(idx)} className="text-xs text-rose-600 hover:text-rose-700 font-medium cursor-pointer">Restore</button>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div key={idx} className="border border-stone-200 rounded-lg overflow-hidden">
+                      <div
+                        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-stone-50/50 transition-colors"
+                        onClick={() => {
+                          const next = new Set(expandedGenTasks)
+                          isExpanded ? next.delete(idx) : next.add(idx)
+                          setExpandedGenTasks(next)
+                        }}
+                      >
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${STAGE_TAG_COLORS[task.tag] || STAGE_TAG_COLORS.custom}`}>
+                          {task.tag.toUpperCase()}
+                        </span>
+                        <span className="text-sm font-medium text-stone-800 flex-1">{task.name}</span>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${roleMeta.bg} ${roleMeta.color}`}>
+                          {roleMeta.icon} {roleMeta.label}
+                        </span>
+                        <span className="text-[10px] text-stone-400">{task.subtasks.length} steps</span>
+                        <button
+                          onClick={e => { e.stopPropagation(); handleRemoveTask(idx) }}
+                          className="w-5 h-5 rounded-full bg-red-50 text-red-400 text-xs flex items-center justify-center hover:bg-red-100 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                          title="Remove task"
+                        >×</button>
+                        <svg className={`w-3 h-3 text-stone-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="px-4 pb-4 pt-1 border-t border-stone-100 bg-stone-50/30">
+                          <p className="text-xs text-stone-500 mb-3">{task.description}</p>
+                          <div className="space-y-1.5">
+                            {task.subtasks.map((sub, si) => {
+                              const subRole = ROLE_META[sub.role]
+                              return (
+                                <div key={si} className="flex items-start gap-2 text-xs">
+                                  <span className="text-stone-300 mt-0.5 shrink-0">{si + 1}.</span>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-stone-700">{sub.name}</span>
+                                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${subRole.bg} ${subRole.color}`}>
+                                        {subRole.icon} {subRole.label}
+                                      </span>
+                                    </div>
+                                    <p className="text-stone-400 mt-0.5">{sub.description}</p>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* View: By Role */}
+            {viewMode === 'by-role' && (
+              <div className="space-y-4">
+                {(Object.keys(ROLE_META) as TeamRole[]).map(role => {
+                  const roleMeta = ROLE_META[role]
+                  // Tasks owned by this role
+                  const ownedTasks = activeTasks_gen.filter(t => t.role === role)
+                  // Subtasks assigned to this role across all tasks
+                  const assignedSubtasks = activeTasks_gen.flatMap((t, ti) =>
+                    t.subtasks.filter(s => s.role === role).map(s => ({ ...s, parentTask: t.name, parentIdx: ti }))
+                  )
+
+                  if (ownedTasks.length === 0 && assignedSubtasks.length === 0) return null
+
+                  return (
+                    <div key={role} className={`border ${roleMeta.border} rounded-lg overflow-hidden`}>
+                      <div className={`${roleMeta.bg} px-4 py-3 flex items-center gap-2`}>
+                        <span className="text-base">{roleMeta.icon}</span>
+                        <span className={`font-semibold text-sm ${roleMeta.color}`}>{roleMeta.label}</span>
+                        <span className="text-xs text-stone-400 ml-auto">{ownedTasks.length} tasks lead · {assignedSubtasks.length} subtasks</span>
+                      </div>
+                      <div className="p-3 space-y-2 bg-white">
+                        {/* Tasks this role leads */}
+                        {ownedTasks.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">Leads</p>
+                            {ownedTasks.map((t, i) => (
+                              <div key={i} className="flex items-center gap-2 text-xs py-1.5 border-b border-stone-50 last:border-0">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                                <span className="font-medium text-stone-700 flex-1">{t.name}</span>
+                                <span className="text-stone-400">{t.subtasks.length} steps</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Subtasks assigned to this role */}
+                        {assignedSubtasks.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5 mt-2">Assigned Subtasks</p>
+                            {assignedSubtasks.map((s, i) => (
+                              <div key={i} className="flex items-start gap-2 text-xs py-1.5 border-b border-stone-50 last:border-0">
+                                <span className="w-1.5 h-1.5 rounded-full bg-stone-300 shrink-0 mt-1" />
+                                <div className="flex-1">
+                                  <span className="font-medium text-stone-700">{s.name}</span>
+                                  <p className="text-stone-400 text-[10px]">from: {s.parentTask}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Send to ClickUp button */}
+            {!sendResult && (
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={handleSendToClickUp}
+                  disabled={sending || !linkedListId || activeTasks_gen.length === 0}
+                  className="flex-1 bg-rose-600 hover:bg-rose-700 text-white px-5 py-3 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {sending ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Sending {activeTasks_gen.length} tasks to ClickUp...
+                    </>
+                  ) : (
+                    <>
+                      Send {activeTasks_gen.length} Tasks to ClickUp
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                    </>
+                  )}
+                </button>
+                {!linkedListId && (
+                  <p className="text-xs text-amber-600">Link a ClickUp list first</p>
+                )}
+              </div>
+            )}
+
+            {/* Success result */}
+            {sendResult && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">✓</span>
+                  <span className="font-semibold text-green-700 text-sm">{sendResult.total} tasks created in ClickUp</span>
+                </div>
+                <div className="space-y-1 ml-8">
+                  {sendResult.created.map((c, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className="text-green-600">✓</span>
+                      <span className="text-stone-600">{c.name}</span>
+                      <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-rose-600 hover:text-rose-700 font-medium ml-auto">
+                        Open
+                      </a>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => { setShowGenerated(false); setSendResult(null); setGeneratedTasks([]) }}
+                  className="mt-3 text-xs text-green-700 hover:text-green-800 font-medium cursor-pointer"
+                >
+                  Done — hide task breakdown
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
       {/* ClickUp Link Section */}
       <div className="bg-white border border-stone-200 rounded-xl p-5">
         <div className="flex items-center justify-between mb-3">
@@ -4964,6 +5528,85 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
 
   const currentIdx = activeStageKeys.indexOf(resolvedStage)
 
+  // Check if a stage has missing/incomplete data that needs attention
+  const getStageHasWarning = (stageKey: string, stageIdx: number): boolean => {
+    // Only warn on the current stage or completed stages (not future/inactive ones)
+    if (stageIdx > currentIdx) return false
+
+    const stage = STAGES.find(s => s.key === stageKey)
+    if (!stage) return false
+
+    // Check required data fields — if any are empty, it's a warning
+    for (const field of stage.dataFields) {
+      const val = fieldValues.get(`${stageKey}:${field.key}`)
+      if (!val || val.trim() === '') return true
+    }
+
+    // Check substeps — if not all completed, it's a warning (only for completed stages)
+    if (stageIdx < currentIdx && stage.substeps.length > 0) {
+      const completedCount = stage.substeps.filter((_, i) => completions.get(`${stageKey}:${i}`)).length
+      if (completedCount < stage.substeps.length) return true
+    }
+
+    // Stage-specific checks
+    switch (stageKey) {
+      case 'discovery': {
+        const status = fieldValues.get('discovery:lead_status')
+        if (!status) return true
+        break
+      }
+      case 'strategy': {
+        // Need transcript + all 3 docs approved
+        const transcript = fieldValues.get('strategy:session_transcript') || ''
+        if (!transcript.trim()) return true
+        const profileApproved = fieldValues.get('strategy:client_profile_approved') === 'true'
+        const bibleApproved = fieldValues.get('strategy:research_bible_approved') === 'true'
+        const voiceApproved = fieldValues.get('strategy:brand_voice_approved') === 'true'
+        if (stageIdx < currentIdx && (!profileApproved || !bibleApproved || !voiceApproved)) return true
+        break
+      }
+      case 'funnel-strategy': {
+        const elements = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
+        const selections = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
+        let hasElements = false
+        try {
+          const parsed = JSON.parse(elements)
+          const selected = JSON.parse(selections)
+          hasElements = Array.isArray(parsed) && parsed.length > 0 && Array.isArray(selected) && selected.length > 0
+        } catch {}
+        if (!hasElements) return true
+        break
+      }
+      case 'implementation-plan': {
+        // Need at least some elements in the production checklist
+        const funnelJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
+        const funnelSel = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
+        const extras = fieldValues.get('implementation-plan:extra_elements') || '[]'
+        let totalElements = 0
+        try {
+          const allElems = JSON.parse(funnelJson)
+          const selected = JSON.parse(funnelSel)
+          const extraElems = JSON.parse(extras)
+          totalElements = (Array.isArray(selected) ? selected.length : 0) + (Array.isArray(extraElems) ? extraElems.length : 0)
+        } catch {}
+        if (totalElements === 0) return true
+        break
+      }
+      case 'copy-bible': {
+        const approved = fieldValues.get('copy-bible:copy_bible_approved') === 'true'
+        if (stageIdx < currentIdx && !approved) return true
+        break
+      }
+      case 'brand-bible': {
+        const complete = fieldValues.get('brand-bible:brand_bible_complete') === 'true'
+        if (stageIdx < currentIdx && !complete) return true
+        break
+      }
+    }
+
+    return false
+  }
+
   // If the stored stage needs updating, update it in the DB
   if (resolvedStage !== client.current_stage) {
     updateClient(client.id, { current_stage: resolvedStage } as Partial<Client>)
@@ -5141,6 +5784,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                 isActive={isActive}
                 isCurrent={isCurrent}
                 isCompleted={isCompleted}
+                hasWarning={getStageHasWarning(stage.key, stageIdx)}
                 completions={completions}
                 fieldValues={fieldValues}
                 onToggleSubstep={handleToggleSubstep}
