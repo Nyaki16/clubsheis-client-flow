@@ -642,3 +642,107 @@ export function getStageByKey(key: string): StageDefinition | undefined {
 }
 
 export const STAGE_ORDER = STAGES.map(s => s.key)
+
+// ── 14-Day Timeline ──
+// Total days from onboarding to handover = 14
+// Stages before onboarding (discovery, proposal, awaiting-review) are pre-timeline
+// wrapup is post-timeline
+const TIMELINE_TOTAL_DAYS = 14
+
+// Day allocations per stage (how many days each stage gets)
+// These are cumulative deadlines from the start date
+const STAGE_DAY_ALLOCATION: Record<string, number> = {
+  'onboarding': 1,         // Day 1
+  'tech-onboarding': 2,    // Day 2
+  'strategy': 3,           // Day 3
+  'funnel-strategy': 4,    // Day 4
+  'implementation-plan': 5, // Day 5
+  'funnel-map': 6,         // Day 6
+  'copy-bible': 7,         // Day 7
+  'brand-bible': 8,        // Day 8
+  'pre-production': 9,     // Day 9
+  'production': 11,        // Day 11
+  'content-production': 11,// Day 11
+  'ads-email-social': 11,  // Day 11
+  'internal-check': 13,    // Day 13
+  'handover': 14,          // Day 14
+  'retainer': 14,          // Day 14 (ongoing)
+}
+
+// Pre-timeline stages (no due date)
+const PRE_TIMELINE_STAGES = ['discovery', 'proposal', 'awaiting-review']
+const POST_TIMELINE_STAGES = ['wrapup']
+
+export function getTimelineTotalDays(): number {
+  return TIMELINE_TOTAL_DAYS
+}
+
+/**
+ * Get the due date for a specific stage given a start date
+ * Returns null for pre-timeline and post-timeline stages
+ */
+export function getStageDueDate(stageKey: string, startDate: string | null): Date | null {
+  if (!startDate) return null
+  if (PRE_TIMELINE_STAGES.includes(stageKey) || POST_TIMELINE_STAGES.includes(stageKey)) return null
+
+  const days = STAGE_DAY_ALLOCATION[stageKey]
+  if (!days) return null
+
+  const start = new Date(startDate)
+  const due = new Date(start)
+  due.setDate(due.getDate() + days)
+  return due
+}
+
+/**
+ * Get the final deadline (handover date) given a start date
+ */
+export function getDeadlineDate(startDate: string | null): Date | null {
+  if (!startDate) return null
+  const start = new Date(startDate)
+  const deadline = new Date(start)
+  deadline.setDate(deadline.getDate() + TIMELINE_TOTAL_DAYS)
+  return deadline
+}
+
+/**
+ * Calculate days remaining until the final deadline
+ * Returns negative number if overdue
+ */
+export function getDaysRemaining(startDate: string | null): number | null {
+  if (!startDate) return null
+  const deadline = getDeadlineDate(startDate)
+  if (!deadline) return null
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  deadline.setHours(0, 0, 0, 0)
+  return Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+/**
+ * Check if a stage is overdue
+ */
+export function isStageOverdue(stageKey: string, startDate: string | null): boolean {
+  const due = getStageDueDate(stageKey, startDate)
+  if (!due) return false
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  due.setHours(0, 0, 0, 0)
+  return now > due
+}
+
+/**
+ * Format a due date relative to today
+ */
+export function formatDueDate(due: Date): string {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const d = new Date(due)
+  d.setHours(0, 0, 0, 0)
+  const diff = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+  if (diff < 0) return `${Math.abs(diff)}d overdue`
+  if (diff === 0) return 'Due today'
+  if (diff === 1) return 'Due tomorrow'
+  return `${diff}d left`
+}

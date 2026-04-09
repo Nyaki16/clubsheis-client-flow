@@ -107,3 +107,19 @@ export async function saveStageField(
     }, { onConflict: 'client_id,stage_key,field_key' })
   if (error) throw error
 }
+
+// ── Timeline ──
+
+export async function getTimelineStartDates(): Promise<Record<string, string>> {
+  const { data, error } = await supabase
+    .from('flow_stage_data')
+    .select('client_id, field_value')
+    .eq('stage_key', 'timeline')
+    .eq('field_key', 'start_date')
+  if (error) throw error
+  const map: Record<string, string> = {}
+  for (const row of data || []) {
+    map[row.client_id] = row.field_value
+  }
+  return map
+}

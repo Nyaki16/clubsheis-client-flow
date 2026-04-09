@@ -2,19 +2,74 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getClients } from '@/lib/actions'
+import { getClients, getTimelineStartDates } from '@/lib/actions'
 import { Client } from '@/lib/types'
-import { STAGES, getActiveStagesForPackage } from '@/lib/stages'
+import { STAGES, getActiveStagesForPackage, getDaysRemaining, getDeadlineDate } from '@/lib/stages'
 
 function getStageLabel(key: string) {
   return STAGES.find(s => s.key === key)
 }
 
-function StageProgress({ client }: { client: Client }) {
+function CountdownBadge({ startDate, isComplete }: { startDate: string | null; isComplete: boolean }) {
+  if (!startDate) return null
+  const daysLeft = getDaysRemaining(startDate)
+  if (daysLeft === null) return null
+
+  const deadline = getDeadlineDate(startDate)
+  const isOverdue = daysLeft < 0
+  const isUrgent = daysLeft <= 2 && daysLeft >= 0
+  const totalDays = 14
+  const elapsed = totalDays - daysLeft
+  const progress = Math.min(Math.max((elapsed / totalDays) * 100, 0), 100)
+
+  if (isComplete) {
+    return (
+      <div className="mt-2 flex items-center gap-2">
+        <div className="flex-1 h-1 bg-green-100 rounded-full overflow-hidden">
+          <div className="h-full bg-green-500 rounded-full" style={{ width: '100%' }} />
+        </div>
+        <span className="text-[10px] font-bold text-green-600">Done</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-2">
+      <div className="flex items-center justify-between mb-1">
+        <span className={`text-[10px] font-bold ${
+          isOverdue ? 'text-red-600' : isUrgent ? 'text-amber-600' : 'text-stone-500'
+        }`}>
+          {isOverdue
+            ? `${Math.abs(daysLeft)}d overdue`
+            : daysLeft === 0
+            ? 'Due today!'
+            : `${daysLeft}d left`
+          }
+        </span>
+        <span className="text-[10px] text-stone-400">
+          {deadline?.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}
+        </span>
+      </div>
+      <div className={`w-full h-1.5 rounded-full overflow-hidden ${
+        isOverdue ? 'bg-red-100' : isUrgent ? 'bg-amber-100' : 'bg-stone-200'
+      }`}>
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${
+            isOverdue ? 'bg-red-500' : isUrgent ? 'bg-amber-500' : 'bg-[#B45309]'
+          }`}
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function StageProgress({ client, startDate }: { client: Client; startDate: string | null }) {
   const stage = getStageLabel(client.current_stage)
   const activeStages = client.package ? getActiveStagesForPackage(client.package) : STAGES.map(s => s.key)
   const currentIndex = activeStages.indexOf(client.current_stage)
   const progress = activeStages.length > 0 ? ((currentIndex + 1) / activeStages.length) * 100 : 0
+  const isComplete = client.current_stage === 'wrapup'
 
   return (
     <div className="mt-3">
@@ -33,17 +88,21 @@ function StageProgress({ client }: { client: Client }) {
           style={{ width: `${progress}%`, background: stage?.color }}
         />
       </div>
+      <CountdownBadge startDate={startDate} isComplete={isComplete} />
     </div>
   )
 }
 
 export default function Dashboard() {
   const [clients, setClients] = useState<Client[]>([])
+  const [timelineStarts, setTimelineStarts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
-    getClients().then(c => { setClients(c); setLoading(false) }).catch(() => setLoading(false))
+    Promise.all([getClients(), getTimelineStartDates()])
+      .then(([c, t]) => { setClients(c); setTimelineStarts(t); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [])
 
   const activeClients = clients.filter(c => c.current_stage !== 'wrapup')
@@ -109,7 +168,7 @@ export default function Dashboard() {
                         </span>
                       )}
                     </div>
-                    <StageProgress client={client} />
+                    <StageProgress client={client} startDate={timelineStarts[client.id] || null} />
                     <div className="mt-3 text-xs text-stone-400">
                       Added {new Date(client.created_at).toLocaleDateString('en-ZA')}
                     </div>

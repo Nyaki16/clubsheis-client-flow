@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { getClient, getCompletions, getStageData, updateClient, toggleSubstep, saveStageField, deleteClient } from '@/lib/actions'
 import { Client, StageCompletion, StageFieldValue } from '@/lib/types'
-import { STAGES, getActiveStagesForPackage, PACKAGES, ADS_EMAIL_SOCIAL_TRACKS } from '@/lib/stages'
+import { STAGES, getActiveStagesForPackage, PACKAGES, ADS_EMAIL_SOCIAL_TRACKS, getStageDueDate, formatDueDate, isStageOverdue, getDaysRemaining, getDeadlineDate } from '@/lib/stages'
 import { StageDefinition, DataField } from '@/lib/types'
 
 // ── Data field input component ──
@@ -103,6 +103,7 @@ function StagePanel({
   nextStageName,
   actionSlot,
   actionSlotFullWidth,
+  timelineStart,
 }: {
   stage: StageDefinition
   isActive: boolean
@@ -118,6 +119,7 @@ function StagePanel({
   nextStageName: string
   actionSlot?: React.ReactNode
   actionSlotFullWidth?: boolean
+  timelineStart?: string | null
 }) {
   const [expanded, setExpanded] = useState(isCurrent)
 
@@ -137,6 +139,11 @@ function StagePanel({
   const totalSubsteps = stage.substeps.length
   const completedCount = stage.substeps.filter((_, i) => completions.get(`${stage.key}:${i}`)).length
   const allDone = completedCount === totalSubsteps && totalSubsteps > 0
+
+  // Timeline due date
+  const stageDue = getStageDueDate(stage.key, timelineStart || null)
+  const stageOverdue = isStageOverdue(stage.key, timelineStart || null)
+  const dueDateLabel = stageDue ? formatDueDate(stageDue) : null
 
   return (
     <div className={`${!isActive && !isCompleted && stage.key !== 'production' ? 'opacity-40 pointer-events-none' : ''}`}>
@@ -176,6 +183,22 @@ function StagePanel({
             {isCurrent && (
               <span className="text-xs font-semibold text-[#B45309] bg-[rgba(180,83,9,0.06)] px-2 py-0.5 rounded-full">
                 CURRENT
+              </span>
+            )}
+            {dueDateLabel && !isCompleted && (
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                stageOverdue
+                  ? 'bg-red-100 text-red-700 border border-red-200'
+                  : dueDateLabel === 'Due today'
+                  ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                  : 'bg-stone-100 text-stone-500 border border-stone-200'
+              }`}>
+                {dueDateLabel}
+              </span>
+            )}
+            {dueDateLabel && isCompleted && (
+              <span className="text-[10px] font-medium text-green-600 px-2 py-0.5 rounded-full bg-green-50 border border-green-200">
+                ✓ {stageDue!.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}
               </span>
             )}
           </div>
@@ -6054,6 +6077,17 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
     if (!client) return
     await updateClient(id, { current_stage: nextStageKey } as Partial<Client>)
     setClient(prev => prev ? { ...prev, current_stage: nextStageKey } : prev)
+
+    // Auto-set timeline start date when entering onboarding
+    if (nextStageKey === 'onboarding' && !fieldValues.get('timeline:start_date')) {
+      const today = new Date().toISOString().split('T')[0]
+      await saveStageField(id, 'timeline', 'start_date', today)
+      setFieldValues(prev => {
+        const next = new Map(prev)
+        next.set('timeline:start_date', today)
+        return next
+      })
+    }
   }
 
   const handlePackageChange = async (pkg: string) => {
@@ -6207,6 +6241,135 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
+      {/* 14-Day Countdown Timer */}
+      {(() => {
+        const timelineStart = fieldValues.get('timeline:start_date') || null
+        const daysLeft = getDaysRemaining(timelineStart)
+        const deadline = getDeadlineDate(timelineStart)
+
+        // Show "Start Timeline" button for existing clients past onboarding with no start date
+        const PRE_TIMELINE = ['discovery', 'proposal', 'awaiting-review']
+        if (!timelineStart && client.package && !PRE_TIMELINE.includes(client.current_stage)) {
+          return (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-amber-800">No timeline set</p>
+                <p className="text-[10px] text-amber-600">Set a start date to activate the 14-day countdown</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  className="text-xs border border-amber-300 rounded-lg px-3 py-1.5 bg-white"
+                  onChange={async (e) => {
+                    if (e.target.value) {
+                      await saveStageField(id, 'timeline', 'start_date', e.target.value)
+                      setFieldValues(prev => {
+                        const next = new Map(prev)
+                        next.set('timeline:start_date', e.target.value)
+                        return next
+                      })
+                    }
+                  }}
+                />
+                <button
+                  onClick={async () => {
+                    const today = new Date().toISOString().split('T')[0]
+                    await saveStageField(id, 'timeline', 'start_date', today)
+                    setFieldValues(prev => {
+                      const next = new Map(prev)
+                      next.set('timeline:start_date', today)
+                      return next
+                    })
+                  }}
+                  className="text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
+                >
+                  Start Today
+                </button>
+              </div>
+            </div>
+          )
+        }
+
+        if (!timelineStart || daysLeft === null || !deadline) return null
+
+        const totalDays = 14
+        const elapsed = totalDays - daysLeft
+        const progress = Math.min(Math.max((elapsed / totalDays) * 100, 0), 100)
+        const isOverdue = daysLeft < 0
+        const isUrgent = daysLeft <= 2 && daysLeft >= 0
+        const isComplete = client.current_stage === 'wrapup'
+
+        return (
+          <div className={`rounded-xl p-4 mb-6 border ${
+            isComplete
+              ? 'bg-green-50 border-green-200'
+              : isOverdue
+              ? 'bg-red-50 border-red-200'
+              : isUrgent
+              ? 'bg-amber-50 border-amber-200'
+              : 'bg-stone-50 border-stone-200'
+          }`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
+                  isComplete
+                    ? 'bg-green-100 text-green-700'
+                    : isOverdue
+                    ? 'bg-red-100 text-red-700'
+                    : isUrgent
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-stone-100 text-stone-700'
+                }`}>
+                  {isComplete ? '✓' : isOverdue ? '!' : Math.abs(daysLeft)}
+                </div>
+                <div>
+                  <p className={`text-sm font-bold ${
+                    isComplete ? 'text-green-700' : isOverdue ? 'text-red-700' : isUrgent ? 'text-amber-700' : 'text-stone-800'
+                  }`}>
+                    {isComplete
+                      ? 'Project Complete'
+                      : isOverdue
+                      ? `${Math.abs(daysLeft)} day${Math.abs(daysLeft) !== 1 ? 's' : ''} overdue`
+                      : daysLeft === 0
+                      ? 'Deadline is today'
+                      : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`
+                    }
+                  </p>
+                  <p className="text-[10px] text-stone-400">
+                    Started {new Date(timelineStart).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })} · Deadline {deadline.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}
+                  </p>
+                </div>
+              </div>
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                isComplete
+                  ? 'bg-green-200 text-green-800'
+                  : isOverdue
+                  ? 'bg-red-200 text-red-800'
+                  : isUrgent
+                  ? 'bg-amber-200 text-amber-800'
+                  : 'bg-stone-200 text-stone-600'
+              }`}>
+                Day {Math.min(elapsed, totalDays)}/{totalDays}
+              </span>
+            </div>
+            <div className="w-full h-2 bg-white/80 rounded-full overflow-hidden border border-stone-200/50">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${
+                  isComplete
+                    ? 'bg-green-500'
+                    : isOverdue
+                    ? 'bg-red-500'
+                    : isUrgent
+                    ? 'bg-amber-500'
+                    : 'bg-[#B45309]'
+                }`}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Package selector */}
       {!client.package && (
         <div className="bg-[rgba(180,83,9,0.04)] border border-[rgba(180,83,9,0.2)] rounded-xl p-5 mb-8">
@@ -6351,6 +6514,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                 onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
                 canAdvance={allDone && !!nextStageKey && !(stage.key === 'awaiting-review' && fieldValues.get('awaiting-review:proposal_status') === 'Declined')}
                 nextStageName={nextStage?.name || 'Next'}
+                timelineStart={fieldValues.get('timeline:start_date') || null}
                 actionSlot={
                   stage.key === 'discovery' ? (
                     <DiscoveryActions
