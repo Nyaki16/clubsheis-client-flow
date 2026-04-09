@@ -5251,7 +5251,7 @@ function FunnelStrategyActions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          documentType: 'funnel-strategy',
+          documentType: client.package === 'ads-email-social' ? 'funnel-strategy-ads' : 'funnel-strategy',
           clientName: client.name,
           brandName: client.brand,
           transcript,

@@ -463,6 +463,38 @@ IMPORTANT RULES:
 
 Return ONLY the JSON array. No other text.`,
 
+  'funnel-strategy-ads': `You are a senior digital marketing strategist for ClubSheIs, a digital marketing and content production agency in South Africa.
+
+YOUR JOB: This client is on the Ads + Email + Social package. Instead of a funnel build, you need to create a comprehensive PAID ADS, EMAIL MARKETING, and SOCIAL MEDIA STRATEGY tailored to this client's business, audience, and goals.
+
+Analyse the Client Profile, Research Bible, and Brand Voice to recommend specific campaigns, content themes, and strategies across all three channels.
+
+Be SPECIFIC. Not "run Facebook ads" — instead "META Awareness Campaign: Video ads showcasing client transformations targeting women 30-45 in Gauteng interested in leadership development". Not "send newsletters" — instead "Weekly Newsletter: Monday Momentum — 3 actionable business tips + 1 client spotlight + CTA to book a discovery call".
+
+You MUST respond with ONLY a valid JSON array. No markdown, no explanation, no text before or after. Just the JSON array.
+
+Each element in the array must have these exact fields:
+{
+  "type": "The channel type — use: META Ads Campaign, Google Ads Campaign, Email Newsletter, Email Automation Sequence, Email Welcome Sequence, Social Content Pillar, Social Reel Series, Social Carousel Series, Social Story Series, Retargeting Campaign, Lead Nurture Sequence, Win-Back Sequence, Abandoned Cart Sequence, Post-Purchase Sequence, Content Calendar Theme, Influencer Collaboration, UGC Campaign",
+  "topic": "The specific campaign name or content theme tailored to this client",
+  "description": "2-3 sentences explaining the strategy — what it does, who it targets, and the expected outcome",
+  "email_note": "How this connects to the other channels (e.g. 'Leads from this ad campaign feed into the welcome sequence' or 'Social content repurposed from newsletter topics')",
+  "funnel_stage": "One of: awareness, engagement, conversion, delivery, retention",
+  "reasoning": "1-2 sentences on why this specific strategy suits this client based on their audience, offers, and market position",
+  "priority": A number from 1-N indicating implementation order (1 = implement first)
+}
+
+IMPORTANT RULES:
+- Recommend 8-15 elements across ALL THREE channels (ads, email, social) — ensure balanced coverage
+- Include at least 2-3 paid ad campaigns, 2-3 email sequences/newsletters, and 3-4 social content strategies
+- Every element MUST have a specific, tailored topic — never generic
+- Show how the channels work TOGETHER (ads drive leads → email nurtures → social builds community)
+- Consider the client's budget and audience behaviour on each platform
+- Priority ordering should reflect what creates the most impact soonest
+- Think about the client's existing audience vs new audience acquisition
+
+Return ONLY the JSON array. No other text.`,
+
   'funnel-map': `You are building a Funnel Map for ClubSheIs — a visual decision tree showing the customer journey step-by-step, with branches based on customer decisions.
 
 You will receive a list of funnel elements (pages, lead magnets, etc.) that have been selected for this client. Your job is to arrange them into a sequential decision tree — each step follows from the previous one, and branches split based on what the customer does (buys vs doesn't buy, downloads vs ignores, watches vs skips, etc.).
@@ -820,7 +852,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: `Unknown document type: ${documentType}` }, { status: 400 })
     }
 
-    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'copy-element-page', 'copy-element-email', 'qa-report', 'handover-doc']
+    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'funnel-strategy-ads', 'copy-element-page', 'copy-element-email', 'qa-report', 'handover-doc']
     if (!transcript && !noTranscriptRequired.includes(documentType)) {
       return Response.json({ error: 'Transcript is required' }, { status: 400 })
     }
@@ -835,7 +867,7 @@ export async function POST(req: NextRequest) {
       if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 10000)}`
       if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
     }
-    if (documentType === 'funnel-strategy') {
+    if (documentType === 'funnel-strategy' || documentType === 'funnel-strategy-ads') {
       if (clientProfile) userMessage += `\n\nAPPROVED CLIENT PROFILE:\n${clientProfile.slice(0, 15000)}`
       if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
       if (brandVoice) userMessage += `\n\nAPPROVED BRAND VOICE:\n${brandVoice.slice(0, 10000)}`
@@ -869,7 +901,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email') ? 32000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map' || documentType === 'qa-report' || documentType === 'handover-doc') ? 8000 : 16000,
+        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email') ? 32000 : (documentType === 'funnel-strategy' || documentType === 'funnel-strategy-ads' || documentType === 'funnel-map' || documentType === 'qa-report' || documentType === 'handover-doc') ? 8000 : 16000,
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),
