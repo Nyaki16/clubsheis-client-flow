@@ -5791,7 +5791,7 @@ function ProposalReview({
       const body = isThankYou
         ? emailContent
         : isPublished
-          ? `Hi ${client.name},\n\nWe've put together a proposal for you. You can view it here:\n\n${proposalLink}\n\nWe've also attached our About Us document for your reference.\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
+          ? `Hi ${client.name},\n\nThank you again for taking the time to meet with us. We're looking forward to helping you build the systems that will move the needle forward in your business.\n\n${proposalLink}\n\nWe've also attached our About Us document for your reference.\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
           : `Hi ${client.name},\n\nPlease find our proposal below. We've also attached our About Us document for your reference.\n\n---\n\n${emailContent}\n\n---\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
 
       const res = await fetch('/api/send-email', {
