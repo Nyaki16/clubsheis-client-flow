@@ -19,7 +19,7 @@ export const PACKAGE_BRANCHES: Record<string, string[]> = {
   'ghutte-only': [],
   'page-build': ['funnel-map', 'copy-bible', 'brand-bible', 'pre-production', 'production'],
   'content-day': ['funnel-map', 'copy-bible', 'brand-bible', 'pre-production', 'production', 'content-production'],
-  'ads-email-social': ['funnel-map', 'copy-bible', 'brand-bible', 'pre-production', 'production', 'ads-email-social'],
+  'ads-email-social': ['copy-bible', 'brand-bible', 'production', 'ads-email-social'],
   'full-build': ['funnel-map', 'copy-bible', 'brand-bible', 'pre-production', 'production'],
 }
 

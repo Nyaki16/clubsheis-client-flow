@@ -1858,8 +1858,11 @@ function ImplementationPlanActions({
     <div className="space-y-4">
       {/* Header */}
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-        <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">Production Checklist — {totalElements} elements</h4>
-        <p className="text-xs text-amber-600">These are the marketing assets we build — pages and email sequences to sell and market the client's product. The client creates the actual product (course, guide, masterclass, etc.).</p>
+        <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">{client.package === 'ads-email-social' ? 'Strategy Checklist' : 'Production Checklist'} — {totalElements} elements</h4>
+        <p className="text-xs text-amber-600">{client.package === 'ads-email-social'
+          ? 'These are the paid ads, email, and social media strategies we\'ll implement for this client across all three channels.'
+          : 'These are the marketing assets we build — pages and email sequences to sell and market the client\'s product. The client creates the actual product (course, guide, masterclass, etc.).'
+        }</p>
       </div>
 
       {/* Strategy elements by stage */}
@@ -1923,7 +1926,7 @@ function ImplementationPlanActions({
 
       {selectedElements.length === 0 && (
         <div className="text-center py-4 text-stone-400 text-sm">
-          No elements from Funnel Strategy. Go back and generate/confirm the strategy first, or add elements below.
+          No elements from {client.package === 'ads-email-social' ? 'the Ads/Email/Social Strategy' : 'Funnel Strategy'}. Go back and generate/confirm the strategy first, or add elements below.
         </div>
       )}
 
@@ -2000,7 +2003,7 @@ function ImplementationPlanActions({
           onClick={onAdvance}
           className="w-full bg-green-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
         >
-          Confirm Implementation Plan & Move to Funnel Map →
+          {client.package === 'ads-email-social' ? 'Confirm Implementation Plan & Move to Copy Bible →' : 'Confirm Implementation Plan & Move to Funnel Map →'}
         </button>
       )}
     </div>
