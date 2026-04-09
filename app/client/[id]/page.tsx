@@ -1867,6 +1867,25 @@ function ImplementationPlanActions({
         }</p>
       </div>
 
+      {/* Colour-coded summary for ads-email-social */}
+      {client.package === 'ads-email-social' && selectedElements.length > 0 && (
+        <div className="bg-white border border-stone-200 rounded-lg p-3">
+          <div className="flex flex-wrap gap-1.5">
+            {selectedElements.map((el, i) => {
+              const t = el.type.toLowerCase()
+              const chipColor = (t.includes('meta ads') || t.includes('retargeting')) ? 'bg-rose-100 text-rose-800'
+                : (t.includes('email') || t.includes('newsletter')) ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-violet-100 text-violet-800'
+              return (
+                <span key={i} className={`text-xs px-2 py-1 rounded font-medium ${chipColor}`}>
+                  {el.type}: {el.topic}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Strategy elements by stage or channel */}
       {selectedElements.length > 0 && client.package === 'ads-email-social' ? (
         <div className="space-y-3">
