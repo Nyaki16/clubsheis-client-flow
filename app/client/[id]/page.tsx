@@ -4112,7 +4112,7 @@ function ProductionActions({
                                 <span
                                   key={tag.name}
                                   className="text-[10px] px-2.5 py-1 rounded-md font-bold whitespace-nowrap"
-                                  style={{ backgroundColor: tag.tag_bg, color: tag.tag_fg, border: `1px solid ${tag.tag_fg}30` }}
+                                  style={{ backgroundColor: tag.tag_bg, color: tag.tag_bg === tag.tag_fg ? '#ffffff' : tag.tag_fg, border: `1px solid ${tag.tag_fg}30` }}
                                 >
                                   {tag.name}
                                 </span>
