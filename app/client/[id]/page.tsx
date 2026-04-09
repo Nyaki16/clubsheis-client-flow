@@ -6241,135 +6241,6 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      {/* 14-Day Countdown Timer */}
-      {(() => {
-        const timelineStart = fieldValues.get('timeline:start_date') || null
-        const daysLeft = getDaysRemaining(timelineStart)
-        const deadline = getDeadlineDate(timelineStart)
-
-        // Show "Start Timeline" button for existing clients past onboarding with no start date
-        const PRE_TIMELINE = ['discovery', 'proposal', 'awaiting-review']
-        if (!timelineStart && client.package && !PRE_TIMELINE.includes(client.current_stage)) {
-          return (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-amber-800">No timeline set</p>
-                <p className="text-[10px] text-amber-600">Set a start date to activate the 14-day countdown</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  className="text-xs border border-amber-300 rounded-lg px-3 py-1.5 bg-white"
-                  onChange={async (e) => {
-                    if (e.target.value) {
-                      await saveStageField(id, 'timeline', 'start_date', e.target.value)
-                      setFieldValues(prev => {
-                        const next = new Map(prev)
-                        next.set('timeline:start_date', e.target.value)
-                        return next
-                      })
-                    }
-                  }}
-                />
-                <button
-                  onClick={async () => {
-                    const today = new Date().toISOString().split('T')[0]
-                    await saveStageField(id, 'timeline', 'start_date', today)
-                    setFieldValues(prev => {
-                      const next = new Map(prev)
-                      next.set('timeline:start_date', today)
-                      return next
-                    })
-                  }}
-                  className="text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
-                >
-                  Start Today
-                </button>
-              </div>
-            </div>
-          )
-        }
-
-        if (!timelineStart || daysLeft === null || !deadline) return null
-
-        const totalDays = 14
-        const elapsed = totalDays - daysLeft
-        const progress = Math.min(Math.max((elapsed / totalDays) * 100, 0), 100)
-        const isOverdue = daysLeft < 0
-        const isUrgent = daysLeft <= 2 && daysLeft >= 0
-        const isComplete = client.current_stage === 'wrapup'
-
-        return (
-          <div className={`rounded-xl p-4 mb-6 border ${
-            isComplete
-              ? 'bg-green-50 border-green-200'
-              : isOverdue
-              ? 'bg-red-50 border-red-200'
-              : isUrgent
-              ? 'bg-amber-50 border-amber-200'
-              : 'bg-stone-50 border-stone-200'
-          }`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
-                  isComplete
-                    ? 'bg-green-100 text-green-700'
-                    : isOverdue
-                    ? 'bg-red-100 text-red-700'
-                    : isUrgent
-                    ? 'bg-amber-100 text-amber-700'
-                    : 'bg-stone-100 text-stone-700'
-                }`}>
-                  {isComplete ? '✓' : isOverdue ? '!' : Math.abs(daysLeft)}
-                </div>
-                <div>
-                  <p className={`text-sm font-bold ${
-                    isComplete ? 'text-green-700' : isOverdue ? 'text-red-700' : isUrgent ? 'text-amber-700' : 'text-stone-800'
-                  }`}>
-                    {isComplete
-                      ? 'Project Complete'
-                      : isOverdue
-                      ? `${Math.abs(daysLeft)} day${Math.abs(daysLeft) !== 1 ? 's' : ''} overdue`
-                      : daysLeft === 0
-                      ? 'Deadline is today'
-                      : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`
-                    }
-                  </p>
-                  <p className="text-[10px] text-stone-400">
-                    Started {new Date(timelineStart).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })} · Deadline {deadline.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}
-                  </p>
-                </div>
-              </div>
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                isComplete
-                  ? 'bg-green-200 text-green-800'
-                  : isOverdue
-                  ? 'bg-red-200 text-red-800'
-                  : isUrgent
-                  ? 'bg-amber-200 text-amber-800'
-                  : 'bg-stone-200 text-stone-600'
-              }`}>
-                Day {Math.min(elapsed, totalDays)}/{totalDays}
-              </span>
-            </div>
-            <div className="w-full h-2 bg-white/80 rounded-full overflow-hidden border border-stone-200/50">
-              <div
-                className={`h-full rounded-full transition-all duration-700 ${
-                  isComplete
-                    ? 'bg-green-500'
-                    : isOverdue
-                    ? 'bg-red-500'
-                    : isUrgent
-                    ? 'bg-amber-500'
-                    : 'bg-[#B45309]'
-                }`}
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-        )
-      })()}
-
       {/* Package selector */}
       {!client.package && (
         <div className="bg-[rgba(180,83,9,0.04)] border border-[rgba(180,83,9,0.2)] rounded-xl p-5 mb-8">
@@ -6493,6 +6364,12 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
           const nextStageKey = activeStageKeys[stageIdx + 1]
           const nextStage = STAGES.find(s => s.key === nextStageKey)
 
+          // Countdown timer — renders after awaiting-review
+          const showTimerAfterThis = stage.key === 'awaiting-review'
+          const timelineStart = fieldValues.get('timeline:start_date') || null
+          const daysLeft = timelineStart ? getDaysRemaining(timelineStart) : null
+          const deadlineDate = timelineStart ? getDeadlineDate(timelineStart) : null
+
           return (
             <div key={stage.key} id={`stage-${stage.key}`}>
               {phase && (
@@ -6501,6 +6378,106 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                   <span className={`text-xs font-bold uppercase tracking-wider ${phase.color}`}>{phase.label}</span>
                 </div>
               )}
+
+              {/* 14-Day Countdown — after proposal */}
+              {showTimerAfterThis && (() => {
+                const PRE_TIMELINE = ['discovery', 'proposal', 'awaiting-review']
+
+                // No start date but past onboarding — show set button
+                if (!timelineStart && client.package && !PRE_TIMELINE.includes(client.current_stage)) {
+                  return (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4 mb-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-red-700">14-Day Clock Not Started</p>
+                          <p className="text-[10px] text-red-500">Set a start date to activate the countdown</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          className="text-xs border border-red-300 rounded-lg px-3 py-1.5 bg-white"
+                          onChange={async (e) => {
+                            if (e.target.value) {
+                              await saveStageField(id, 'timeline', 'start_date', e.target.value)
+                              setFieldValues(prev => { const next = new Map(prev); next.set('timeline:start_date', e.target.value); return next })
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={async () => {
+                            const today = new Date().toISOString().split('T')[0]
+                            await saveStageField(id, 'timeline', 'start_date', today)
+                            setFieldValues(prev => { const next = new Map(prev); next.set('timeline:start_date', today); return next })
+                          }}
+                          className="text-xs font-bold bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-lg cursor-pointer transition-colors"
+                        >
+                          Start Today
+                        </button>
+                      </div>
+                    </div>
+                  )
+                }
+
+                // Has start date — show countdown
+                if (timelineStart && daysLeft !== null && deadlineDate) {
+                  const totalDays = 14
+                  const elapsed = totalDays - daysLeft
+                  const progress = Math.min(Math.max((elapsed / totalDays) * 100, 0), 100)
+                  const isOverdue = daysLeft < 0
+                  const isComplete = client.current_stage === 'wrapup'
+
+                  return (
+                    <div className={`rounded-xl p-4 mb-3 border-2 ${
+                      isComplete
+                        ? 'bg-green-50 border-green-300'
+                        : 'bg-red-50 border-red-400'
+                    }`}>
+                      <div className="flex items-center justify-between mb-2.5">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-black ${
+                            isComplete ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {isComplete ? '✓' : isOverdue ? '!' : daysLeft}
+                          </div>
+                          <div>
+                            <p className={`text-base font-black ${isComplete ? 'text-green-700' : 'text-red-700'}`}>
+                              {isComplete
+                                ? 'Project Complete'
+                                : isOverdue
+                                ? `${Math.abs(daysLeft)} DAY${Math.abs(daysLeft) !== 1 ? 'S' : ''} OVERDUE`
+                                : daysLeft === 0
+                                ? 'DEADLINE IS TODAY'
+                                : `${daysLeft} DAY${daysLeft !== 1 ? 'S' : ''} LEFT`
+                              }
+                            </p>
+                            <p className={`text-xs font-medium ${isComplete ? 'text-green-500' : 'text-red-500'}`}>
+                              Started {new Date(timelineStart).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })} · Deadline {deadlineDate.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={`text-sm font-black px-4 py-1.5 rounded-full ${
+                          isComplete ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                        }`}>
+                          Day {Math.min(Math.max(elapsed, 0), totalDays)}/{totalDays}
+                        </span>
+                      </div>
+                      <div className={`w-full h-3 rounded-full overflow-hidden ${isComplete ? 'bg-green-200' : 'bg-red-200'}`}>
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ${isComplete ? 'bg-green-500' : 'bg-red-600'}`}
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                }
+
+                return null
+              })()}
+
               <StagePanel
                 stage={stage}
                 isActive={isActive}
