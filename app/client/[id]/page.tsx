@@ -1061,6 +1061,92 @@ COPY:\n`
                             <p className="text-[10px] text-amber-700">Copy was truncated to fit the 4,000 char limit. The prompt contains as much of the approved copy as possible — Vibe will generate the rest in the same style.</p>
                           </div>
                         )}
+
+                        {/* Claude MD download */}
+                        <div className="border border-stone-200 bg-gradient-to-r from-stone-50 to-amber-50/30 rounded-lg p-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-stone-700">Claude Build File</p>
+                              <p className="text-[10px] text-stone-400">Full prompt + brand kit + copy bible — use in Claude to generate complete HTML page</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const typeLower = el.type.toLowerCase()
+                              const md = `# BUILD BRIEF: ${el.type} — ${el.topic}
+
+## What to Build
+Create a complete, production-ready HTML landing page for "${el.topic}".
+
+${el.description || `A ${typeLower} about ${el.topic}.`}
+
+## Page Type
+${el.type}${el.category ? ` (${el.category})` : ''}
+
+---
+
+## Brand Kit
+
+### Colours
+${primaryColor ? `- **Primary:** ${primaryColor}` : '- Primary: not set'}
+${secondaryColor ? `- **Secondary:** ${secondaryColor}` : '- Secondary: not set'}
+${accentColor ? `- **Accent:** ${accentColor}` : '- Accent: not set'}
+
+### Typography
+${primaryFont ? `- **Headings:** ${primaryFont}` : '- Headings: not set'}
+${secondaryFont ? `- **Body:** ${secondaryFont}` : '- Body: not set'}
+
+### Visual Direction
+${imageryStyle ? `- **Imagery Style:** ${imageryStyle}` : '- Imagery: not set'}
+${brandTone ? `- **Brand Tone:** ${brandTone}` : '- Tone: not set'}
+
+${brandVoice ? `### Brand Voice\n${brandVoice}` : ''}
+
+---
+
+## Build Rules
+
+1. **Use the approved copy below EXACTLY as written** — do not rewrite, paraphrase, or summarise any of it
+2. **Primary CTA must be above the fold** — visible without scrolling
+3. **Sections follow the copy order** — hero → problem → solution → proof → CTA (or as the copy dictates)
+4. **Professional, high-converting layout** — generous whitespace, clear visual hierarchy, trust-building design
+5. **Mobile-first responsive** — must look great on phone, tablet, and desktop
+6. **Use the brand colours and fonts throughout** — headings in the heading font, body in the body font, buttons in primary colour
+7. **Include all standard page elements** — favicon meta, smooth scroll, accessible contrast, form styling if needed
+8. **Images** — use placeholder divs with descriptive alt text matching the imagery style (I will replace with real images later)
+9. **Output a single self-contained HTML file** — inline CSS, no external dependencies except Google Fonts
+
+---
+
+## Approved Copy (use exactly as written)
+
+${el.pageText || 'No approved copy found for this element. Write compelling copy that matches the brand voice above.'}
+
+${el.emailText ? `---\n\n## Associated Email Sequence\n\n${el.emailText}` : ''}
+
+---
+
+## Delivery Format
+
+Return a single, complete HTML file I can save and open in a browser. The page should be indistinguishable from a professionally designed landing page. Include inline CSS and use Google Fonts CDN for the specified typefaces.
+`
+                              const blob = new Blob([md], { type: 'text/markdown' })
+                              const url = URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = `build-${el.type.toLowerCase().replace(/\s+/g, '-')}-${el.topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30)}.md`
+                              a.click()
+                              URL.revokeObjectURL(url)
+                            }}
+                            className="text-xs px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            Download .md
+                          </button>
+                        </div>
                       </>
                     ) : (
                       <div className="text-center py-4">
