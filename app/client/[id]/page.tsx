@@ -148,7 +148,7 @@ function StagePanel({
   const dueDateLabel = stageDue ? formatDueDate(stageDue) : null
 
   return (
-    <div className={`${!isActive && !isCompleted && stage.key !== 'production' ? 'opacity-40 pointer-events-none' : ''}`}>
+    <div className={`${!isActive && !isCompleted && stage.key !== 'production' && stage.key !== 'ads-email-social' && stage.key !== 'content-production' ? 'opacity-40 pointer-events-none' : ''}`}>
       {/* Header */}
       <div
         onClick={() => setExpanded(!expanded)}
@@ -227,7 +227,7 @@ function StagePanel({
       </div>
 
       {/* Expanded detail */}
-      {expanded && (isActive || isCompleted || stage.key === 'production') && (
+      {expanded && (isActive || isCompleted || stage.key === 'production' || stage.key === 'ads-email-social' || stage.key === 'content-production') && (
         <div className="bg-white border border-t-0 border-stone-200 rounded-b-xl -mt-1 p-4 sm:p-6 space-y-6">
           {/* Stage guide */}
           {stage.guide && stage.guide.length > 0 && (
