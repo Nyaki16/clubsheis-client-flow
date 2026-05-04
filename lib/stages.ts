@@ -132,7 +132,7 @@ export const STAGES: StageDefinition[] = [
     key: 'tech-onboarding',
     num: '3B',
     name: 'Technical Onboarding',
-    summary: 'Connect all the technical integrations the client needs on Ghutte — domain, payments, social accounts, tracking pixels, and more. Every item must be checked off before production can start.',
+    summary: 'Connect all the technical integrations the client needs on Ghutte — domain, payments, social accounts, tracking pixels, and more. You can move to the next stage while working through these items.',
     color: '#0891B2',
     colorSoft: 'rgba(8,145,178,0.06)',
     triggerLabel: 'Trigger: Client onboarding complete',
@@ -152,6 +152,7 @@ export const STAGES: StageDefinition[] = [
       { label: 'Meta Pixel installed', description: 'Install the Meta (Facebook) pixel on all pages. Test with Pixel Helper extension.' },
       { label: 'Social accounts linked', description: 'Connect all social profiles (Instagram, LinkedIn, TikTok, YouTube) that need integration.' },
       { label: 'Client access verified', description: 'Ensure the client can log in to Ghutte and see their dashboard. Send login details if needed.' },
+      { label: 'Upload Existing Contact List', description: 'Import the client\'s existing contacts/leads into Ghutte. Clean and deduplicate before uploading.' },
     ],
     dataFields: [],
     conditionalLogic: [
@@ -349,9 +350,7 @@ export const STAGES: StageDefinition[] = [
     ],
     substeps: [],
     dataFields: [],
-    conditionalLogic: [
-      { condition: 'All ClickUp tasks complete', result: 'Move to Review & Delivery' },
-    ],
+    conditionalLogic: [],
     nextActionPrompt: 'Track production progress in ClickUp and mark complete when done.',
   },
   {

@@ -1814,12 +1814,16 @@ function ImplementationPlanActions({
 }) {
   const [customInput, setCustomInput] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
+  const [editingIdx, setEditingIdx] = useState<string | null>(null) // 'strategy-0', 'extra-0', etc.
+  const [editDraft, setEditDraft] = useState<{ topic: string; description: string; email_note: string; type: string }>({ topic: '', description: '', email_note: '', type: '' })
 
   // Load funnel strategy elements and selections
   const funnelStrategyJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
   const funnelSelectionsRaw = fieldValues.get('funnel-strategy:funnel_selections') || '[]'
   // Load any extra implementation-only elements
   const implExtrasRaw = fieldValues.get('implementation-plan:extra_elements') || '[]'
+  // Load element overrides
+  const overridesRaw = fieldValues.get('implementation-plan:element_overrides') || '{}'
 
   let allStrategyElements: FunnelElement[] = []
   try { if (funnelStrategyJson) allStrategyElements = JSON.parse(funnelStrategyJson) } catch {}
@@ -1827,8 +1831,34 @@ function ImplementationPlanActions({
   try { selectedIndices = JSON.parse(funnelSelectionsRaw) } catch {}
   let extraElements: { type: string; topic: string }[] = []
   try { extraElements = JSON.parse(implExtrasRaw) } catch {}
+  let overrides: Record<string, { topic?: string; description?: string; email_note?: string; type?: string }> = {}
+  try { overrides = JSON.parse(overridesRaw) } catch {}
 
-  const selectedElements = selectedIndices.map(i => allStrategyElements[i]).filter(Boolean)
+  // Apply overrides to strategy elements
+  const selectedElements = selectedIndices.map(i => allStrategyElements[i]).filter(Boolean).map((el, idx) => {
+    const o = overrides[`strategy-${idx}`]
+    if (!o) return el
+    return { ...el, ...(o.topic !== undefined && { topic: o.topic }), ...(o.description !== undefined && { description: o.description }), ...(o.email_note !== undefined && { email_note: o.email_note }), ...(o.type !== undefined && { type: o.type }) }
+  })
+
+  const startEditing = (key: string, el: { type: string; topic: string; description?: string; email_note?: string }) => {
+    setEditingIdx(key)
+    setEditDraft({ type: el.type, topic: el.topic, description: el.description || '', email_note: el.email_note || '' })
+  }
+
+  const saveEdit = async () => {
+    if (!editingIdx) return
+    if (editingIdx.startsWith('strategy-')) {
+      const updated = { ...overrides, [editingIdx]: { type: editDraft.type, topic: editDraft.topic, description: editDraft.description, email_note: editDraft.email_note } }
+      await onSaveField('implementation-plan', 'element_overrides', JSON.stringify(updated))
+    } else if (editingIdx.startsWith('extra-')) {
+      const idx = parseInt(editingIdx.split('-')[1])
+      const updated = [...extraElements]
+      updated[idx] = { type: editDraft.type, topic: editDraft.topic }
+      await onSaveField('implementation-plan', 'extra_elements', JSON.stringify(updated))
+    }
+    setEditingIdx(null)
+  }
 
   const handleAddExtra = async () => {
     const text = customInput.trim()
@@ -1926,22 +1956,51 @@ function ImplementationPlanActions({
                     {info.label} ({items.length})
                   </div>
                   <div className="space-y-1.5">
-                    {items.map((el, i) => (
-                      <div key={i} className={`rounded-lg border p-3 ${info.bg} ${info.border}`}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-green-500 text-sm">✓</span>
-                          <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
+                    {items.map((el, i) => {
+                      const globalIdx = selectedElements.indexOf(el)
+                      const editKey = `strategy-${globalIdx}`
+                      const isEditing = editingIdx === editKey
+                      return (
+                        <div key={i} className={`rounded-lg border p-3 ${info.bg} ${info.border} group/card`}>
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <div>
+                                <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Type</label>
+                                <input type="text" value={editDraft.type} onChange={(e) => setEditDraft(d => ({ ...d, type: e.target.value }))} className="w-full border border-stone-300 rounded-lg px-3 py-1.5 text-sm mt-0.5 focus:outline-none focus:border-amber-500 bg-white" />
+                              </div>
+                              <div>
+                                <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Title</label>
+                                <input type="text" value={editDraft.topic} onChange={(e) => setEditDraft(d => ({ ...d, topic: e.target.value }))} className="w-full border border-stone-300 rounded-lg px-3 py-1.5 text-sm mt-0.5 focus:outline-none focus:border-amber-500 bg-white" />
+                              </div>
+                              <div>
+                                <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Description</label>
+                                <textarea value={editDraft.description} onChange={(e) => setEditDraft(d => ({ ...d, description: e.target.value }))} rows={2} className="w-full border border-stone-300 rounded-lg px-3 py-1.5 text-sm mt-0.5 focus:outline-none focus:border-amber-500 bg-white resize-none" />
+                              </div>
+                              <div className="flex gap-2">
+                                <button type="button" onClick={saveEdit} className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-green-700 cursor-pointer">Save</button>
+                                <button type="button" onClick={() => setEditingIdx(null)} className="bg-white border border-stone-300 text-stone-500 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-stone-50 cursor-pointer">Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2">
+                                <span className="text-green-500 text-sm">✓</span>
+                                <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
+                                <button type="button" onClick={() => startEditing(editKey, el)} className="ml-auto w-6 h-6 rounded-full text-stone-400 hover:text-amber-600 hover:bg-amber-100 opacity-0 group-hover/card:opacity-100 transition-opacity cursor-pointer flex items-center justify-center text-xs" title="Edit element">✎</button>
+                              </div>
+                              <p className="text-sm font-semibold text-stone-800 mt-0.5 ml-6">{el.topic}</p>
+                              <p className="text-xs text-stone-500 mt-0.5 ml-6">{el.description}</p>
+                              <div className="ml-6 mt-2">
+                                <div className={`${info.bg} border ${info.border} rounded-md px-3 py-1.5`}>
+                                  <span className={`text-xs font-bold ${info.color} uppercase tracking-wider`}>Deliverable: </span>
+                                  <span className="text-xs text-stone-700">{implGetDeliverable(el.type)}</span>
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
-                        <p className="text-sm font-semibold text-stone-800 mt-0.5 ml-6">{el.topic}</p>
-                        <p className="text-xs text-stone-500 mt-0.5 ml-6">{el.description}</p>
-                        <div className="ml-6 mt-2">
-                          <div className={`${info.bg} border ${info.border} rounded-md px-3 py-1.5`}>
-                            <span className={`text-xs font-bold ${info.color} uppercase tracking-wider`}>Deliverable: </span>
-                            <span className="text-xs text-stone-700">{implGetDeliverable(el.type)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )
@@ -1966,36 +2025,68 @@ function ImplementationPlanActions({
                     const isProduct = ['course', 'masterclass', 'ebook', 'guide', 'toolkit', 'template', 'cheat sheet', 'checklist', 'mini-course', 'video series', 'workshop', 'challenge', 'downloadable'].some(
                       t => el.type.toLowerCase().includes(t)
                     )
+                    // Find this element's index in selectedElements for override key
+                    const globalIdx = selectedElements.indexOf(el)
+                    const editKey = `strategy-${globalIdx}`
+                    const isEditing = editingIdx === editKey
                     return (
-                      <div key={i} className={`rounded-lg border p-3 ${stageInfo.bg} ${stageInfo.border}`}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-green-500 text-sm">✓</span>
-                          <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
-                        </div>
-                        <p className="text-sm font-semibold text-stone-800 mt-0.5 ml-6">{el.topic}</p>
-                        <p className="text-xs text-stone-500 mt-0.5 ml-6">{el.description}</p>
-
-                        {/* What we build */}
-                        <div className="ml-6 mt-2 space-y-1.5">
-                          <div className="bg-green-50 border border-green-200 rounded-md px-3 py-1.5">
-                            <span className="text-xs font-bold text-green-600 uppercase tracking-wider">We build: </span>
-                            <span className="text-xs text-green-700">
-                              {isProduct ? `Landing page, sales copy & email sequence for the ${el.type.toLowerCase()}` : `${el.type} page & sales copy`}
-                            </span>
+                      <div key={i} className={`rounded-lg border p-3 ${stageInfo.bg} ${stageInfo.border} group/card`}>
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <div>
+                              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Type</label>
+                              <input type="text" value={editDraft.type} onChange={(e) => setEditDraft(d => ({ ...d, type: e.target.value }))} className="w-full border border-stone-300 rounded-lg px-3 py-1.5 text-sm mt-0.5 focus:outline-none focus:border-amber-500 bg-white" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Title</label>
+                              <input type="text" value={editDraft.topic} onChange={(e) => setEditDraft(d => ({ ...d, topic: e.target.value }))} className="w-full border border-stone-300 rounded-lg px-3 py-1.5 text-sm mt-0.5 focus:outline-none focus:border-amber-500 bg-white" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Description</label>
+                              <textarea value={editDraft.description} onChange={(e) => setEditDraft(d => ({ ...d, description: e.target.value }))} rows={2} className="w-full border border-stone-300 rounded-lg px-3 py-1.5 text-sm mt-0.5 focus:outline-none focus:border-amber-500 bg-white resize-none" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Email Sequence Note</label>
+                              <input type="text" value={editDraft.email_note} onChange={(e) => setEditDraft(d => ({ ...d, email_note: e.target.value }))} className="w-full border border-stone-300 rounded-lg px-3 py-1.5 text-sm mt-0.5 focus:outline-none focus:border-amber-500 bg-white" />
+                            </div>
+                            <div className="flex gap-2">
+                              <button type="button" onClick={saveEdit} className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-green-700 cursor-pointer">Save</button>
+                              <button type="button" onClick={() => setEditingIdx(null)} className="bg-white border border-stone-300 text-stone-500 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-stone-50 cursor-pointer">Cancel</button>
+                            </div>
                           </div>
-                          {isProduct && (
-                            <div className="bg-stone-50 border border-stone-200 rounded-md px-3 py-1.5">
-                              <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Client builds: </span>
-                              <span className="text-xs text-stone-600">The actual {el.type.toLowerCase()} content</span>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <span className="text-green-500 text-sm">✓</span>
+                              <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{el.type}</span>
+                              <button type="button" onClick={() => startEditing(editKey, el)} className="ml-auto w-6 h-6 rounded-full text-stone-400 hover:text-amber-600 hover:bg-amber-100 opacity-0 group-hover/card:opacity-100 transition-opacity cursor-pointer flex items-center justify-center text-xs" title="Edit element">✎</button>
                             </div>
-                          )}
-                          {(el.email_note || el.channel_link) && (
-                            <div className="bg-purple-50 border border-purple-200 rounded-md px-3 py-1.5">
-                              <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">{client.package === 'ads-email-social' ? 'Links to: ' : 'Email sequence: '}</span>
-                              <span className="text-xs text-purple-700">{el.channel_link || el.email_note}</span>
+                            <p className="text-sm font-semibold text-stone-800 mt-0.5 ml-6">{el.topic}</p>
+                            <p className="text-xs text-stone-500 mt-0.5 ml-6">{el.description}</p>
+
+                            {/* What we build */}
+                            <div className="ml-6 mt-2 space-y-1.5">
+                              <div className="bg-green-50 border border-green-200 rounded-md px-3 py-1.5">
+                                <span className="text-xs font-bold text-green-600 uppercase tracking-wider">We build: </span>
+                                <span className="text-xs text-green-700">
+                                  {isProduct ? `Landing page, sales copy & email sequence for the ${el.type.toLowerCase()}` : `${el.type} page & sales copy`}
+                                </span>
+                              </div>
+                              {isProduct && (
+                                <div className="bg-stone-50 border border-stone-200 rounded-md px-3 py-1.5">
+                                  <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Client builds: </span>
+                                  <span className="text-xs text-stone-600">The actual {el.type.toLowerCase()} content</span>
+                                </div>
+                              )}
+                              {(el.email_note || el.channel_link) && (
+                                <div className="bg-purple-50 border border-purple-200 rounded-md px-3 py-1.5">
+                                  <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">{client.package === 'ads-email-social' ? 'Links to: ' : 'Email sequence: '}</span>
+                                  <span className="text-xs text-purple-700">{el.channel_link || el.email_note}</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          </>
+                        )}
                       </div>
                     )
                   })}
@@ -3567,6 +3658,10 @@ function ProductionActions({
   const [expandedGenTasks, setExpandedGenTasks] = useState<Set<number>>(new Set())
   const [removedTasks, setRemovedTasks] = useState<Set<number>>(new Set())
   const [viewMode, setViewMode] = useState<'by-element' | 'by-role'>('by-element')
+  const [clickupMembers, setClickupMembers] = useState<{ id: number; username: string; email: string; profilePicture: string | null }[]>([])
+  const [roleMap, setRoleMap] = useState<Record<string, number | null>>(() => {
+    try { return JSON.parse(fieldValues.get('production:role_assignees') || '{}') } catch { return {} }
+  })
 
   const linkedListId = fieldValues.get('production:clickup_list_id') || ''
   const linkedListName = fieldValues.get('production:clickup_list_name') || ''
@@ -3626,15 +3721,23 @@ function ProductionActions({
         dueTimestamp = taskDue.getTime()
       }
 
+      const getAssignees = (role: TeamRole): number[] => {
+        const memberId = roleMap[role]
+        return memberId ? [memberId] : []
+      }
+
       const tasksToSend = activeTasks_gen.map(t => ({
         name: t.name,
         description: t.description,
         tags: [t.tag, ROLE_META[t.role].label.toLowerCase()],
         priority: 3,
         due_date: dueTimestamp,
+        assignees: getAssignees(t.role),
         subtasks: t.subtasks.map(s => ({
           name: `[${ROLE_META[s.role].label}] ${s.name}`,
           description: s.description,
+          assignees: getAssignees(s.role),
+          due_date: dueTimestamp,
         })),
       }))
 
@@ -3675,6 +3778,18 @@ function ProductionActions({
   useEffect(() => {
     if (linkedListId) fetchTasks(linkedListId)
   }, [linkedListId, fetchTasks])
+
+  // Fetch ClickUp workspace members
+  useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        const res = await fetch('/api/clickup-tasks?members=true')
+        const data = await res.json()
+        if (data.members) setClickupMembers(data.members)
+      } catch {}
+    }
+    fetchMembers()
+  }, [])
 
   // Fetch workspace hierarchy for picker
   const openPicker = async () => {
@@ -4008,6 +4123,39 @@ function ProductionActions({
                     </div>
                   )
                 })}
+              </div>
+            )}
+
+            {/* Role → Assignee Mapping */}
+            {!sendResult && clickupMembers.length > 0 && (
+              <div className="bg-stone-50 border border-stone-200 rounded-lg p-4">
+                <h5 className="text-xs font-bold text-stone-600 uppercase tracking-wider mb-3">Assign Roles to Team Members</h5>
+                <div className="grid grid-cols-2 gap-2">
+                  {(Object.keys(ROLE_META) as TeamRole[]).map(role => {
+                    const meta = ROLE_META[role]
+                    return (
+                      <div key={role} className="flex items-center gap-2">
+                        <span className="text-sm">{meta.icon}</span>
+                        <span className="text-xs font-medium text-stone-700 w-24">{meta.label}</span>
+                        <select
+                          value={roleMap[role] || ''}
+                          onChange={async (e) => {
+                            const val = e.target.value ? Number(e.target.value) : null
+                            const updated = { ...roleMap, [role]: val }
+                            setRoleMap(updated)
+                            await onSaveField('production', 'role_assignees', JSON.stringify(updated))
+                          }}
+                          className="flex-1 border border-stone-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:border-rose-400"
+                        >
+                          <option value="">Unassigned</option>
+                          {clickupMembers.map(m => (
+                            <option key={m.id} value={m.id}>{m.username || m.email}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
 
@@ -4448,10 +4596,11 @@ function InternalCheckActions({
   const [linksOpen, setLinksOpen] = useState(true)
   const [qaReportOpen, setQaReportOpen] = useState(true)
   const [manualOpen, setManualOpen] = useState(true)
+  const [localReviewerName, setLocalReviewerName] = useState(fieldValues.get('internal-check:reviewer_name') || '')
 
   const qaReport = fieldValues.get('internal-check:qa_report') || ''
   const qaStatus = fieldValues.get('internal-check:qa_status') || '' // 'pass' | 'fail' | 'warning'
-  const reviewerName = fieldValues.get('internal-check:reviewer_name') || ''
+  const reviewerName = localReviewerName
   const reviewerSigned = fieldValues.get('internal-check:reviewer_signed') === 'true'
   const checkNotes = fieldValues.get('internal-check:check_notes') || ''
 
@@ -4859,8 +5008,10 @@ function InternalCheckActions({
               </div>
               <input
                 type="text"
-                value={reviewerName}
-                onChange={e => onSaveField('internal-check', 'reviewer_name', e.target.value)}
+                value={localReviewerName}
+                onChange={e => setLocalReviewerName(e.target.value)}
+                onBlur={() => onSaveField('internal-check', 'reviewer_name', localReviewerName)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.currentTarget.blur() } }}
                 placeholder="Reviewer name"
                 className="flex-1 text-sm font-medium border-b border-stone-200 focus:border-emerald-500 outline-none pb-1 bg-transparent"
               />
@@ -6810,7 +6961,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                 onToggleSubstep={handleToggleSubstep}
                 onSaveField={handleSaveField}
                 onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
-                canAdvance={allDone && !!nextStageKey && !(stage.key === 'awaiting-review' && fieldValues.get('awaiting-review:proposal_status') === 'Declined')}
+                canAdvance={(allDone || stage.key === 'tech-onboarding') && !!nextStageKey && !(stage.key === 'awaiting-review' && fieldValues.get('awaiting-review:proposal_status') === 'Declined')}
                 nextStageName={nextStage?.name || 'Next'}
                 timelineStart={fieldValues.get('timeline:start_date') || null}
                 clientPackage={client.package}

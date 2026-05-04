@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
         tags?: string[]
         priority?: number // 1=urgent,2=high,3=normal,4=low
         due_date?: number // unix ms
-        subtasks?: { name: string; description?: string; assignees?: number[] }[]
+        subtasks?: { name: string; description?: string; assignees?: number[]; due_date?: number }[]
       }[]
     }
 
@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
               description: sub.description || '',
               parent: taskData.id,
               assignees: sub.assignees || [],
+              due_date: sub.due_date || undefined,
             }),
           })
           if (subRes.ok) subtasksCreated++
@@ -101,6 +102,27 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const listId = searchParams.get('listId')
     const folderId = searchParams.get('folderId')
+    const fetchMembers = searchParams.get('members')
+
+    // If members=true, fetch workspace members
+    if (fetchMembers === 'true') {
+      const teamId = process.env.CLICKUP_TEAM_ID || '90121487936'
+      const res = await fetch(`${CLICKUP_BASE}/team/${teamId}`, {
+        headers: { 'Authorization': clickupToken },
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        return NextResponse.json({ error: `ClickUp API error: ${err}` }, { status: res.status })
+      }
+      const data = await res.json()
+      const members = (data.team?.members || []).map((m: { user: { id: number; username: string; email: string; profilePicture: string | null } }) => ({
+        id: m.user.id,
+        username: m.user.username,
+        email: m.user.email,
+        profilePicture: m.user.profilePicture,
+      }))
+      return NextResponse.json({ members })
+    }
 
     // If listId provided, fetch tasks from that list
     if (listId) {
