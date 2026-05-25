@@ -3447,7 +3447,7 @@ function BrandBibleActions({
   )
 }
 
-// ── Creative Strategy Brief (DD Method) — client-facing synthesis of Research/Brand/Copy bibles ──
+// ── Creative Strategy Brief — client-facing synthesis of Research/Brand/Copy bibles ──
 function StrategyBriefActions({
   client,
   fieldValues,
@@ -3676,7 +3676,7 @@ function StrategyBriefActions({
           </div>
           {approved && <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
         </div>
-        <p className="text-xs text-stone-500">A client-facing creative strategy brief built using the Dara Denney DD Method. Synthesises the bibles into 9 sections — business problem, customer voice, personas, awareness levels, messaging territories, big idea, angles, and test priorities.</p>
+        <p className="text-xs text-stone-500">A client-facing creative strategy brief that synthesises the bibles into 9 sections — business problem, customer voice, personas, awareness levels, messaging territories, big idea, angles, and test priorities.</p>
 
         {/* No content yet */}
         {!briefText && !generating && (

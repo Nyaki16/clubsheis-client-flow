@@ -1006,11 +1006,11 @@ Write in a warm but professional tone. Use the client's name. This is a celebrat
 
 Format with clear headings and bullet points. This will be pasted into a Canva document, so use clean formatting (no markdown syntax like ** or ##, just plain text with clear section headings in CAPS and bullet points with dashes).`,
 
-  'strategy-brief': `You are building a CREATIVE STRATEGY BRIEF for a ClubSheIs client using the Dara Denney "DD Method" — a battle-tested framework for DTC paid-social creative strategy.
+  'strategy-brief': `You are building a CREATIVE STRATEGY BRIEF for a ClubSheIs client — a battle-tested framework for DTC paid-social creative strategy.
 
 This document is CLIENT-FACING. It will be designed into a visually polished deliverable the client reviews and approves before any production work begins. Every word matters. It must read as confident, evidence-based, and specific — never vague, generic, or filler.
 
-CORE PRINCIPLES (from the DD Method):
+CORE PRINCIPLES:
 - Evidence over vibes — every recommendation must trace back to something in the Research Bible, Brand Voice, or Copy Bible.
 - Customer language over marketer language — pull EXACT phrases from the research, do not paraphrase.
 - Messaging before format — the WHAT we say matters more than the HOW.
@@ -1067,7 +1067,7 @@ A bulleted list of 10–15 EXACT phrases pulled from the research that can be us
 
 ## SECTION 4 — THE PERSONAS (Buying Psychology Clusters)
 
-Identify 2–3 distinct buying psychology clusters present in this brand's audience. NOT demographics. Use the DD Method persona archetypes where they fit (Burned-Out Problem Solver, Skeptical Optimizer, Identity Buyer, Gift Giver, Routine Upgrader, Reluctant Premium Buyer) — adapt naming to this brand if needed.
+Identify 2–3 distinct buying psychology clusters present in this brand's audience. NOT demographics. Use proven persona archetypes where they fit (Burned-Out Problem Solver, Skeptical Optimizer, Identity Buyer, Gift Giver, Routine Upgrader, Reluctant Premium Buyer) — adapt naming to this brand if needed.
 
 For each persona:
 ### [Persona Name]

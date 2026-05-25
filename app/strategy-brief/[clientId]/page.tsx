@@ -274,7 +274,7 @@ function MethodologyCard({ accent }: { accent: string }) {
   return (
     <div className="bg-stone-900 text-white rounded-3xl p-10 md:p-12 mb-8 print:rounded-none print:break-after-page">
       <p className="text-xs uppercase tracking-[0.25em] mb-3" style={{ color: accent }}>The Method</p>
-      <h2 className="text-3xl md:text-4xl font-bold mb-4 leading-tight">The DD Method.</h2>
+      <h2 className="text-3xl md:text-4xl font-bold mb-4 leading-tight">How we built this brief.</h2>
       <p className="text-lg opacity-80 leading-relaxed max-w-2xl mb-8">
         A nine-part creative strategy framework built for direct-response paid social. Every recommendation in this brief is traced to evidence in your research — not vibes, not guesses.
       </p>
@@ -365,7 +365,7 @@ export default async function StrategyBriefPage({ params }: { params: Promise<{ 
           <ClosingStatement outro={outro} accent={accent} />
 
           <p className="text-center text-xs text-stone-400 mt-8 pb-8 print:hidden">
-            ClubSheIs Creative Strategy Brief • Built with the DD Method
+            ClubSheIs Creative Strategy Brief
           </p>
         </main>
       </div>
