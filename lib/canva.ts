@@ -8,7 +8,10 @@ import { createClient } from '@supabase/supabase-js'
 
 const CANVA_API_BASE = 'https://api.canva.com/rest/v1'
 const CANVA_AUTH_BASE = 'https://www.canva.com/api/oauth'
-const CANVA_TOKEN_URL = `${CANVA_AUTH_BASE}/token`
+// Token endpoint lives on api.canva.com (REST API), NOT www.canva.com.
+// www.canva.com/api/oauth/token returns 403 with no body. Confirmed via
+// curl smoke test 2026-05-25.
+const CANVA_TOKEN_URL = `${CANVA_API_BASE}/oauth/token`
 
 // PKCE-required OAuth scopes for the strategy-brief integration.
 // design:content:write — create designs from URL imports
