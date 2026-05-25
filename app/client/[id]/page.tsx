@@ -1550,6 +1550,9 @@ function StrategyActions({
     const key = docType === 'client-profile' ? 'client_profile_approved'
       : docType === 'research-bible' ? 'research_bible_approved'
       : 'brand_voice_approved'
+    const docUrlKey = docType === 'client-profile' ? 'client_profile_doc_url'
+      : docType === 'research-bible' ? 'research_bible_doc_url'
+      : 'brand_voice_doc_url'
     const docName = docType === 'client-profile' ? 'Client Profile'
       : docType === 'research-bible' ? 'Research Bible'
       : 'Brand Voice'
@@ -1558,40 +1561,35 @@ function StrategyActions({
       : 'brand_voice_text'
     const text = fieldValues.get(`strategy:${textKey}`) || ''
     const docTitle = `${client.name}_${docName.replace(/\s+/g, '')}`
-    const scriptUrl = process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL
 
-    // Mark as approved
-    await onSaveField('strategy', key, 'true')
+    // Open a placeholder tab inside the click gesture — we'll redirect it once we have the URL.
+    // (This avoids popup blockers and gives the user immediate feedback.)
+    const placeholder = window.open('about:blank', '_blank')
 
-    if (!scriptUrl) {
-      try { await navigator.clipboard.writeText(text) } catch {}
-      window.open('https://docs.google.com/document/create', '_blank')
-      alert(`Content copied to clipboard — paste into the new doc.\nName it: ${docTitle}`)
-      return
+    try {
+      const res = await fetch('/api/create-google-doc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: docTitle, content: text }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.docUrl) {
+        if (placeholder) placeholder.close()
+        alert(`Could not create Google Doc: ${data.error || 'unknown error'}.\n\nFalling back to clipboard — paste into the new doc.`)
+        const fallback = window.open('https://docs.google.com/document/create', '_blank')
+        try { await navigator.clipboard.writeText(text) } catch {}
+        if (!fallback) alert(`Title: ${docTitle}\n\nContent copied to clipboard.`)
+        await onSaveField('strategy', key, 'true')
+        return
+      }
+      // Success — point the placeholder tab at the new doc and save the URL.
+      if (placeholder) placeholder.location.href = data.docUrl
+      await onSaveField('strategy', docUrlKey, data.docUrl)
+      await onSaveField('strategy', key, 'true')
+    } catch (err) {
+      if (placeholder) placeholder.close()
+      alert(`Network error creating Google Doc: ${err instanceof Error ? err.message : 'unknown'}.`)
     }
-
-    // Submit a hidden form to Apps Script (no CORS issues with form POST)
-    // The Apps Script creates the doc and redirects the new tab to it
-    const form = document.createElement('form')
-    form.method = 'POST'
-    form.action = scriptUrl
-    form.target = '_blank'
-
-    const titleInput = document.createElement('input')
-    titleInput.type = 'hidden'
-    titleInput.name = 'title'
-    titleInput.value = docTitle
-    form.appendChild(titleInput)
-
-    const contentInput = document.createElement('input')
-    contentInput.type = 'hidden'
-    contentInput.name = 'content'
-    contentInput.value = text
-    form.appendChild(contentInput)
-
-    document.body.appendChild(form)
-    form.submit()
-    document.body.removeChild(form)
   }
 
   const handleUnapprove = async (docType: string) => {
@@ -2594,33 +2592,35 @@ async function streamGenerate(body: Record<string, unknown>): Promise<{ text: st
   return { text: fullText, truncated: stopReason === 'max_tokens' }
 }
 
-// ── Shared: Save to Google Drive helper ──
-function saveToDrive(title: string, content: string) {
-  const scriptUrl = process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL
-  if (scriptUrl) {
-    try {
-      const form = document.createElement('form')
-      form.method = 'POST'
-      form.action = scriptUrl
-      form.target = '_blank'
-      const addField = (name: string, value: string) => {
-        const input = document.createElement('input')
-        input.type = 'hidden'
-        input.name = name
-        input.value = value
-        form.appendChild(input)
-      }
-      addField('title', title)
-      addField('content', content)
-      document.body.appendChild(form)
-      form.submit()
-      document.body.removeChild(form)
-      return
-    } catch {}
+// ── Shared: Create a Google Doc via the Apps Script and open it ──
+// The Apps Script creates the doc in the deploying account's Drive and sets sharing to
+// "Anyone with link can edit" so any teammate can open the URL without prior access.
+// Returns the doc URL on success, null on failure (clipboard fallback already triggered).
+async function saveToDrive(title: string, content: string): Promise<string | null> {
+  // Open a placeholder tab inside the click gesture so popup blockers don't fire.
+  const placeholder = typeof window !== 'undefined' ? window.open('about:blank', '_blank') : null
+  try {
+    const res = await fetch('/api/create-google-doc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, content }),
+    })
+    const data = await res.json()
+    if (!res.ok || !data.docUrl) {
+      if (placeholder) placeholder.close()
+      alert(`Could not create Google Doc: ${data.error || 'unknown'}.\n\nFalling back to clipboard — paste into the new doc.`)
+      const fb = window.open('https://docs.google.com/document/create', '_blank')
+      try { await navigator.clipboard.writeText(content) } catch {}
+      if (!fb) alert(`Title: ${title}\n\nContent copied to clipboard.`)
+      return null
+    }
+    if (placeholder) placeholder.location.href = data.docUrl
+    return data.docUrl as string
+  } catch (err) {
+    if (placeholder) placeholder.close()
+    alert(`Network error creating Google Doc: ${err instanceof Error ? err.message : 'unknown'}.`)
+    return null
   }
-  navigator.clipboard.writeText(content)
-  window.open('https://docs.google.com/document/create', '_blank')
-  alert(`Content copied to clipboard — paste it into the new doc.\nName it: ${title}`)
 }
 
 // ── Copy Sub-Section (Page Copy or Email Sequence) ──
@@ -2663,9 +2663,11 @@ function CopySubSection({
   const textKey = `element_${index}_${type}_text`
   const notesKey = `element_${index}_${type}_notes`
   const approvedKey = `element_${index}_${type}_approved`
+  const docUrlKey = `element_${index}_${type}_doc_url`
   const copyText = fieldValues.get(`copy-bible:${textKey}`) || ''
   const userNotes = fieldValues.get(`copy-bible:${notesKey}`) || ''
   const isApproved = fieldValues.get(`copy-bible:${approvedKey}`) === 'true'
+  const savedDocUrl = fieldValues.get(`copy-bible:${docUrlKey}`) || ''
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -2698,7 +2700,11 @@ function CopySubSection({
   const handleApprove = async () => {
     setSaving(true)
     const safeLabel = label.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '_')
-    saveToDrive(`${client.name}_${type === 'page' ? 'PageCopy' : 'Emails'}_${safeLabel}`, copyText)
+    const docTitle = `${client.name}_${type === 'page' ? 'PageCopy' : 'Emails'}_${safeLabel}`
+    const docUrl = await saveToDrive(docTitle, copyText)
+    if (docUrl) {
+      await onSaveField('copy-bible', `element_${index}_${type}_doc_url`, docUrl)
+    }
     await onSaveField('copy-bible', approvedKey, 'true')
     setSaving(false)
   }
@@ -2710,8 +2716,15 @@ function CopySubSection({
           <span className="text-sm">{icon}</span>
           <span className={`text-xs font-bold uppercase tracking-wider ${color.text}`}>{label}</span>
         </div>
-        {isApproved && <span className="text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
-        {copyText && !isApproved && <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded">DRAFT</span>}
+        <div className="flex items-center gap-2">
+          {isApproved && savedDocUrl && (
+            <a href={savedDocUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 underline">
+              Open Doc ↗
+            </a>
+          )}
+          {isApproved && <span className="text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
+          {copyText && !isApproved && <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded">DRAFT</span>}
+        </div>
       </div>
 
       {/* Notes */}
@@ -3430,6 +3443,406 @@ function BrandBibleActions({
           <button onClick={async () => { await onSaveField('brand-bible', 'brand_bible_complete', 'false') }} className="text-xs text-amber-600 hover:text-amber-800 mt-1 cursor-pointer">Reopen for editing</button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Creative Strategy Brief (DD Method) — client-facing synthesis of Research/Brand/Copy bibles ──
+function StrategyBriefActions({
+  client,
+  fieldValues,
+  onSaveField,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+}) {
+  const briefText = fieldValues.get('strategy-brief:brief_text') || ''
+  const approved = fieldValues.get('strategy-brief:approved') === 'true'
+  const canvaDesignUrl = fieldValues.get('strategy-brief:canva_design_url') || ''
+  const canvaSentAt = fieldValues.get('strategy-brief:canva_sent_at') || ''
+  const briefDocUrl = fieldValues.get('strategy-brief:brief_doc_url') || ''
+
+  // Source bibles
+  const clientProfile = fieldValues.get('strategy:client_profile_text') || ''
+  const researchBible = fieldValues.get('strategy:research_bible_text') || ''
+  const brandVoice = fieldValues.get('strategy:brand_voice_text') || ''
+  const copyBible = fieldValues.get('copy-bible:copy_bible_text')
+    || fieldValues.get('copy-bible:element_0_text')
+    || fieldValues.get('copy-bible:element_0_page_text')
+    || ''
+
+  const sourcesReady = {
+    profile: !!clientProfile,
+    research: !!researchBible,
+    brand: !!brandVoice,
+    copy: !!copyBible,
+  }
+  const minimumReady = sourcesReady.research && sourcesReady.brand
+
+  const [generating, setGenerating] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editText, setEditText] = useState('')
+  const [canvaConnected, setCanvaConnected] = useState<boolean | null>(null)
+  const [sendingToCanva, setSendingToCanva] = useState(false)
+  const [savingDoc, setSavingDoc] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/canva/status')
+      .then(r => r.json())
+      .then(d => setCanvaConnected(!!d.connected))
+      .catch(() => setCanvaConnected(false))
+  }, [])
+
+  const handleSaveToDocs = async () => {
+    if (!briefText) { alert('Generate the brief first.'); return }
+    setSavingDoc(true)
+    const docTitle = `${client.name}_CreativeStrategyBrief`
+    const url = await saveToDrive(docTitle, briefText)
+    if (url) await onSaveField('strategy-brief', 'brief_doc_url', url)
+    setSavingDoc(false)
+  }
+
+  const handleConnectCanva = () => {
+    window.location.href = '/api/canva/auth/start'
+  }
+
+  const handleSendToCanva = async () => {
+    if (!briefText) { alert('Generate the brief first.'); return }
+    setSendingToCanva(true)
+    try {
+      const res = await fetch('/api/strategy-brief/send-to-canva', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: client.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (res.status === 401 && data.connected === false) {
+          setCanvaConnected(false)
+          if (confirm('Canva is not connected. Connect now?')) handleConnectCanva()
+        } else {
+          alert(`Send to Canva failed: ${data.error || 'unknown error'}`)
+        }
+      } else if (data.status === 'success' && data.designUrl) {
+        await onSaveField('strategy-brief', 'canva_design_url', data.designUrl)
+        await onSaveField('strategy-brief', 'canva_sent_at', data.sentAt)
+        window.open(data.designUrl, '_blank')
+      } else if (data.status === 'in_progress') {
+        alert(`Canva is still processing the import (job ${data.jobId}). It should appear in your Canva account within a minute.`)
+      }
+    } catch (err) {
+      alert(`Send to Canva failed: ${err instanceof Error ? err.message : 'network error'}`)
+    }
+    setSendingToCanva(false)
+  }
+
+  const handleGenerate = async () => {
+    if (!minimumReady) {
+      alert('Cannot generate yet — Research Bible and Brand Voice must be approved in Stage 4 first.')
+      return
+    }
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/generate-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentType: 'strategy-brief',
+          clientName: client.name,
+          brandName: client.brand,
+          clientProfile,
+          researchBible,
+          brandVoice,
+          copyBible,
+        }),
+      })
+
+      if (!res.ok) {
+        const errText = await res.text()
+        let errMsg = errText
+        try { errMsg = JSON.parse(errText).error } catch {}
+        alert(`Error: ${errMsg}`)
+        setGenerating(false)
+        return
+      }
+
+      const reader = res.body?.getReader()
+      if (!reader) { alert('No response stream'); setGenerating(false); return }
+      const decoder = new TextDecoder()
+      let fullText = ''
+      let buffer = ''
+      let stopReason = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith('data: ')) {
+            const data = trimmed.slice(6)
+            if (data === '[DONE]') continue
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                fullText += parsed.delta.text
+              }
+              if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
+                stopReason = parsed.delta.stop_reason
+              }
+            } catch {}
+          }
+        }
+      }
+      if (buffer.trim().startsWith('data: ')) {
+        try {
+          const parsed = JSON.parse(buffer.trim().slice(6))
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
+          if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) stopReason = parsed.delta.stop_reason
+        } catch {}
+      }
+
+      if (stopReason === 'max_tokens') {
+        fullText += '\n\n⚠️ OUTPUT WAS TRUNCATED — brief exceeded token limit. Please regenerate.'
+      }
+
+      if (fullText) {
+        await onSaveField('strategy-brief', 'brief_text', fullText)
+      } else {
+        alert('Error: No content was generated. Please try again.')
+      }
+    } catch (err) {
+      alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}.`)
+    }
+    setGenerating(false)
+  }
+
+  const handleApprove = async () => {
+    await onSaveField('strategy-brief', 'approved', approved ? 'false' : 'true')
+  }
+
+  const handleEdit = () => {
+    setEditText(briefText)
+    setEditing(true)
+  }
+
+  const handleSaveEdit = async () => {
+    await onSaveField('strategy-brief', 'brief_text', editText)
+    setEditing(false)
+  }
+
+  const clientViewUrl = `/strategy-brief/${client.id}`
+
+  return (
+    <div className="space-y-3">
+      {/* Source status panel */}
+      <div className="bg-stone-50 border border-stone-200 rounded-lg p-4">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-stone-600 mb-3">Source documents</h4>
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          {[
+            { key: 'profile', label: 'Client Profile', ready: sourcesReady.profile, required: false },
+            { key: 'research', label: 'Research Bible', ready: sourcesReady.research, required: true },
+            { key: 'brand', label: 'Brand Voice', ready: sourcesReady.brand, required: true },
+            { key: 'copy', label: 'Copy Bible', ready: sourcesReady.copy, required: false },
+          ].map(s => (
+            <div key={s.key} className="flex items-center gap-2">
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${s.ready ? 'bg-teal-500 text-white' : 'bg-stone-300 text-stone-600'}`}>
+                {s.ready ? '✓' : '·'}
+              </span>
+              <span className={s.ready ? 'text-stone-800' : 'text-stone-500'}>
+                {s.label}
+                {s.required && !s.ready && <span className="text-rose-600 ml-1">(required)</span>}
+                {!s.required && !s.ready && <span className="text-stone-400 ml-1">(optional)</span>}
+              </span>
+            </div>
+          ))}
+        </div>
+        {!minimumReady && (
+          <p className="text-xs text-rose-700 mt-3">Approve Research Bible and Brand Voice in Stage 4 before generating the brief.</p>
+        )}
+      </div>
+
+      {/* Generate or display brief */}
+      <div className={`rounded-lg border p-4 space-y-3 ${approved ? 'bg-green-50 border-green-200' : briefText ? 'bg-white border-teal-200' : 'bg-white border-stone-200'}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${approved ? 'bg-green-500 text-white' : briefText ? 'bg-teal-500 text-white' : 'bg-stone-300 text-white'}`}>
+              {approved ? '✓' : '1'}
+            </span>
+            <h4 className="text-sm font-bold text-stone-800">Creative Strategy Brief</h4>
+          </div>
+          {approved && <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
+        </div>
+        <p className="text-xs text-stone-500">A client-facing creative strategy brief built using the Dara Denney DD Method. Synthesises the bibles into 9 sections — business problem, customer voice, personas, awareness levels, messaging territories, big idea, angles, and test priorities.</p>
+
+        {/* No content yet */}
+        {!briefText && !generating && (
+          <button
+            onClick={handleGenerate}
+            disabled={!minimumReady}
+            className="w-full bg-teal-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors cursor-pointer disabled:bg-stone-300 disabled:cursor-not-allowed"
+          >
+            Generate Creative Strategy Brief
+          </button>
+        )}
+
+        {generating && (
+          <div className="text-center py-4">
+            <p className="text-sm text-teal-600 animate-pulse">Synthesising bibles into strategy brief... (~30s)</p>
+          </div>
+        )}
+
+        {/* Edit mode */}
+        {editing && (
+          <div className="space-y-2">
+            <textarea
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              className="w-full h-96 p-3 border border-stone-300 rounded-lg text-xs font-mono"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setEditing(false)} className="flex-1 bg-white border border-stone-300 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-stone-50 cursor-pointer">Cancel</button>
+              <button onClick={handleSaveEdit} className="flex-1 bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-700 cursor-pointer">Save Edit</button>
+            </div>
+          </div>
+        )}
+
+        {/* Display brief */}
+        {briefText && !editing && (
+          <div className="space-y-3">
+            <div className="bg-white border border-stone-200 rounded-lg p-3 max-h-64 overflow-y-auto">
+              <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed">{
+                briefText.split('\n').map((line, i) => {
+                  if (line.includes('GAP:') || line.includes('[ASSUMPTION:')) {
+                    return <span key={i} className="bg-yellow-200 text-yellow-900 px-1 rounded">{line}{'\n'}</span>
+                  }
+                  if (line.startsWith('## SECTION')) {
+                    return <span key={i} className="font-bold text-teal-700 block mt-2">{line}{'\n'}</span>
+                  }
+                  if (line.startsWith('### ')) {
+                    return <span key={i} className="font-semibold text-stone-800 block mt-1">{line}{'\n'}</span>
+                  }
+                  return <span key={i}>{line}{'\n'}</span>
+                })
+              }</pre>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <a
+                href={clientViewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-teal-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-teal-700 cursor-pointer text-center"
+              >
+                Open Client View →
+              </a>
+              <button
+                onClick={handleEdit}
+                className="bg-white border border-stone-300 text-stone-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-stone-50 cursor-pointer"
+              >
+                Edit Brief
+              </button>
+              <button
+                onClick={handleGenerate}
+                disabled={generating}
+                className="bg-white border border-teal-300 text-teal-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-50 cursor-pointer disabled:opacity-50"
+              >
+                Regenerate
+              </button>
+              <button
+                onClick={handleApprove}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer ${approved ? 'bg-stone-100 border border-stone-300 text-stone-700 hover:bg-stone-200' : 'bg-green-600 text-white hover:bg-green-700'}`}
+              >
+                {approved ? 'Mark Unapproved' : 'Approve'}
+              </button>
+            </div>
+
+            <p className="text-xs text-stone-500 text-center">
+              Share the Client View link with the client • Export PDF from there
+            </p>
+
+            {/* Google Docs save */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleSaveToDocs}
+                disabled={savingDoc}
+                className="bg-white border border-blue-300 text-blue-700 px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-50 cursor-pointer disabled:opacity-50"
+              >
+                {savingDoc ? 'Creating Google Doc…' : briefDocUrl ? 'Re-save to Google Doc' : 'Save to Google Doc'}
+              </button>
+              {briefDocUrl ? (
+                <a
+                  href={briefDocUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 cursor-pointer text-center"
+                >
+                  Open Google Doc ↗
+                </a>
+              ) : (
+                <div className="text-xs text-stone-500 flex items-center justify-center text-center px-2">
+                  Saves to shared team Drive. Anyone with the link can edit.
+                </div>
+              )}
+            </div>
+
+            {/* Canva integration */}
+            <div className="mt-4 pt-4 border-t border-stone-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full" style={{ background: canvaConnected ? '#15803d' : canvaConnected === null ? '#a8a29e' : '#dc2626' }} />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-stone-600">
+                    Canva {canvaConnected === null ? '…' : canvaConnected ? 'connected' : 'not connected'}
+                  </span>
+                </div>
+                {canvaConnected === false && (
+                  <button
+                    onClick={handleConnectCanva}
+                    className="text-xs font-semibold text-teal-700 hover:text-teal-900 underline cursor-pointer"
+                  >
+                    Connect Canva →
+                  </button>
+                )}
+              </div>
+
+              {canvaConnected && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleSendToCanva}
+                    disabled={sendingToCanva}
+                    className="bg-gradient-to-r from-purple-600 to-pink-500 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {sendingToCanva ? 'Sending to Canva… (~30s)' : (canvaDesignUrl ? 'Re-send to Canva' : 'Send to Canva')}
+                  </button>
+                  {canvaDesignUrl ? (
+                    <a
+                      href={canvaDesignUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white border border-purple-300 text-purple-700 px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-purple-50 cursor-pointer text-center"
+                    >
+                      Open in Canva ↗
+                    </a>
+                  ) : (
+                    <div className="text-xs text-stone-500 flex items-center justify-center text-center px-2">
+                      Imports the published brief into Canva as an editable design.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {canvaDesignUrl && canvaSentAt && (
+                <p className="text-xs text-stone-500">
+                  Last sent {new Date(canvaSentAt).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -5922,7 +6335,7 @@ function FunnelStrategyActions({
                 onClick={onAdvance}
                 className="w-full bg-green-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
               >
-                {isAdsPackage ? 'Confirm Media Strategy & Move to Implementation Plan →' : 'Confirm Funnel Strategy & Move to Implementation Plan →'}
+                {isAdsPackage ? 'Confirm Media Strategy & Move to Creative Strategy Brief →' : 'Confirm Funnel Strategy & Move to Creative Strategy Brief →'}
               </button>
             </div>
           )}
@@ -7038,6 +7451,12 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       onSaveField={handleSaveField}
                       onAdvance={async () => { if (nextStageKey) await handleAdvance(nextStageKey) }}
                     />
+                  ) : stage.key === 'strategy-brief' ? (
+                    <StrategyBriefActions
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                    />
                   ) : stage.key === 'pre-production' ? (
                     <PreProductionPrompts
                       client={client}
@@ -7064,7 +7483,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                     />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'tech-onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'pre-production' || stage.key === 'production' || stage.key === 'internal-check' || stage.key === 'handover'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'tech-onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'strategy-brief' || stage.key === 'pre-production' || stage.key === 'production' || stage.key === 'internal-check' || stage.key === 'handover'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">

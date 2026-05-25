@@ -1004,7 +1004,143 @@ Write the document in this structure:
 
 Write in a warm but professional tone. Use the client's name. This is a celebration — they've invested in their business and now they have a complete system.
 
-Format with clear headings and bullet points. This will be pasted into a Canva document, so use clean formatting (no markdown syntax like ** or ##, just plain text with clear section headings in CAPS and bullet points with dashes).`
+Format with clear headings and bullet points. This will be pasted into a Canva document, so use clean formatting (no markdown syntax like ** or ##, just plain text with clear section headings in CAPS and bullet points with dashes).`,
+
+  'strategy-brief': `You are building a CREATIVE STRATEGY BRIEF for a ClubSheIs client using the Dara Denney "DD Method" — a battle-tested framework for DTC paid-social creative strategy.
+
+This document is CLIENT-FACING. It will be designed into a visually polished deliverable the client reviews and approves before any production work begins. Every word matters. It must read as confident, evidence-based, and specific — never vague, generic, or filler.
+
+CORE PRINCIPLES (from the DD Method):
+- Evidence over vibes — every recommendation must trace back to something in the Research Bible, Brand Voice, or Copy Bible.
+- Customer language over marketer language — pull EXACT phrases from the research, do not paraphrase.
+- Messaging before format — the WHAT we say matters more than the HOW.
+- Specificity beats cleverness — "reduced visible neck lines in 3 weeks" beats "age is just a number".
+- Every recommendation ties to a goal — scale, efficiency, awareness, conversion, LTV, or a specific learning hypothesis.
+
+OUTPUT FORMAT:
+Output STRUCTURED MARKDOWN using the EXACT section markers below. Each section starts with "## SECTION N — TITLE". Use sub-headings with "### " and bullet points with "- ". Do NOT add a preamble or outro. Start directly with SECTION 1.
+
+If a section relies on data that genuinely is not present in the source bibles, mark it as: [ASSUMPTION: your reasoning] or GAP: [what's missing]. Lean toward making intelligent assumptions over leaving gaps. The client will see this — gaps look unprofessional, so use them sparingly.
+
+---
+
+## SECTION 1 — THE BUSINESS PROBLEM
+
+State, in the client's own framing, what they are trying to solve. Pull from the Research Bible and Client Profile. Three subsections:
+
+### What we're trying to achieve
+A specific business goal — not "grow the brand" but the actual outcome being targeted (e.g. "drive R150k in monthly Ghutte sales by month 3 via cold paid traffic on Meta"). Use revenue, volume, or specific milestone targets if mentioned in the bibles.
+
+### What's in the way
+The strategic obstacle. Category fatigue? Low awareness? Trust deficit? Poor conversion despite good traffic? Lift this from the research.
+
+### What winning looks like in 60 days
+Concrete, measurable success criteria.
+
+## SECTION 2 — THE PRODUCT, FROM THE BUYER'S POV
+
+Restate the offer the way a customer would describe it after using it. Not how the brand pitches it.
+
+### What it is (in plain language)
+### What it replaces / improves on
+### What the customer must believe to justify the price
+### The "moment of need" — when the customer feels this problem most acutely
+
+## SECTION 3 — THE CUSTOMER VOICE
+
+Mine the Research Bible for ACTUAL customer language. Pull verbatim phrases where possible.
+
+### What they say when they buy ("I bought this because...")
+3–5 short quotes or paraphrased buying triggers, from the research.
+
+### What they say when they're skeptical ("I was skeptical because...")
+3–5 objections in customer language.
+
+### What they've already tried that didn't work ("I tried everything...")
+The category fatigue language.
+
+### What surprised them ("I didn't expect...")
+The credibility-building unexpected outcomes.
+
+### The Language Bank
+A bulleted list of 10–15 EXACT phrases pulled from the research that can be used verbatim in ads, hooks, or scripts.
+
+## SECTION 4 — THE PERSONAS (Buying Psychology Clusters)
+
+Identify 2–3 distinct buying psychology clusters present in this brand's audience. NOT demographics. Use the DD Method persona archetypes where they fit (Burned-Out Problem Solver, Skeptical Optimizer, Identity Buyer, Gift Giver, Routine Upgrader, Reluctant Premium Buyer) — adapt naming to this brand if needed.
+
+For each persona:
+### [Persona Name]
+- **Core narrative:** What they tell themselves about their situation.
+- **Their fear:** What they're afraid of (wasting money, looking basic, being fooled, etc.).
+- **What moves them:** The specific message type / proof point that converts them.
+- **Awareness level:** Unaware / Problem-Aware / Solution-Aware / Product-Aware / Most-Aware.
+- **Example hook for them:** A single sample hook line written in their language.
+
+## SECTION 5 — AWARENESS LEVEL MAP (Eugene Schwartz)
+
+A short paragraph stating where the BULK of cold-traffic audience sits (almost always Unaware or Problem-Aware), and where retargeting audiences sit. Then a table-style breakdown:
+
+### Cold Traffic
+- **Where they are:** [Unaware / Problem-Aware]
+- **What the ad must do:** [introduce + name the problem / validate the problem + introduce the category]
+- **Best angle type:** [storytelling / empathy / pattern interrupt / misconception bust]
+
+### Warm Audience / Retargeting
+- **Where they are:** [Solution-Aware / Product-Aware]
+- **What the ad must do:** [position against alternatives / handle objections + build trust]
+- **Best angle type:** [comparison / mechanism reveal / objection handling / social proof]
+
+## SECTION 6 — THE MESSAGING TERRITORIES
+
+3–5 distinct strategic territories the creative will work in. Each must trace to research insight. For each:
+
+### Territory [N]: [Name]
+- **The insight behind it:** Why this territory matters, sourced from research.
+- **Target persona:** Which cluster from Section 4 this lands with.
+- **Awareness level:** Which Schwartz level this is written for.
+- **Hook direction:** One sentence describing the angle (e.g. "Reframe X as the real cause of Y").
+
+## SECTION 7 — THE BIG IDEA
+
+The strategic spine of every piece of creative. Not a tagline. The CORE BELIEF the customer needs to install in their head for the buying decision to feel rational.
+
+### What the customer currently believes
+### What we need them to believe instead
+### The enemy
+The specific old habit, inferior alternative, misconception, or status quo that the Big Idea is fighting against. Name it specifically.
+
+### The Big Idea statement
+ONE sentence. The strategic thesis. Use one of these formats if it fits:
+- "You don't need more X. You need Y."
+- "The reason your X isn't working is because [Y]."
+- "This is the premium version of something you already use every day."
+- "The unsexy problem behind the sexy outcome."
+
+## SECTION 8 — INSIGHT → ANGLE → HOOK → CONCEPT
+
+The execution stack. Provide 5 fully-stacked creative concepts using this 4-layer format:
+
+### Concept [N]
+- **Insight:** [The research truth this is built from]
+- **Angle:** [The persuasive direction]
+- **Hook:** [The exact opening line — pull from Copy Bible language if available]
+- **Concept:** [The full creative idea — format (UGC video / static / carousel), talent direction, script structure summary, visual direction, and CTA]
+
+Each concept must map to ONE messaging territory from Section 6 and ONE persona from Section 4. State the mapping at the end of each concept: "[Territory: X | Persona: Y | Awareness: Z]".
+
+## SECTION 9 — THE TEST PRIORITISATION
+
+The first 5 things to test, in priority order, with hypotheses. Run message tests BEFORE format tests.
+
+| # | Test Type | Hypothesis | Funnel Stage | Success Metric | Learning if it Wins |
+|---|---|---|---|---|---|
+
+Provide 5 rows. Test types should pull from: High-confidence evergreen, High-upside exploratory, Objection-handling, Social proof, Format test. NEVER lead with a format test — message validation comes first.
+
+---
+
+End the document with one closing line: a single sentence that captures the strategic thesis in plain language for the client to remember.`
 }
 
 export async function POST(req: NextRequest) {
@@ -1014,14 +1150,14 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'ANTHROPIC_API_KEY not set' }, { status: 500 })
     }
 
-    const { documentType, clientName, brandName, transcript, clientProfile, researchBible, brandVoice, funnelElements, userNotes } = await req.json()
+    const { documentType, clientName, brandName, transcript, clientProfile, researchBible, brandVoice, copyBible, funnelElements, userNotes } = await req.json()
 
     const systemPrompt = PROMPTS[documentType]
     if (!systemPrompt) {
       return Response.json({ error: `Unknown document type: ${documentType}` }, { status: 400 })
     }
 
-    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'funnel-strategy-ads', 'copy-element-page', 'copy-element-email', 'copy-element-ad', 'copy-element-social', 'copy-element-newsletter', 'qa-report', 'handover-doc']
+    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'funnel-strategy-ads', 'copy-element-page', 'copy-element-email', 'copy-element-ad', 'copy-element-social', 'copy-element-newsletter', 'qa-report', 'handover-doc', 'strategy-brief']
     if (!transcript && !noTranscriptRequired.includes(documentType)) {
       return Response.json({ error: 'Transcript is required' }, { status: 400 })
     }
@@ -1050,6 +1186,13 @@ export async function POST(req: NextRequest) {
       if (researchBible) userMessage += `\n\nAPPROVED RESEARCH BIBLE:\n${researchBible.slice(0, 15000)}`
       if (brandVoice) userMessage += `\n\nAPPROVED BRAND VOICE:\n${brandVoice.slice(0, 10000)}`
       if (funnelElements) userMessage += `\n\nSELECTED FUNNEL ELEMENTS TO WRITE COPY FOR:\n${funnelElements}`
+    }
+    if (documentType === 'strategy-brief') {
+      userMessage = `CLIENT: ${clientName} (${brandName || 'No brand name'})`
+      if (clientProfile) userMessage += `\n\n=== APPROVED CLIENT PROFILE ===\n${clientProfile.slice(0, 12000)}`
+      if (researchBible) userMessage += `\n\n=== APPROVED RESEARCH BIBLE ===\n${researchBible.slice(0, 20000)}`
+      if (brandVoice) userMessage += `\n\n=== APPROVED BRAND VOICE ===\n${brandVoice.slice(0, 8000)}`
+      if (copyBible) userMessage += `\n\n=== APPROVED COPY BIBLE ===\n${copyBible.slice(0, 18000)}`
     }
     if (documentType === 'copy-element-page' || documentType === 'copy-element-email' || documentType === 'copy-element-ad' || documentType === 'copy-element-social' || documentType === 'copy-element-newsletter') {
       if (clientProfile) userMessage += `\n\nCLIENT PROFILE:\n${clientProfile.slice(0, 5000)}`

@@ -59,3 +59,17 @@ CREATE INDEX IF NOT EXISTS idx_completions_client ON flow_stage_completions(clie
 CREATE INDEX IF NOT EXISTS idx_stage_data_client ON flow_stage_data(client_id);
 CREATE INDEX IF NOT EXISTS idx_completions_lookup ON flow_stage_completions(client_id, stage_key);
 CREATE INDEX IF NOT EXISTS idx_stage_data_lookup ON flow_stage_data(client_id, stage_key);
+
+-- ── Canva OAuth tokens (single-row table, shared team account) ──
+CREATE TABLE IF NOT EXISTS flow_canva_auth (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  scope TEXT DEFAULT '',
+  connected_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT canva_auth_single_row CHECK (id = 'default')
+);
+ALTER TABLE flow_canva_auth ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on flow_canva_auth" ON flow_canva_auth FOR ALL USING (true) WITH CHECK (true);

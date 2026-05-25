@@ -219,7 +219,7 @@ export const STAGES: StageDefinition[] = [
     key: 'strategy-brief',
     num: '4C',
     name: 'Creative Strategy Brief',
-    summary: 'A client-facing creative strategy brief built using the Dara Denney "DD Method" — synthesises the Client Profile, Research Bible, and Brand Voice into a single visually-polished deliverable the client can review. Documents the business problem, customer psychology, messaging territories, and prioritised creative tests.',
+    summary: 'A client-facing creative strategy brief that synthesises the Client Profile, Research Bible, and Brand Voice into a single visually-polished deliverable the client can review. Documents the business problem, customer psychology, messaging territories, and prioritised creative tests.',
     color: '#0F766E',
     colorSoft: 'rgba(15,118,110,0.06)',
     triggerLabel: 'Trigger: Strategy documents + Funnel Strategy approved',

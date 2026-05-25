@@ -123,6 +123,18 @@ function doPost(e) {
 
     doc.saveAndClose();
 
+    // Share so the whole team can open the doc, not just the deploying user.
+    // ANYONE_WITH_LINK + EDIT means any teammate clicking the doc URL can open and edit
+    // without needing to be added by email. Doc IDs are long UUIDs so this is link-only access.
+    try {
+      var fileToShare = DriveApp.getFileById(doc.getId());
+      fileToShare.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+    } catch (shareErr) {
+      // If the executing account lacks sharing permission (e.g. workspace policy blocks it),
+      // log and continue — doc still exists in the executor's Drive.
+      Logger.log('Sharing failed: ' + shareErr.toString());
+    }
+
     var docUrl = doc.getUrl();
 
     if (isForm) {
