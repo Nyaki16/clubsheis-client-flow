@@ -249,7 +249,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clie
       'Content-Type': 'application/pdf',
       // public + immutable-ish so Canva can re-fetch if needed; brief content
       // changes via Supabase, so let it be revalidated each generation.
-      'Cache-Control': 'public, max-age=60, must-revalidate',
+      // no-store so Canva always re-fetches the latest PDF when re-sending a brief.
+      'Cache-Control': 'no-store, max-age=0',
       'Content-Disposition': `inline; filename="${clientRes.data.name}_CreativeStrategyBrief.pdf"`,
     },
   })

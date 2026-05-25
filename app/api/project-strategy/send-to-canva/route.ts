@@ -52,7 +52,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Canva needs a multi-page PDF to create a multi-page editable design.
-    const briefUrl = `${baseUrl}/project-strategy/${clientId}/pdf`
+    // The cache-buster (?t=…) forces Canva's importer to re-fetch the PDF on every
+    // send instead of reusing a stale cached copy from a previous import.
+    const briefUrl = `${baseUrl}/project-strategy/${clientId}/pdf?t=${Date.now()}`
     const designName = `${client.brand || client.name} — Project Strategy`
 
     const { jobId } = await startUrlImport(briefUrl, designName, 'application/pdf')

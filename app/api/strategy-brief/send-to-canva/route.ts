@@ -56,7 +56,8 @@ export async function POST(req: NextRequest) {
     // Canva's HTML URL import always creates a single-page design. To get a
     // multi-page presentation in Canva we hand it the server-rendered PDF
     // (one section per page) instead, with mime_type=application/pdf.
-    const briefUrl = `${baseUrl}/strategy-brief/${clientId}/pdf`
+    // The cache-buster (?t=…) forces Canva to re-fetch each time, not reuse a stale PDF.
+    const briefUrl = `${baseUrl}/strategy-brief/${clientId}/pdf?t=${Date.now()}`
     const designName = `${client.brand || client.name} — Paid Media Creative Brief`
 
     // Kick off URL import

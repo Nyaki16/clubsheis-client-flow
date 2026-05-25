@@ -201,7 +201,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clie
     status: 200,
     headers: {
       'Content-Type': 'application/pdf',
-      'Cache-Control': 'public, max-age=60, must-revalidate',
+      // no-store so Canva always re-fetches the latest PDF when re-sending the deck.
+      'Cache-Control': 'no-store, max-age=0',
       'Content-Disposition': `inline; filename="${clientRes.data.name}_ProjectStrategy.pdf"`,
     },
   })
