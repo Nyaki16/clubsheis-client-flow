@@ -184,7 +184,7 @@ export const STAGES: StageDefinition[] = [
       { key: 'session_transcript', label: 'Session transcript / notes', placeholder: 'Paste the full transcript or notes from the strategy session...', type: 'textarea' },
     ],
     conditionalLogic: [
-      { condition: 'All 3 documents reviewed and approved', result: 'Upload to Google Drive + link to ClickUp, then move to production' },
+      { condition: 'All 3 documents reviewed and approved', result: 'Upload to Google Drive + link to the Tracker, then move to production' },
       { condition: 'Package includes "Page Build"', result: 'Activate Stage 5A: Page Build flow' },
       { condition: 'Package includes "Content Day"', result: 'Activate Stage 5B: Content Day flow' },
       { condition: 'Package includes "Ads / Email / Social"', result: 'Activate Stage 5C: Ads + Email + Social flow' },
@@ -213,7 +213,30 @@ export const STAGES: StageDefinition[] = [
     conditionalLogic: [
       { condition: 'Funnel Strategy approved', result: 'Move to Stage 5: Implementation Plan' },
     ],
-    nextActionPrompt: 'Generate, review, and approve the Funnel Strategy, then move to the Implementation Plan.',
+    nextActionPrompt: 'Generate, review, and approve the Funnel Strategy, then move to the Creative Strategy Brief.',
+  },
+  {
+    key: 'strategy-brief',
+    num: '4C',
+    name: 'Creative Strategy Brief',
+    summary: 'A client-facing creative strategy brief built using the Dara Denney "DD Method" — synthesises the Client Profile, Research Bible, and Brand Voice into a single visually-polished deliverable the client can review. Documents the business problem, customer psychology, messaging territories, and prioritised creative tests.',
+    color: '#0F766E',
+    colorSoft: 'rgba(15,118,110,0.06)',
+    triggerLabel: 'Trigger: Strategy documents + Funnel Strategy approved',
+    triggerColor: 'teal',
+    guide: [
+      'This is the FIRST deliverable the client sees that synthesises all internal strategy work into a single, polished brief.',
+      'Generate the brief — it pulls from the Client Profile, Research Bible, and Brand Voice automatically.',
+      'Review the 9 sections (Business Problem → Customer Voice → Messaging Territories → Big Idea → Angles → Test Priorities) and edit as needed.',
+      'Open the "Client View" to see the brand-styled, print-ready presentation of the brief.',
+      'Export to PDF and send to the client, or share the live link. Once acknowledged, move to the Implementation Plan.',
+    ],
+    substeps: [],
+    dataFields: [],
+    conditionalLogic: [
+      { condition: 'Brief approved by client', result: 'Move to Stage 5: Implementation Plan' },
+    ],
+    nextActionPrompt: 'Generate the Creative Strategy Brief, review the content, then share the Client View link with the client.',
   },
   {
     key: 'implementation-plan',
@@ -312,7 +335,7 @@ export const STAGES: StageDefinition[] = [
   },
   {
     key: 'pre-production',
-    num: '6C',
+    num: '6D',
     name: 'Pre-Production Prompts',
     summary: 'Generate detailed AI prompts for each funnel element using the Brand Bible and Copy Bible. Each prompt is ready to paste into Ghutte\'s Vibe builder to create pages, emails, and assets on-brand.',
     color: '#7C3AED',
@@ -337,21 +360,21 @@ export const STAGES: StageDefinition[] = [
     key: 'production',
     num: '7',
     name: 'Production',
-    summary: 'Active production tracked via ClickUp. View tasks, statuses, and progress for this client\'s build — pages, emails, assets, and deliverables.',
+    summary: 'Active production tracked in the ClubSheIs Tracker. View tasks, statuses, and progress for this client\'s build — pages, emails, assets, and deliverables.',
     color: '#E11D48',
     colorSoft: 'rgba(225,29,72,0.06)',
     triggerLabel: 'Trigger: Pre-production complete',
     triggerColor: 'rose',
     guide: [
-      'All production tasks are managed in ClickUp.',
-      'Tasks are pulled from the client\'s ClickUp folder automatically.',
+      'All production tasks are managed in the ClubSheIs Tracker.',
+      'Tasks are scoped to the client\'s tracker job for this build.',
       'Track progress across page builds, email sequences, and asset creation.',
-      'Mark production as complete once all tasks are done in ClickUp.',
+      'Mark production as complete once all tasks are closed out in the Tracker.',
     ],
     substeps: [],
     dataFields: [],
     conditionalLogic: [],
-    nextActionPrompt: 'Track production progress in ClickUp and mark complete when done.',
+    nextActionPrompt: 'Track production progress in the Tracker and mark complete when done.',
   },
   {
     key: 'content-production',
@@ -582,7 +605,7 @@ export const STAGES: StageDefinition[] = [
       'Confirm every deliverable has been handed over and the client has all access they need.',
       'Collect client feedback — what worked, what didn\'t, would they refer others?',
       'Run an internal team retro — what to keep, improve, and systematise.',
-      'Archive the project in ClickUp with full history intact.',
+      'Archive the project in the Tracker with full history intact.',
       'Add client to the quarterly nurture list — set a reminder for 3 months.',
     ],
     color: '#B45309',
@@ -594,7 +617,7 @@ export const STAGES: StageDefinition[] = [
       { label: 'Client feedback', description: 'Survey or call: what worked, what didn\'t, would they refer others?' },
       { label: 'Internal retro', description: 'Team debrief: keep doing, improve, systematise.' },
       { label: 'Update client profile', description: 'Log final notes, outcomes, future opportunities.' },
-      { label: 'Archive in ClickUp', description: 'Move to "Completed" with full history intact.' },
+      { label: 'Archive in Tracker', description: 'Move to "Closed out" with full history intact.' },
       { label: 'Add to nurture list', description: 'Quarterly check-in reminder for future work.' },
     ],
     dataFields: [
@@ -610,7 +633,7 @@ export const STAGES: StageDefinition[] = [
 ]
 
 export function getActiveStagesForPackage(pkg: string): string[] {
-  const core = ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'strategy', 'funnel-strategy', 'implementation-plan']
+  const core = ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'strategy', 'funnel-strategy', 'strategy-brief', 'implementation-plan']
   const closing = ['internal-check', 'handover']
   const branches = PACKAGE_BRANCHES[pkg] || []
 
@@ -655,6 +678,7 @@ const STAGE_DAY_ALLOCATION: Record<string, number> = {
   'tech-onboarding': 2,    // Day 2
   'strategy': 3,           // Day 3
   'funnel-strategy': 4,    // Day 4
+  'strategy-brief': 4,     // Day 4 (client-facing brief, parallel to funnel-strategy)
   'implementation-plan': 5, // Day 5
   'funnel-map': 6,         // Day 6
   'copy-bible': 7,         // Day 7
