@@ -1142,7 +1142,116 @@ Provide 5 rows. Test types should pull from: High-confidence evergreen, High-ups
 
 ---
 
-End the document with one closing line: a single sentence that captures the strategic thesis in plain language for the client to remember.`
+End the document with one closing line: a single sentence that captures the strategic thesis in plain language for the client to remember.`,
+
+  'project-strategy': `You are building a PROJECT STRATEGY PRESENTATION for a ClubSheIs client — the polished, client-facing kickoff document that consolidates EVERY piece of strategy work into one presentation. The client signs off on this before any production begins.
+
+This is DIFFERENT from the Paid Media Creative Brief:
+- The Paid Media Brief is narrow and ads-focused (hooks, angles, tests).
+- The Project Strategy is BROAD and strategic — it covers WHO the client is, WHAT we discovered about their audience, HOW we'll speak, WHAT we're building, and (for ads clients) HOW we'll show up in market.
+
+This document is CLIENT-FACING. The client reads it as their kickoff brief. It needs to feel like a strategic deliverable — confident, specific, evidence-based. Pull insights from every source document. Use the client's name and brand voice. Avoid filler.
+
+OUTPUT FORMAT:
+Output STRUCTURED MARKDOWN using the EXACT section markers below. Each section starts with "## SECTION N — TITLE". Use sub-headings with "### " and bullet points with "- ". Do NOT add a preamble or outro. Start directly with SECTION 1.
+
+If a section relies on data that genuinely is not present in the source documents, mark it as: [ASSUMPTION: your reasoning]. Lean toward making intelligent assumptions over leaving gaps.
+
+---
+
+## SECTION 1 — EXECUTIVE SUMMARY
+
+A one-paragraph (3–4 sentence) summary of the entire project strategy. What we discovered, who we're targeting, what we're building, and why this approach will work for this client specifically. This is the elevator pitch — if the client only reads one section, this is the one.
+
+## SECTION 2 — THE CLIENT, IN ONE PAGE
+
+Distil the Client Profile into a tight one-page brief.
+
+### Who they are
+The brand in two sentences — what they do, who for, what makes them different.
+
+### Where they are today
+Current state — revenue, audience size, channels, key gaps.
+
+### Where they want to go
+The 3–6 month goal, in their own words where possible.
+
+### What's at stake
+Why this matters to them personally / commercially.
+
+## SECTION 3 — WHO WE'RE TALKING TO
+
+Pull the highest-signal audience insights from the Research Bible.
+
+### Primary audience
+A specific, named description of the ideal customer (not a demographic — a psychographic profile).
+
+### What they currently believe
+The mental model the customer walks in with.
+
+### What they actually want
+The unmet need behind the surface request.
+
+### The language they use
+3–5 verbatim phrases lifted from the research that we'll reuse across the funnel.
+
+## SECTION 4 — HOW WE SHOW UP
+
+The Brand Voice essence — distilled into something the client can recognise at a glance.
+
+### Voice in one sentence
+"We sound like…"
+
+### Three tone pillars
+The three adjectives that define how we sound, with a one-line description each.
+
+### Always / Never
+2–3 things this brand ALWAYS does in copy, and 2–3 it NEVER does.
+
+## SECTION 5 — WHAT WE'RE BUILDING
+
+The Funnel Strategy made tangible.
+
+### The journey, in five steps
+Walk the reader through how a stranger becomes a buyer — from first touch to conversion. Five sentences, each one a stage.
+
+### Key deliverables
+A bulleted list of the actual assets we're producing (pages, emails, content, ads, etc.) — pulled from the Funnel Strategy. Each item one line: what it is + the role it plays.
+
+### Why this funnel for this client
+2–3 sentences on the strategic rationale — why this shape of funnel suits THIS business at THIS stage.
+
+## SECTION 6 — HOW WE'LL SHOW UP IN MARKET (PAID MEDIA ONLY)
+
+ONLY include this section if a Paid Media Creative Brief is provided in the source documents. If not provided, OMIT this section entirely (don't write a placeholder, don't mention it).
+
+When present:
+
+### The Big Idea
+The Big Idea from the Paid Media Brief, in plain language.
+
+### The first creative tests
+3–4 bullets summarising the prioritised hooks / angles / concepts we'll test in market first.
+
+### What success looks like
+The success metrics — CPL, CPA, ROAS, awareness lift — whichever the brief specifies.
+
+## SECTION 7 — TIMELINE & NEXT STEPS
+
+### What happens next
+A short list (4–6 bullets) of the immediate next milestones in order — sign-off → build → review → launch.
+
+### What we need from you
+2–4 specific things the client needs to provide / approve in the next week to keep the project on track.
+
+### Decision points
+Any sign-offs or approvals the client owns along the way.
+
+## SECTION 8 — WHY THIS WILL WORK
+
+A confident two-paragraph close. Restate the strategic thesis (echoing Section 1 but going deeper), and tie the funnel + voice + creative strategy back to the client's stated goal. End with one memorable line.
+
+---`,
 }
 
 export async function POST(req: NextRequest) {
@@ -1152,14 +1261,14 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'ANTHROPIC_API_KEY not set' }, { status: 500 })
     }
 
-    const { documentType, clientName, brandName, transcript, clientProfile, researchBible, brandVoice, copyBible, funnelElements, userNotes } = await req.json()
+    const { documentType, clientName, brandName, transcript, clientProfile, researchBible, brandVoice, copyBible, funnelStrategy, paidMediaBrief, funnelElements, userNotes } = await req.json()
 
     const systemPrompt = PROMPTS[documentType]
     if (!systemPrompt) {
       return Response.json({ error: `Unknown document type: ${documentType}` }, { status: 400 })
     }
 
-    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'funnel-strategy-ads', 'copy-element-page', 'copy-element-email', 'copy-element-ad', 'copy-element-social', 'copy-element-newsletter', 'qa-report', 'handover-doc', 'strategy-brief']
+    const noTranscriptRequired = ['funnel-map', 'funnel-strategy', 'funnel-strategy-ads', 'copy-element-page', 'copy-element-email', 'copy-element-ad', 'copy-element-social', 'copy-element-newsletter', 'qa-report', 'handover-doc', 'strategy-brief', 'project-strategy']
     if (!transcript && !noTranscriptRequired.includes(documentType)) {
       return Response.json({ error: 'Transcript is required' }, { status: 400 })
     }
@@ -1195,6 +1304,17 @@ export async function POST(req: NextRequest) {
       if (researchBible) userMessage += `\n\n=== APPROVED RESEARCH BIBLE ===\n${researchBible.slice(0, 20000)}`
       if (brandVoice) userMessage += `\n\n=== APPROVED BRAND VOICE ===\n${brandVoice.slice(0, 8000)}`
       if (copyBible) userMessage += `\n\n=== APPROVED COPY BIBLE ===\n${copyBible.slice(0, 18000)}`
+    }
+    if (documentType === 'project-strategy') {
+      // The Project Strategy presentation consolidates every upstream document
+      // into one client-facing deck. Pull what's available; paidMediaBrief is
+      // optional and only present for ads packages.
+      userMessage = `CLIENT: ${clientName} (${brandName || 'No brand name'})`
+      if (clientProfile) userMessage += `\n\n=== APPROVED CLIENT PROFILE ===\n${clientProfile.slice(0, 10000)}`
+      if (researchBible) userMessage += `\n\n=== APPROVED RESEARCH BIBLE ===\n${researchBible.slice(0, 14000)}`
+      if (brandVoice) userMessage += `\n\n=== APPROVED BRAND VOICE ===\n${brandVoice.slice(0, 6000)}`
+      if (funnelStrategy) userMessage += `\n\n=== APPROVED FUNNEL STRATEGY ===\n${funnelStrategy.slice(0, 8000)}`
+      if (paidMediaBrief) userMessage += `\n\n=== APPROVED PAID MEDIA CREATIVE BRIEF ===\n${paidMediaBrief.slice(0, 12000)}`
     }
     if (documentType === 'copy-element-page' || documentType === 'copy-element-email' || documentType === 'copy-element-ad' || documentType === 'copy-element-social' || documentType === 'copy-element-newsletter') {
       if (clientProfile) userMessage += `\n\nCLIENT PROFILE:\n${clientProfile.slice(0, 5000)}`

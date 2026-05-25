@@ -243,6 +243,29 @@ export const STAGES: StageDefinition[] = [
     nextActionPrompt: 'Generate the Paid Media Creative Brief, review the content, then share the Client View link with the client.',
   },
   {
+    key: 'project-strategy',
+    num: '4D',
+    name: 'Project Strategy',
+    summary: 'A client-facing presentation that consolidates everything we know about the project — Client Profile, Research Bible, Brand Voice, Funnel Strategy, and (if applicable) the Paid Media Creative Brief — into one polished deliverable. This is the strategic kickoff document the client signs off on before any building begins.',
+    color: '#7C3AED',
+    colorSoft: 'rgba(124,58,237,0.06)',
+    triggerLabel: 'Trigger: Funnel Strategy approved (+ Paid Media Brief for ads packages)',
+    triggerColor: 'violet',
+    guide: [
+      'This is the comprehensive strategic deck the client receives — bigger and broader than the Paid Media Creative Brief.',
+      'Generate the presentation — it pulls from the Client Profile, Research Bible, Brand Voice, Funnel Strategy, and Paid Media Brief automatically.',
+      'Review every section before sharing — this is the document the client signs off on, so accuracy matters more than speed.',
+      'Open the "Client View" to see the branded, print-ready presentation.',
+      'Send to Canva to land it as a multi-page editable presentation, or share the live link. Once the client acknowledges, move to the Implementation Plan.',
+    ],
+    substeps: [],
+    dataFields: [],
+    conditionalLogic: [
+      { condition: 'Presentation approved by client', result: 'Move to Stage 5: Implementation Plan' },
+    ],
+    nextActionPrompt: 'Generate the Project Strategy presentation, review the content, then share the Client View link with the client.',
+  },
+  {
     key: 'implementation-plan',
     num: '5',
     name: 'Implementation Plan',
@@ -637,11 +660,12 @@ export const STAGES: StageDefinition[] = [
 ]
 
 export function getActiveStagesForPackage(pkg: string): string[] {
-  // strategy-brief slots in at 4C — between funnel-strategy and implementation-plan —
-  // but only for packages that actually run paid ads.
+  // strategy-brief (Paid Media Creative Brief, 4C) only appears for ads packages.
+  // project-strategy (Project Strategy, 4D) appears for everyone — it's the
+  // client-facing kickoff deck and consolidates whatever strategy docs exist.
   const core = ADS_PACKAGES.has(pkg)
-    ? ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'strategy', 'funnel-strategy', 'strategy-brief', 'implementation-plan']
-    : ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'strategy', 'funnel-strategy', 'implementation-plan']
+    ? ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'strategy', 'funnel-strategy', 'strategy-brief', 'project-strategy', 'implementation-plan']
+    : ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'strategy', 'funnel-strategy', 'project-strategy', 'implementation-plan']
   const closing = ['internal-check', 'handover']
   const branches = PACKAGE_BRANCHES[pkg] || []
 
@@ -686,7 +710,8 @@ const STAGE_DAY_ALLOCATION: Record<string, number> = {
   'tech-onboarding': 2,    // Day 2
   'strategy': 3,           // Day 3
   'funnel-strategy': 4,    // Day 4
-  'strategy-brief': 4,     // Day 4 (client-facing brief, parallel to funnel-strategy)
+  'strategy-brief': 4,     // Day 4 (paid media brief, parallel to funnel-strategy)
+  'project-strategy': 5,   // Day 5 (client-facing strategy presentation)
   'implementation-plan': 5, // Day 5
   'funnel-map': 6,         // Day 6
   'copy-bible': 7,         // Day 7

@@ -3847,6 +3847,429 @@ function StrategyBriefActions({
   )
 }
 
+// ── Project Strategy — client-facing kickoff deck consolidating every upstream strategy doc ──
+function ProjectStrategyActions({
+  client,
+  fieldValues,
+  onSaveField,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+  onSaveField: (stageKey: string, fieldKey: string, value: string) => void
+}) {
+  const briefText = fieldValues.get('project-strategy:brief_text') || ''
+  const approved = fieldValues.get('project-strategy:approved') === 'true'
+  const canvaDesignUrl = fieldValues.get('project-strategy:canva_design_url') || ''
+  const canvaSentAt = fieldValues.get('project-strategy:canva_sent_at') || ''
+  const briefDocUrl = fieldValues.get('project-strategy:brief_doc_url') || ''
+
+  // Source documents — pulls from every prior strategy stage.
+  const clientProfile = fieldValues.get('strategy:client_profile_text') || ''
+  const researchBible = fieldValues.get('strategy:research_bible_text') || ''
+  const brandVoice = fieldValues.get('strategy:brand_voice_text') || ''
+  // Funnel Strategy is stored as a JSON array of FunnelElement objects. Serialise
+  // it into a readable text block so the AI can reference each deliverable.
+  const funnelStrategyJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
+  let funnelStrategy = ''
+  if (funnelStrategyJson) {
+    try {
+      const elements = JSON.parse(funnelStrategyJson) as Array<{ type?: string; topic?: string; description?: string; funnel_stage?: string; reasoning?: string }>
+      if (Array.isArray(elements) && elements.length) {
+        funnelStrategy = elements.map((el, i) => {
+          const lines = [`${i + 1}. ${el.type || 'Element'} — ${el.topic || 'Untitled'}`]
+          if (el.funnel_stage) lines.push(`   Stage: ${el.funnel_stage}`)
+          if (el.description) lines.push(`   What it is: ${el.description}`)
+          if (el.reasoning) lines.push(`   Why: ${el.reasoning}`)
+          return lines.join('\n')
+        }).join('\n\n')
+      }
+    } catch { /* fall through to empty string */ }
+  }
+  // Paid Media brief is only present for ads packages — pass it through if present, omit otherwise.
+  const paidMediaBrief = fieldValues.get('strategy-brief:brief_text') || ''
+
+  const sourcesReady = {
+    profile: !!clientProfile,
+    research: !!researchBible,
+    brand: !!brandVoice,
+    funnel: !!funnelStrategyJson,
+    paidMedia: !!paidMediaBrief,
+  }
+  // Minimum: profile + research + brand + funnel. Paid Media brief is optional.
+  const minimumReady = sourcesReady.profile && sourcesReady.research && sourcesReady.brand && sourcesReady.funnel
+
+  const [generating, setGenerating] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editText, setEditText] = useState('')
+  const [canvaConnected, setCanvaConnected] = useState<boolean | null>(null)
+  const [sendingToCanva, setSendingToCanva] = useState(false)
+  const [savingDoc, setSavingDoc] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/canva/status')
+      .then(r => r.json())
+      .then(d => setCanvaConnected(!!d.connected))
+      .catch(() => setCanvaConnected(false))
+  }, [])
+
+  const handleSaveToDocs = async () => {
+    if (!briefText) { alert('Generate the presentation first.'); return }
+    setSavingDoc(true)
+    const docTitle = `${client.name}_ProjectStrategy`
+    const url = await saveToDrive(docTitle, briefText)
+    if (url) await onSaveField('project-strategy', 'brief_doc_url', url)
+    setSavingDoc(false)
+  }
+
+  const handleConnectCanva = () => {
+    window.location.href = '/api/canva/auth/start'
+  }
+
+  const handleSendToCanva = async () => {
+    if (!briefText) { alert('Generate the presentation first.'); return }
+    setSendingToCanva(true)
+    try {
+      const res = await fetch('/api/project-strategy/send-to-canva', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: client.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (res.status === 401 && data.connected === false) {
+          setCanvaConnected(false)
+          if (confirm('Canva is not connected. Connect now?')) handleConnectCanva()
+        } else {
+          alert(`Send to Canva failed: ${data.error || 'unknown error'}`)
+        }
+      } else if (data.status === 'success' && data.designUrl) {
+        await onSaveField('project-strategy', 'canva_design_url', data.designUrl)
+        await onSaveField('project-strategy', 'canva_sent_at', data.sentAt)
+        window.open(data.designUrl, '_blank')
+      } else if (data.status === 'in_progress') {
+        alert(`Canva is still processing the import (job ${data.jobId}). It should appear in your Canva account within a minute.`)
+      }
+    } catch (err) {
+      alert(`Send to Canva failed: ${err instanceof Error ? err.message : 'network error'}`)
+    }
+    setSendingToCanva(false)
+  }
+
+  const handleGenerate = async () => {
+    if (!minimumReady) {
+      alert('Cannot generate yet — Client Profile, Research Bible, Brand Voice (Stage 4), and Funnel Strategy (4B) must all be approved first.')
+      return
+    }
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/generate-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentType: 'project-strategy',
+          clientName: client.name,
+          brandName: client.brand,
+          clientProfile,
+          researchBible,
+          brandVoice,
+          funnelStrategy,
+          // Only send paidMediaBrief if present — the prompt is instructed to OMIT the
+          // paid-media section when the source doc is missing, which is the right
+          // behaviour for non-ads packages.
+          ...(paidMediaBrief ? { paidMediaBrief } : {}),
+        }),
+      })
+
+      if (!res.ok) {
+        const errText = await res.text()
+        let errMsg = errText
+        try { errMsg = JSON.parse(errText).error } catch {}
+        alert(`Error: ${errMsg}`)
+        setGenerating(false)
+        return
+      }
+
+      const reader = res.body?.getReader()
+      if (!reader) { alert('No response stream'); setGenerating(false); return }
+      const decoder = new TextDecoder()
+      let fullText = ''
+      let buffer = ''
+      let stopReason = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith('data: ')) {
+            const data = trimmed.slice(6)
+            if (data === '[DONE]') continue
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                fullText += parsed.delta.text
+              }
+              if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
+                stopReason = parsed.delta.stop_reason
+              }
+            } catch {}
+          }
+        }
+      }
+      if (buffer.trim().startsWith('data: ')) {
+        try {
+          const parsed = JSON.parse(buffer.trim().slice(6))
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
+          if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) stopReason = parsed.delta.stop_reason
+        } catch {}
+      }
+
+      if (stopReason === 'max_tokens') {
+        fullText += '\n\n⚠️ OUTPUT WAS TRUNCATED — presentation exceeded token limit. Please regenerate.'
+      }
+
+      if (fullText) {
+        await onSaveField('project-strategy', 'brief_text', fullText)
+      } else {
+        alert('Error: No content was generated. Please try again.')
+      }
+    } catch (err) {
+      alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}.`)
+    }
+    setGenerating(false)
+  }
+
+  const handleApprove = async () => {
+    await onSaveField('project-strategy', 'approved', approved ? 'false' : 'true')
+  }
+
+  const handleEdit = () => {
+    setEditText(briefText)
+    setEditing(true)
+  }
+
+  const handleSaveEdit = async () => {
+    await onSaveField('project-strategy', 'brief_text', editText)
+    setEditing(false)
+  }
+
+  const clientViewUrl = `/project-strategy/${client.id}`
+
+  return (
+    <div className="space-y-3">
+      {/* Source status panel */}
+      <div className="bg-stone-50 border border-stone-200 rounded-lg p-4">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-stone-600 mb-3">Source documents</h4>
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          {[
+            { key: 'profile', label: 'Client Profile', ready: sourcesReady.profile, required: true },
+            { key: 'research', label: 'Research Bible', ready: sourcesReady.research, required: true },
+            { key: 'brand', label: 'Brand Voice', ready: sourcesReady.brand, required: true },
+            { key: 'funnel', label: 'Funnel Strategy', ready: sourcesReady.funnel, required: true },
+            { key: 'paidMedia', label: 'Paid Media Brief', ready: sourcesReady.paidMedia, required: false },
+          ].map(s => (
+            <div key={s.key} className="flex items-center gap-2">
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${s.ready ? 'bg-violet-500 text-white' : 'bg-stone-300 text-stone-600'}`}>
+                {s.ready ? '✓' : '·'}
+              </span>
+              <span className={s.ready ? 'text-stone-800' : 'text-stone-500'}>
+                {s.label}
+                {s.required && !s.ready && <span className="text-rose-600 ml-1">(required)</span>}
+                {!s.required && !s.ready && <span className="text-stone-400 ml-1">(optional — ads only)</span>}
+              </span>
+            </div>
+          ))}
+        </div>
+        {!minimumReady && (
+          <p className="text-xs text-rose-700 mt-3">Approve the Client Profile, Research Bible, Brand Voice (Stage 4) and Funnel Strategy (4B) before generating.</p>
+        )}
+      </div>
+
+      {/* Generate or display presentation */}
+      <div className={`rounded-lg border p-4 space-y-3 ${approved ? 'bg-green-50 border-green-200' : briefText ? 'bg-white border-violet-200' : 'bg-white border-stone-200'}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${approved ? 'bg-green-500 text-white' : briefText ? 'bg-violet-500 text-white' : 'bg-stone-300 text-white'}`}>
+              {approved ? '✓' : '1'}
+            </span>
+            <h4 className="text-sm font-bold text-stone-800">Project Strategy</h4>
+          </div>
+          {approved && <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
+        </div>
+        <p className="text-xs text-stone-500">A client-facing kickoff presentation consolidating the Client Profile, Research Bible, Brand Voice, Funnel Strategy{paidMediaBrief ? ', and Paid Media Creative Brief' : ''} into one polished deck. This is the document the client signs off on before production begins.</p>
+
+        {/* No content yet */}
+        {!briefText && !generating && (
+          <button
+            onClick={handleGenerate}
+            disabled={!minimumReady}
+            className="w-full bg-violet-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors cursor-pointer disabled:bg-stone-300 disabled:cursor-not-allowed"
+          >
+            Generate Project Strategy
+          </button>
+        )}
+
+        {generating && (
+          <div className="text-center py-4">
+            <p className="text-sm text-violet-600 animate-pulse">Synthesising every strategy doc into the kickoff presentation... (~45s)</p>
+          </div>
+        )}
+
+        {/* Edit mode */}
+        {editing && (
+          <div className="space-y-2">
+            <textarea
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              className="w-full h-96 p-3 border border-stone-300 rounded-lg text-xs font-mono"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setEditing(false)} className="flex-1 bg-white border border-stone-300 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-stone-50 cursor-pointer">Cancel</button>
+              <button onClick={handleSaveEdit} className="flex-1 bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-violet-700 cursor-pointer">Save Edit</button>
+            </div>
+          </div>
+        )}
+
+        {/* Display presentation */}
+        {briefText && !editing && (
+          <div className="space-y-3">
+            <div className="bg-white border border-stone-200 rounded-lg p-3 max-h-64 overflow-y-auto">
+              <pre className="text-xs text-stone-700 whitespace-pre-wrap font-sans leading-relaxed">{
+                briefText.split('\n').map((line, i) => {
+                  if (line.includes('GAP:') || line.includes('[ASSUMPTION:')) {
+                    return <span key={i} className="bg-yellow-200 text-yellow-900 px-1 rounded">{line}{'\n'}</span>
+                  }
+                  if (line.startsWith('## SECTION')) {
+                    return <span key={i} className="font-bold text-violet-700 block mt-2">{line}{'\n'}</span>
+                  }
+                  if (line.startsWith('### ')) {
+                    return <span key={i} className="font-semibold text-stone-800 block mt-1">{line}{'\n'}</span>
+                  }
+                  return <span key={i}>{line}{'\n'}</span>
+                })
+              }</pre>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <a
+                href={clientViewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-violet-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-violet-700 cursor-pointer text-center"
+              >
+                Open Client View →
+              </a>
+              <button
+                onClick={handleEdit}
+                className="bg-white border border-stone-300 text-stone-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-stone-50 cursor-pointer"
+              >
+                Edit Presentation
+              </button>
+              <button
+                onClick={handleGenerate}
+                disabled={generating}
+                className="bg-white border border-violet-300 text-violet-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-violet-50 cursor-pointer disabled:opacity-50"
+              >
+                Regenerate
+              </button>
+              <button
+                onClick={handleApprove}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer ${approved ? 'bg-stone-100 border border-stone-300 text-stone-700 hover:bg-stone-200' : 'bg-green-600 text-white hover:bg-green-700'}`}
+              >
+                {approved ? 'Mark Unapproved' : 'Approve'}
+              </button>
+            </div>
+
+            <p className="text-xs text-stone-500 text-center">
+              Share the Client View link with the client • Export PDF from there
+            </p>
+
+            {/* Google Docs save */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleSaveToDocs}
+                disabled={savingDoc}
+                className="bg-white border border-blue-300 text-blue-700 px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-50 cursor-pointer disabled:opacity-50"
+              >
+                {savingDoc ? 'Creating Google Doc…' : briefDocUrl ? 'Re-save to Google Doc' : 'Save to Google Doc'}
+              </button>
+              {briefDocUrl ? (
+                <a
+                  href={briefDocUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 cursor-pointer text-center"
+                >
+                  Open Google Doc ↗
+                </a>
+              ) : (
+                <div className="text-xs text-stone-500 flex items-center justify-center text-center px-2">
+                  Saves to shared team Drive. Anyone with the link can edit.
+                </div>
+              )}
+            </div>
+
+            {/* Canva integration */}
+            <div className="mt-4 pt-4 border-t border-stone-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full" style={{ background: canvaConnected ? '#15803d' : canvaConnected === null ? '#a8a29e' : '#dc2626' }} />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-stone-600">
+                    Canva {canvaConnected === null ? '…' : canvaConnected ? 'connected' : 'not connected'}
+                  </span>
+                </div>
+                {canvaConnected === false && (
+                  <button
+                    onClick={handleConnectCanva}
+                    className="text-xs font-semibold text-violet-700 hover:text-violet-900 underline cursor-pointer"
+                  >
+                    Connect Canva →
+                  </button>
+                )}
+              </div>
+
+              {canvaConnected && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleSendToCanva}
+                    disabled={sendingToCanva}
+                    className="bg-gradient-to-r from-purple-600 to-pink-500 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {sendingToCanva ? 'Sending to Canva… (~30s)' : (canvaDesignUrl ? 'Re-send to Canva' : 'Send to Canva')}
+                  </button>
+                  {canvaDesignUrl ? (
+                    <a
+                      href={canvaDesignUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white border border-purple-300 text-purple-700 px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-purple-50 cursor-pointer text-center"
+                    >
+                      Open in Canva ↗
+                    </a>
+                  ) : (
+                    <div className="text-xs text-stone-500 flex items-center justify-center text-center px-2">
+                      Imports the published presentation into Canva as an editable design.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {canvaDesignUrl && canvaSentAt && (
+                <p className="text-xs text-stone-500">
+                  Last sent {new Date(canvaSentAt).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Funnel Strategy Actions — AI-suggested funnel elements with selectable cards ──
 type FunnelElement = {
   type: string
@@ -7459,6 +7882,12 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       fieldValues={fieldValues}
                       onSaveField={handleSaveField}
                     />
+                  ) : stage.key === 'project-strategy' ? (
+                    <ProjectStrategyActions
+                      client={client}
+                      fieldValues={fieldValues}
+                      onSaveField={handleSaveField}
+                    />
                   ) : stage.key === 'pre-production' ? (
                     <PreProductionPrompts
                       client={client}
@@ -7485,7 +7914,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                     />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'tech-onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'strategy-brief' || stage.key === 'pre-production' || stage.key === 'production' || stage.key === 'internal-check' || stage.key === 'handover'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'tech-onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'strategy-brief' || stage.key === 'project-strategy' || stage.key === 'pre-production' || stage.key === 'production' || stage.key === 'internal-check' || stage.key === 'handover'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">
