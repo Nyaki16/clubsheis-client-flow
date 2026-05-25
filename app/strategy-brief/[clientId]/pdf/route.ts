@@ -213,6 +213,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clie
     },
   })
 
+  // CANVA-FRIENDLY OUTPUT: disable kerning on every standard font we use. PDFKit's
+  // default kerning splits each line into multiple TJ segments with positional offsets
+  // (e.g. "prof"[30]"essional"), and Canva's PDF-to-design importer interprets those
+  // offsets as line breaks, dropping the spaces between TJ chunks. Without kerning,
+  // each line becomes a single TJ string with all spaces intact, so Canva renders
+  // "That successful professional" instead of "Thatsuccessful professional".
+  for (const name of ['Helvetica', 'Helvetica-Bold']) {
+    doc.font(name)
+    const internal = (doc as unknown as { _font?: { font?: { kernPairs?: Record<string, number> } } })._font
+    if (internal?.font?.kernPairs) internal.font.kernPairs = {}
+  }
+
   // Cover page.
   doc.addPage()
   renderCover(doc, clientRes.data.name, clientRes.data.brand)

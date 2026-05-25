@@ -171,6 +171,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clie
     },
   })
 
+  // CANVA-FRIENDLY OUTPUT: disable AFM kerning on every standard font. PDFKit's
+  // default kerning fragments each line into multiple TJ segments with positional
+  // offsets, which Canva's PDF importer mis-parses — it strips inter-segment
+  // spaces, producing "Thatsuccessful" instead of "That successful". Clearing
+  // kernPairs forces a single TJ string per line, which Canva renders correctly.
+  for (const name of ['Helvetica', 'Helvetica-Bold']) {
+    doc.font(name)
+    const internal = (doc as unknown as { _font?: { font?: { kernPairs?: Record<string, number> } } })._font
+    if (internal?.font?.kernPairs) internal.font.kernPairs = {}
+  }
+
   doc.addPage()
   renderCover(doc, clientRes.data.name, clientRes.data.brand)
 
