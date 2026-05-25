@@ -7653,7 +7653,8 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
           // Phase headings
           const PHASES: Record<string, { label: string; color: string; bg: string; border: string }> = {
             'discovery': { label: 'Onboarding', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
-            'strategy': { label: 'Planning & Strategy', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
+            'strategy': { label: 'Strategy', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
+            'implementation-plan': { label: 'Planning', color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200' },
             'funnel-map': { label: 'Pre-Production', color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
             'pre-production': { label: 'Vibe Prompts', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
             'production': { label: 'Production', color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
