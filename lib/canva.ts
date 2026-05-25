@@ -245,16 +245,19 @@ export async function getUrlImportStatus(jobId: string): Promise<UrlImportStatus
     const text = await res.text()
     throw new Error(`URL import status failed (${res.status}): ${text.slice(0, 500)}`)
   }
+  // Canva returns result.designs (array, plural), NOT result.design — earlier
+  // versions of this code looked at the singular field and treated successful
+  // imports as failed because design info came back undefined.
   const json = await res.json() as {
     job: {
       id: string
       status: 'in_progress' | 'success' | 'failed'
-      result?: { design?: { id: string; urls?: { edit_url?: string; view_url?: string } } }
+      result?: { designs?: Array<{ id: string; urls?: { edit_url?: string; view_url?: string } }> }
       error?: { message?: string }
     }
   }
   if (json.job.status === 'success') {
-    const design = json.job.result?.design
+    const design = json.job.result?.designs?.[0]
     return {
       status: 'success',
       designId: design?.id,
