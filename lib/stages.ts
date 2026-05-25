@@ -23,6 +23,10 @@ export const PACKAGE_BRANCHES: Record<string, string[]> = {
   'full-build': ['funnel-map', 'copy-bible', 'brand-bible', 'pre-production', 'production'],
 }
 
+// Packages that include paid ads — the Paid Media Creative Brief (strategy-brief)
+// only shows up for these. Other packages skip the 4C stage entirely.
+const ADS_PACKAGES = new Set(['ads-email-social', 'full-build'])
+
 export const STAGES: StageDefinition[] = [
   {
     key: 'discovery',
@@ -213,30 +217,30 @@ export const STAGES: StageDefinition[] = [
     conditionalLogic: [
       { condition: 'Funnel Strategy approved', result: 'Move to Stage 5: Implementation Plan' },
     ],
-    nextActionPrompt: 'Generate, review, and approve the Funnel Strategy, then move to the Creative Strategy Brief.',
+    nextActionPrompt: 'Generate, review, and approve the Funnel Strategy, then move to the Paid Media Creative Brief.',
   },
   {
     key: 'strategy-brief',
     num: '4C',
-    name: 'Creative Strategy Brief',
-    summary: 'A client-facing creative strategy brief that synthesises the Client Profile, Research Bible, and Brand Voice into a single visually-polished deliverable the client can review. Documents the business problem, customer psychology, messaging territories, and prioritised creative tests.',
+    name: 'Paid Media Creative Brief',
+    summary: 'A client-facing paid media creative brief — synthesises the Client Profile, Research Bible, and Brand Voice into messaging territories, hooks, and prioritised ad tests. Only appears when the package includes Meta / paid ads. Documents the business problem, customer psychology, messaging territories, and the first creative tests to run.',
     color: '#0F766E',
     colorSoft: 'rgba(15,118,110,0.06)',
-    triggerLabel: 'Trigger: Strategy documents + Funnel Strategy approved',
+    triggerLabel: 'Trigger: Strategy documents + Funnel Strategy approved (ads packages only)',
     triggerColor: 'teal',
     guide: [
-      'This is the FIRST deliverable the client sees that synthesises all internal strategy work into a single, polished brief.',
+      'This brief is only built for clients running paid media (Meta ads, Google ads). For non-ads packages this stage will not appear in the flow.',
       'Generate the brief — it pulls from the Client Profile, Research Bible, and Brand Voice automatically.',
       'Review the 9 sections (Business Problem → Customer Voice → Messaging Territories → Big Idea → Angles → Test Priorities) and edit as needed.',
       'Open the "Client View" to see the brand-styled, print-ready presentation of the brief.',
-      'Export to PDF and send to the client, or share the live link. Once acknowledged, move to the Implementation Plan.',
+      'Send to Canva to land it as a multi-page presentation the client can review. Once acknowledged, move to the Implementation Plan.',
     ],
     substeps: [],
     dataFields: [],
     conditionalLogic: [
       { condition: 'Brief approved by client', result: 'Move to Stage 5: Implementation Plan' },
     ],
-    nextActionPrompt: 'Generate the Creative Strategy Brief, review the content, then share the Client View link with the client.',
+    nextActionPrompt: 'Generate the Paid Media Creative Brief, review the content, then share the Client View link with the client.',
   },
   {
     key: 'implementation-plan',
@@ -633,7 +637,11 @@ export const STAGES: StageDefinition[] = [
 ]
 
 export function getActiveStagesForPackage(pkg: string): string[] {
-  const core = ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'strategy', 'funnel-strategy', 'strategy-brief', 'implementation-plan']
+  // strategy-brief slots in at 4C — between funnel-strategy and implementation-plan —
+  // but only for packages that actually run paid ads.
+  const core = ADS_PACKAGES.has(pkg)
+    ? ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'strategy', 'funnel-strategy', 'strategy-brief', 'implementation-plan']
+    : ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'strategy', 'funnel-strategy', 'implementation-plan']
   const closing = ['internal-check', 'handover']
   const branches = PACKAGE_BRANCHES[pkg] || []
 

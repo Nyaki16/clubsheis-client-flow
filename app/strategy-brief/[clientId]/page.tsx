@@ -245,7 +245,7 @@ function CoverPage({ brand, name, accent, date }: { brand: string; name: string;
             </div>
             <p className="text-sm font-medium opacity-80">ClubSheIs</p>
           </div>
-          <p className="text-xs uppercase tracking-[0.3em] opacity-60 mt-12 mb-4">The Creative Strategy</p>
+          <p className="text-xs uppercase tracking-[0.3em] opacity-60 mt-12 mb-4">The Paid Media Brief</p>
         </div>
         <div>
           <h1 className="text-6xl md:text-7xl font-black tracking-tight leading-[0.95] mb-4">
@@ -365,7 +365,7 @@ export default async function StrategyBriefPage({ params }: { params: Promise<{ 
           <ClosingStatement outro={outro} accent={accent} />
 
           <p className="text-center text-xs text-stone-400 mt-8 pb-8 print:hidden">
-            ClubSheIs Creative Strategy Brief
+            ClubSheIs Paid Media Creative Brief
           </p>
         </main>
       </div>

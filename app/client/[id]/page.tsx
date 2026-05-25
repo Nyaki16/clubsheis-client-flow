@@ -3447,7 +3447,7 @@ function BrandBibleActions({
   )
 }
 
-// ── Creative Strategy Brief — client-facing synthesis of Research/Brand/Copy bibles ──
+// ── Paid Media Creative Brief — client-facing synthesis of Research/Brand/Copy bibles ──
 function StrategyBriefActions({
   client,
   fieldValues,
@@ -3672,11 +3672,11 @@ function StrategyBriefActions({
             <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${approved ? 'bg-green-500 text-white' : briefText ? 'bg-teal-500 text-white' : 'bg-stone-300 text-white'}`}>
               {approved ? '✓' : '1'}
             </span>
-            <h4 className="text-sm font-bold text-stone-800">Creative Strategy Brief</h4>
+            <h4 className="text-sm font-bold text-stone-800">Paid Media Creative Brief</h4>
           </div>
           {approved && <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>}
         </div>
-        <p className="text-xs text-stone-500">A client-facing creative strategy brief that synthesises the bibles into 9 sections — business problem, customer voice, personas, awareness levels, messaging territories, big idea, angles, and test priorities.</p>
+        <p className="text-xs text-stone-500">A client-facing paid media creative brief — synthesises the bibles into 9 sections covering business problem, customer voice, personas, awareness levels, messaging territories, big idea, hook angles, and the first creative tests to run.</p>
 
         {/* No content yet */}
         {!briefText && !generating && (
@@ -3685,7 +3685,7 @@ function StrategyBriefActions({
             disabled={!minimumReady}
             className="w-full bg-teal-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors cursor-pointer disabled:bg-stone-300 disabled:cursor-not-allowed"
           >
-            Generate Creative Strategy Brief
+            Generate Paid Media Creative Brief
           </button>
         )}
 
@@ -6335,7 +6335,9 @@ function FunnelStrategyActions({
                 onClick={onAdvance}
                 className="w-full bg-green-600 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer"
               >
-                {isAdsPackage ? 'Confirm Media Strategy & Move to Creative Strategy Brief →' : 'Confirm Funnel Strategy & Move to Creative Strategy Brief →'}
+                {isAdsPackage
+                  ? 'Confirm Media Strategy & Move to Paid Media Creative Brief →'
+                  : 'Confirm Funnel Strategy & Move to Implementation Plan →'}
               </button>
             </div>
           )}

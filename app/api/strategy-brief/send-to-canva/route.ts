@@ -53,11 +53,14 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'No brief content found for this client. Generate the brief first.' }, { status: 400 })
     }
 
-    const briefUrl = `${baseUrl}/strategy-brief/${clientId}`
-    const designName = `${client.brand || client.name} — Creative Strategy Brief`
+    // Canva's HTML URL import always creates a single-page design. To get a
+    // multi-page presentation in Canva we hand it the server-rendered PDF
+    // (one section per page) instead, with mime_type=application/pdf.
+    const briefUrl = `${baseUrl}/strategy-brief/${clientId}/pdf`
+    const designName = `${client.brand || client.name} — Paid Media Creative Brief`
 
     // Kick off URL import
-    const { jobId } = await startUrlImport(briefUrl, designName)
+    const { jobId } = await startUrlImport(briefUrl, designName, 'application/pdf')
 
     // Poll up to 50 seconds (route has 60s budget)
     const result = await waitForUrlImport(jobId, { maxMs: 50_000, pollMs: 2_000 })

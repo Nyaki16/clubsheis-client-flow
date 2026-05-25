@@ -1006,9 +1006,11 @@ Write in a warm but professional tone. Use the client's name. This is a celebrat
 
 Format with clear headings and bullet points. This will be pasted into a Canva document, so use clean formatting (no markdown syntax like ** or ##, just plain text with clear section headings in CAPS and bullet points with dashes).`,
 
-  'strategy-brief': `You are building a CREATIVE STRATEGY BRIEF for a ClubSheIs client — a battle-tested framework for DTC paid-social creative strategy.
+  'strategy-brief': `You are building a PAID MEDIA CREATIVE BRIEF for a ClubSheIs client — a battle-tested framework for paid-social and paid-search creative strategy (Meta, TikTok, Google).
 
-This document is CLIENT-FACING. It will be designed into a visually polished deliverable the client reviews and approves before any production work begins. Every word matters. It must read as confident, evidence-based, and specific — never vague, generic, or filler.
+This document is CLIENT-FACING and PAID-MEDIA SPECIFIC. It is built for clients running paid ads. Every recommendation must be relevant to the first creative tests their ad account will run — not generic brand strategy.
+
+It will be designed into a visually polished deliverable the client reviews and approves before any production work begins. Every word matters. It must read as confident, evidence-based, and specific — never vague, generic, or filler.
 
 CORE PRINCIPLES:
 - Evidence over vibes — every recommendation must trace back to something in the Research Bible, Brand Voice, or Copy Bible.

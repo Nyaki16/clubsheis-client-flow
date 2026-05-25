@@ -214,14 +214,14 @@ export type UrlImportResult = {
   jobId: string
 }
 
-export async function startUrlImport(url: string, name: string): Promise<UrlImportResult> {
+export async function startUrlImport(url: string, name: string, mimeType: string = 'text/html'): Promise<UrlImportResult> {
   const res = await canvaFetch('/url-imports', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       url,
       title: name,
-      mime_type: 'text/html',
+      mime_type: mimeType,
     }),
   })
   if (!res.ok) {
