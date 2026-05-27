@@ -431,6 +431,29 @@ export function buildAutofillData(
       const k = i + 1
       data[`section_${s.num}_sub${k}_title`] = sub.title
       data[`section_${s.num}_sub${k}_body`] = sub.body.join('\n').trim()
+
+      // Sub-sub level: extract `- **Title:** body` bullets as item fields. The
+      // redesigned template has multi-card pages (e.g. 3 tone pillars,
+      // Always/Never) that need each bullet to fill its own card.
+      const itemRegex = /^\s*[-*]\s+\*\*([^*]+?):?\*\*\s*[:—-]?\s*(.*)$/
+      const items: Array<{ title: string; body: string }> = []
+      let curItem: { title: string; body: string[] } | null = null
+      for (const line of sub.body) {
+        const m = line.match(itemRegex)
+        if (m) {
+          if (curItem) items.push({ title: curItem.title, body: curItem.body.join('\n').trim() })
+          curItem = { title: m[1].trim().replace(/[:.,]+$/, ''), body: m[2] ? [m[2]] : [] }
+          continue
+        }
+        if (curItem && line.trim()) curItem.body.push(line.replace(/^\s+/, ''))
+      }
+      if (curItem) items.push({ title: curItem.title, body: curItem.body.join('\n').trim() })
+
+      items.forEach((item, j) => {
+        const m = j + 1
+        data[`section_${s.num}_sub${k}_item${m}_title`] = item.title
+        data[`section_${s.num}_sub${k}_item${m}_body`] = item.body
+      })
     })
   }
 
