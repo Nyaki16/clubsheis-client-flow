@@ -394,17 +394,44 @@ export function buildAutofillData(
       current = { num: parseInt(m[1], 10), title: m[2].trim(), body: [] }
       continue
     }
-    if (!current) continue  // pre-amble lines before SECTION 1 are dropped
-    // Skip pure separator lines.
+    if (!current) continue
     if (/^[-=_]{3,}$/.test(line)) continue
     current.body.push(line)
   }
   if (current) sections.push(current)
 
-  // Push each section into section_N_title / section_N_body.
+  // For each section emit:
+  //   - section_N_title (the SECTION heading text)
+  //   - section_N_body  (the full body of the section)
+  //   - section_N_subK_title / section_N_subK_body for each "### SubHeading" block
+  // The redesigned Project Strategy template uses multi-card layouts (4 cards on
+  // some pages, 3 on others), each card mapping to one sub-section. Templates that
+  // only need the simple title/body still get those — autofill ignores unused fields.
+  const subHeadingRegex = /^###\s+(.+?)\s*$/
+
   for (const s of sections) {
     data[`section_${s.num}_title`] = s.title
     data[`section_${s.num}_body`] = s.body.join('\n').trim()
+
+    type Sub = { title: string; body: string[] }
+    const subs: Sub[] = []
+    let curSub: Sub | null = null
+    for (const line of s.body) {
+      const sh = line.match(subHeadingRegex)
+      if (sh) {
+        if (curSub) subs.push(curSub)
+        curSub = { title: sh[1].trim(), body: [] }
+        continue
+      }
+      if (curSub) curSub.body.push(line)
+    }
+    if (curSub) subs.push(curSub)
+
+    subs.forEach((sub, i) => {
+      const k = i + 1
+      data[`section_${s.num}_sub${k}_title`] = sub.title
+      data[`section_${s.num}_sub${k}_body`] = sub.body.join('\n').trim()
+    })
   }
 
   return data
