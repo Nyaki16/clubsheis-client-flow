@@ -281,3 +281,131 @@ export async function waitForUrlImport(jobId: string, opts: { maxMs?: number; po
   }
   return { status: 'failed', error: 'Timeout waiting for Canva import' }
 }
+
+// ── Autofill: create a Canva design from a Brand Template + data ──
+// Native autofill — Canva inserts the supplied text into the template's data fields.
+// This is the preferred path: no PDF parsing, no spacing issues, fully editable in Canva.
+
+export type AutofillData = Record<string, string>
+export type AutofillResult = { jobId: string }
+export type AutofillStatus = {
+  status: 'in_progress' | 'success' | 'failed'
+  designId?: string
+  designUrl?: string
+  error?: string
+}
+
+export async function startAutofill(brandTemplateId: string, data: AutofillData, title?: string): Promise<AutofillResult> {
+  // Canva expects each field as { type: 'text', text: '...' } in the data map.
+  const payloadData: Record<string, { type: 'text'; text: string }> = {}
+  for (const [k, v] of Object.entries(data)) {
+    payloadData[k] = { type: 'text', text: v ?? '' }
+  }
+  const body: Record<string, unknown> = {
+    brand_template_id: brandTemplateId,
+    data: payloadData,
+  }
+  if (title) body.title = title
+
+  const res = await canvaFetch('/autofills', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Autofill start failed (${res.status}): ${text.slice(0, 500)}`)
+  }
+  const json = await res.json() as { job: { id: string } }
+  return { jobId: json.job.id }
+}
+
+export async function getAutofillStatus(jobId: string): Promise<AutofillStatus> {
+  const res = await canvaFetch(`/autofills/${jobId}`)
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Autofill status failed (${res.status}): ${text.slice(0, 500)}`)
+  }
+  const json = await res.json() as {
+    job: {
+      id: string
+      status: 'in_progress' | 'success' | 'failed'
+      // Canva returns { result: { type: 'create_design', design: { id, urls } } }
+      // for autofill jobs (singular design, unlike url-imports which uses designs[]).
+      result?: { design?: { id: string; urls?: { edit_url?: string; view_url?: string } } }
+      error?: { message?: string; code?: string }
+    }
+  }
+  if (json.job.status === 'success') {
+    const design = json.job.result?.design
+    return {
+      status: 'success',
+      designId: design?.id,
+      designUrl: design?.urls?.edit_url || design?.urls?.view_url,
+    }
+  }
+  if (json.job.status === 'failed') {
+    return { status: 'failed', error: json.job.error?.message || json.job.error?.code || 'unknown error' }
+  }
+  return { status: 'in_progress' }
+}
+
+export async function waitForAutofill(jobId: string, opts: { maxMs?: number; pollMs?: number } = {}): Promise<AutofillStatus> {
+  const maxMs = opts.maxMs ?? 60_000
+  const pollMs = opts.pollMs ?? 2_000
+  const deadline = Date.now() + maxMs
+  while (Date.now() < deadline) {
+    const s = await getAutofillStatus(jobId)
+    if (s.status !== 'in_progress') return s
+    await new Promise(r => setTimeout(r, pollMs))
+  }
+  return { status: 'failed', error: 'Timeout waiting for Canva autofill' }
+}
+
+// ── Brief → autofill field mapping ──
+// Parse the markdown brief into { brand_name, client_name, section_N_title, section_N_body }
+// suitable for the autofill API. Section markers look like:
+//   "## SECTION 1 — EXECUTIVE SUMMARY"  (em-dash, hyphen, or colon all accepted)
+// Body for each section is everything between that heading and the next section heading,
+// stripped of pure separator lines and trimmed.
+
+export function buildAutofillData(
+  briefText: string,
+  brandName: string,
+  clientName: string,
+): AutofillData {
+  const data: AutofillData = {
+    brand_name: brandName || clientName,
+    client_name: clientName,
+  }
+
+  const lines = briefText.split('\n')
+  type Sec = { num: number; title: string; body: string[] }
+  const sections: Sec[] = []
+  let current: Sec | null = null
+
+  const sectionRegex = /^##\s+SECTION\s+(\d+)\s*[—\-:]\s*(.+)$/i
+
+  for (const raw of lines) {
+    const line = raw.trimEnd()
+    const m = line.match(sectionRegex)
+    if (m) {
+      if (current) sections.push(current)
+      current = { num: parseInt(m[1], 10), title: m[2].trim(), body: [] }
+      continue
+    }
+    if (!current) continue  // pre-amble lines before SECTION 1 are dropped
+    // Skip pure separator lines.
+    if (/^[-=_]{3,}$/.test(line)) continue
+    current.body.push(line)
+  }
+  if (current) sections.push(current)
+
+  // Push each section into section_N_title / section_N_body.
+  for (const s of sections) {
+    data[`section_${s.num}_title`] = s.title
+    data[`section_${s.num}_body`] = s.body.join('\n').trim()
+  }
+
+  return data
+}

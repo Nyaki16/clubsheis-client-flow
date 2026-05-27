@@ -1,21 +1,13 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { startUrlImport, waitForUrlImport, getStoredTokens } from '@/lib/canva'
+import { startAutofill, waitForAutofill, buildAutofillData, getStoredTokens } from '@/lib/canva'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-function getBaseUrl(req: NextRequest, override?: string): string {
-  if (override && /^https:\/\//i.test(override)) return override.replace(/\/$/, '')
-  const envBase = process.env.NEXT_PUBLIC_APP_URL
-  if (envBase && /^https:\/\//i.test(envBase)) return envBase.replace(/\/$/, '')
-  // Fallback to request origin — only useful in production. Localhost won't be reachable by Canva.
-  return req.nextUrl.origin.replace(/\/$/, '')
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const { clientId, baseUrl: baseUrlOverride } = await req.json() as { clientId?: string; baseUrl?: string }
+    const { clientId } = await req.json() as { clientId?: string }
     if (!clientId) return Response.json({ error: 'clientId is required' }, { status: 400 })
 
     const tokens = await getStoredTokens()
@@ -23,11 +15,9 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'Canva is not connected. Click "Connect Canva" first.', connected: false }, { status: 401 })
     }
 
-    const baseUrl = getBaseUrl(req, baseUrlOverride)
-    if (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
-      return Response.json({
-        error: 'Canva cannot import from localhost. Deploy to Vercel first (or set NEXT_PUBLIC_APP_URL to a public HTTPS URL).',
-      }, { status: 400 })
+    const templateId = process.env.CANVA_TEMPLATE_PAID_MEDIA_BRIEF
+    if (!templateId) {
+      return Response.json({ error: 'CANVA_TEMPLATE_PAID_MEDIA_BRIEF env var is not set on Vercel.' }, { status: 500 })
     }
 
     const supabase = createClient(
@@ -41,7 +31,6 @@ export async function POST(req: NextRequest) {
       .single()
     if (clientErr || !client) return Response.json({ error: 'Client not found' }, { status: 404 })
 
-    // Verify brief content exists before sending
     const { data: briefRow } = await supabase
       .from('flow_stage_data')
       .select('field_value')
@@ -53,21 +42,15 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'No brief content found for this client. Generate the brief first.' }, { status: 400 })
     }
 
-    // Canva's HTML URL import always creates a single-page design. To get a
-    // multi-page presentation in Canva we hand it the server-rendered PDF
-    // (one section per page) instead, with mime_type=application/pdf.
-    // The cache-buster (?t=…) forces Canva to re-fetch each time, not reuse a stale PDF.
-    const briefUrl = `${baseUrl}/strategy-brief/${clientId}/pdf?t=${Date.now()}`
+    // Native autofill: Canva inserts text into the Brand Template's data fields.
+    // No PDF, no parsing — every space and character is preserved exactly.
     const designName = `${client.brand || client.name} — Paid Media Creative Brief`
+    const data = buildAutofillData(briefRow.field_value, client.brand || client.name, client.name)
 
-    // Kick off URL import
-    const { jobId } = await startUrlImport(briefUrl, designName, 'application/pdf')
-
-    // Poll up to 50 seconds (route has 60s budget)
-    const result = await waitForUrlImport(jobId, { maxMs: 50_000, pollMs: 2_000 })
+    const { jobId } = await startAutofill(templateId, data, designName)
+    const result = await waitForAutofill(jobId, { maxMs: 50_000, pollMs: 2_000 })
 
     if (result.status !== 'success' || !result.designUrl) {
-      // Save the job id so the frontend can poll later if it timed out
       if (result.status === 'in_progress') {
         await supabase.from('flow_stage_data').upsert({
           client_id: clientId,
@@ -79,13 +62,12 @@ export async function POST(req: NextRequest) {
         return Response.json({
           status: 'in_progress',
           jobId,
-          message: 'Canva is still processing — poll /api/strategy-brief/canva-status?jobId=' + jobId,
+          message: 'Canva is still processing the autofill — poll /api/strategy-brief/canva-status?jobId=' + jobId,
         }, { status: 202 })
       }
-      return Response.json({ error: `Canva import failed: ${result.error || 'unknown'}`, jobId }, { status: 502 })
+      return Response.json({ error: `Canva autofill failed: ${result.error || 'unknown'}`, jobId }, { status: 502 })
     }
 
-    // Save the design URL + id
     const now = new Date().toISOString()
     await supabase.from('flow_stage_data').upsert([
       { client_id: clientId, stage_key: 'strategy-brief', field_key: 'canva_design_url', field_value: result.designUrl, updated_at: now },

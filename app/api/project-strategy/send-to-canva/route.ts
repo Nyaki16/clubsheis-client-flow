@@ -1,20 +1,13 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { startUrlImport, waitForUrlImport, getStoredTokens } from '@/lib/canva'
+import { startAutofill, waitForAutofill, buildAutofillData, getStoredTokens } from '@/lib/canva'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-function getBaseUrl(req: NextRequest, override?: string): string {
-  if (override && /^https:\/\//i.test(override)) return override.replace(/\/$/, '')
-  const envBase = process.env.NEXT_PUBLIC_APP_URL
-  if (envBase && /^https:\/\//i.test(envBase)) return envBase.replace(/\/$/, '')
-  return req.nextUrl.origin.replace(/\/$/, '')
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const { clientId, baseUrl: baseUrlOverride } = await req.json() as { clientId?: string; baseUrl?: string }
+    const { clientId } = await req.json() as { clientId?: string }
     if (!clientId) return Response.json({ error: 'clientId is required' }, { status: 400 })
 
     const tokens = await getStoredTokens()
@@ -22,11 +15,9 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'Canva is not connected. Click "Connect Canva" first.', connected: false }, { status: 401 })
     }
 
-    const baseUrl = getBaseUrl(req, baseUrlOverride)
-    if (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
-      return Response.json({
-        error: 'Canva cannot import from localhost. Deploy to Vercel first (or set NEXT_PUBLIC_APP_URL to a public HTTPS URL).',
-      }, { status: 400 })
+    const templateId = process.env.CANVA_TEMPLATE_PROJECT_STRATEGY
+    if (!templateId) {
+      return Response.json({ error: 'CANVA_TEMPLATE_PROJECT_STRATEGY env var is not set on Vercel.' }, { status: 500 })
     }
 
     const supabase = createClient(
@@ -51,14 +42,13 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'No Project Strategy content found for this client. Generate the presentation first.' }, { status: 400 })
     }
 
-    // Canva needs a multi-page PDF to create a multi-page editable design.
-    // The cache-buster (?t=…) forces Canva's importer to re-fetch the PDF on every
-    // send instead of reusing a stale cached copy from a previous import.
-    const briefUrl = `${baseUrl}/project-strategy/${clientId}/pdf?t=${Date.now()}`
+    // Native autofill: Canva inserts text into the Brand Template's data fields.
+    // No PDF, no parsing — every space and character is preserved exactly.
     const designName = `${client.brand || client.name} — Project Strategy`
+    const data = buildAutofillData(briefRow.field_value, client.brand || client.name, client.name)
 
-    const { jobId } = await startUrlImport(briefUrl, designName, 'application/pdf')
-    const result = await waitForUrlImport(jobId, { maxMs: 50_000, pollMs: 2_000 })
+    const { jobId } = await startAutofill(templateId, data, designName)
+    const result = await waitForAutofill(jobId, { maxMs: 50_000, pollMs: 2_000 })
 
     if (result.status !== 'success' || !result.designUrl) {
       if (result.status === 'in_progress') {
@@ -72,10 +62,10 @@ export async function POST(req: NextRequest) {
         return Response.json({
           status: 'in_progress',
           jobId,
-          message: 'Canva is still processing — poll /api/project-strategy/canva-status?jobId=' + jobId,
+          message: 'Canva is still processing the autofill — poll /api/project-strategy/canva-status?jobId=' + jobId,
         }, { status: 202 })
       }
-      return Response.json({ error: `Canva import failed: ${result.error || 'unknown'}`, jobId }, { status: 502 })
+      return Response.json({ error: `Canva autofill failed: ${result.error || 'unknown'}`, jobId }, { status: 502 })
     }
 
     const now = new Date().toISOString()
