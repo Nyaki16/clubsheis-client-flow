@@ -438,8 +438,12 @@ function DiscoveryActions({
       const decoder = new TextDecoder()
       let fullText = ''
       let buffer = ''
+      let streamDone = false
 
-      while (true) {
+      // Stop as soon as Anthropic signals completion (message_stop) rather than
+      // waiting for the connection to close — on Vercel Edge the upstream stream
+      // can stay open after the data is done, which hangs reader.read() for minutes.
+      while (!streamDone) {
         const { done, value } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
@@ -449,23 +453,20 @@ function DiscoveryActions({
           const trimmed = line.trim()
           if (trimmed.startsWith('data: ')) {
             const data = trimmed.slice(6)
-            if (data === '[DONE]') continue
+            if (data === '[DONE]') { streamDone = true; continue }
             try {
               const parsed = JSON.parse(data)
               if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
                 fullText += parsed.delta.text
                 setProposal(fullText)
+              } else if (parsed.type === 'message_stop') {
+                streamDone = true
               }
             } catch {}
           }
         }
       }
-      if (buffer.trim().startsWith('data: ')) {
-        try {
-          const parsed = JSON.parse(buffer.trim().slice(6))
-          if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
-        } catch {}
-      }
+      reader.cancel().catch(() => {})
 
       if (fullText) {
         console.log('Proposal received, saving...')
@@ -474,6 +475,12 @@ function DiscoveryActions({
         await onSaveField('proposal', 'proposal_status', 'Draft')
         await onSaveField('proposal', 'email_type', 'proposal')
         console.log('Proposal saved successfully')
+        setGenerating(false)
+        await onAdvance()
+        setTimeout(() => {
+          document.getElementById('stage-proposal')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }, 500)
+        return
       } else {
         alert('AI returned an empty proposal. Please try again.')
       }
