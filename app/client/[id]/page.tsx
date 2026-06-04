@@ -416,48 +416,71 @@ function DiscoveryActions({
       }
       console.log('Payload:', JSON.stringify(payload).slice(0, 200))
 
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 55000) // 55s timeout
-
       const res = await fetch('/api/generate-proposal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        signal: controller.signal,
       })
-      clearTimeout(timeout)
 
       console.log('Response status:', res.status)
-      const text = await res.text()
-      console.log('Response body (first 200):', text.slice(0, 200))
 
-      let data
-      try { data = JSON.parse(text) } catch {
-        alert(`Invalid response from server: ${text.slice(0, 200)}`)
+      if (!res.ok) {
+        const errText = await res.text()
+        let errMsg = errText
+        try { errMsg = JSON.parse(errText).error } catch {}
+        alert(`Proposal error (${res.status}): ${errMsg.slice(0, 300)}`)
         setGenerating(false)
         return
       }
 
-      if (!res.ok) {
-        alert(`Proposal error (${res.status}): ${data.error || text.slice(0, 300)}`)
-      } else if (data.proposal) {
+      const reader = res.body?.getReader()
+      if (!reader) { alert('No response stream'); setGenerating(false); return }
+      const decoder = new TextDecoder()
+      let fullText = ''
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith('data: ')) {
+            const data = trimmed.slice(6)
+            if (data === '[DONE]') continue
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                fullText += parsed.delta.text
+                setProposal(fullText)
+              }
+            } catch {}
+          }
+        }
+      }
+      if (buffer.trim().startsWith('data: ')) {
+        try {
+          const parsed = JSON.parse(buffer.trim().slice(6))
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
+        } catch {}
+      }
+
+      if (fullText) {
         console.log('Proposal received, saving...')
-        setProposal(data.proposal)
-        await onSaveField('proposal', 'generated_text', data.proposal)
+        setProposal(fullText)
+        await onSaveField('proposal', 'generated_text', fullText)
         await onSaveField('proposal', 'proposal_status', 'Draft')
         await onSaveField('proposal', 'email_type', 'proposal')
         console.log('Proposal saved successfully')
       } else {
-        alert('No proposal in response: ' + text.slice(0, 300))
+        alert('AI returned an empty proposal. Please try again.')
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Network error'
       console.error('Proposal generation failed:', msg)
-      if (msg.includes('abort')) {
-        alert('Proposal generation timed out. The AI is taking too long. Please try again.')
-      } else {
-        alert(`Failed to generate proposal: ${msg}`)
-      }
+      alert(`Failed to generate proposal: ${msg}`)
     }
     setGenerating(false)
   }

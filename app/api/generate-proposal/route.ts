@@ -118,6 +118,8 @@ TONE: Professional but human — like a smart friend who's great at marketing. N
 
 Keep it under 600 words. Output ONLY the proposal in clean markdown. No preamble or explanation.`
 
+    // Stream to avoid Vercel Edge timeout (25s) — a blocking generation can
+    // exceed the limit on longer transcripts and kill the function.
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -128,6 +130,7 @@ Keep it under 600 words. Output ONLY the proposal in clean markdown. No preamble
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2000,
+        stream: true,
         messages: [{ role: 'user', content: prompt }],
       }),
     })
@@ -135,17 +138,17 @@ Keep it under 600 words. Output ONLY the proposal in clean markdown. No preamble
     if (!res.ok) {
       const errText = await res.text()
       console.error('Anthropic API error:', errText)
-      return Response.json({ error: `API error ${res.status}: ${errText}` }, { status: res.status })
+      return Response.json({ error: `API error ${res.status}: ${errText.slice(0, 300)}` }, { status: res.status })
     }
 
-    const data = await res.json()
-    const proposalText = data.content?.[0]?.text || ''
-
-    if (!proposalText) {
-      return Response.json({ error: 'AI returned empty response' }, { status: 500 })
-    }
-
-    return Response.json({ proposal: proposalText })
+    // Pipe Anthropic's raw SSE stream directly to the client — no re-encoding.
+    return new Response(res.body, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    })
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
     return Response.json({ error: `Failed: ${msg}` }, { status: 500 })
