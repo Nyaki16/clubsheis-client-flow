@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const GHL_API = 'https://services.leadconnectorhq.com'
-const GHL_PIT_KEY = 'pit-572b13e1-ccf9-4ea5-8746-01545c7a704a'
-const GHL_LOCATION_ID = 'AkhI3DXZ01YFKLGXfg2V'
+const GHL_PIT_KEY = process.env.GHL_PIT_KEY_CLUBSHEIS
+const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID_CLUBSHEIS || 'AkhI3DXZ01YFKLGXfg2V'
 const WORKFLOW_ID = '8ea9681a-5d32-43f9-8306-b1bdceae077e'
 
 async function ghlFetch(path: string, method: string, body?: Record<string, unknown>) {
@@ -24,6 +24,11 @@ export async function POST(req: NextRequest) {
 
     if (!clientEmail) {
       return NextResponse.json({ error: 'Client email is required' }, { status: 400 })
+    }
+
+    if (!GHL_PIT_KEY) {
+      console.error('GHL_PIT_KEY_CLUBSHEIS env var is not set')
+      return NextResponse.json({ error: 'GHL is not configured' }, { status: 500 })
     }
 
     // Split name into first/last
