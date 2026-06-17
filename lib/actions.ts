@@ -23,9 +23,11 @@ export async function getClient(id: string): Promise<Client | null> {
 }
 
 export async function createClient(fields: Partial<Client>): Promise<Client> {
+  // Ghutte Only starts at Client Onboarding — it has no discovery/proposal flow.
+  const initialStage = fields.package === 'ghutte-only' ? 'onboarding' : 'discovery'
   const { data, error } = await supabase
     .from('flow_clients')
-    .insert([{ ...fields, current_stage: 'discovery' }])
+    .insert([{ ...fields, current_stage: initialStage }])
     .select()
     .single()
   if (error) throw error

@@ -166,6 +166,47 @@ export const STAGES: StageDefinition[] = [
     nextActionPrompt: 'Complete all technical integrations, then move to the Strategy Session.',
   },
   {
+    key: 'business-info',
+    num: '3C',
+    name: 'Business Information',
+    summary: 'Capture the core business profile that drives the AI system, SEO setup, and all copy and automation. Fill in every field — these feed directly into the client\'s Ghutte build.',
+    color: '#0891B2',
+    colorSoft: 'rgba(8,145,178,0.06)',
+    triggerLabel: 'Trigger: Technical onboarding complete',
+    triggerColor: 'cyan',
+    guide: [
+      'Fill in every field — this profile feeds the AI system config, SEO setup, and all automated messaging.',
+      'Use the client\'s own words where possible (niche, services, special details).',
+      'For the choice fields, pick what best matches how the client positions themselves.',
+      'Location and SEO Location can differ — Location is where the business operates, SEO Location is the primary area to rank for.',
+    ],
+    substeps: [],
+    dataFields: [
+      { key: 'business_name', label: 'Business Name', placeholder: 'Insert business name', type: 'text' },
+      { key: 'business_niche', label: 'Business Type / Niche', placeholder: 'Insert niche', type: 'text' },
+      { key: 'location', label: 'Location', placeholder: 'City + State', type: 'text' },
+      { key: 'primary_service_1', label: 'Primary Service 1', placeholder: 'Service 1', type: 'text' },
+      { key: 'primary_service_2', label: 'Primary Service 2', placeholder: 'Service 2', type: 'text' },
+      { key: 'primary_service_3', label: 'Primary Service 3', placeholder: 'Service 3', type: 'text' },
+      { key: 'primary_offer', label: 'Primary Offer', placeholder: 'Select primary offer', type: 'select', options: ['Free Estimate', 'Free Consultation', 'Discount', 'Same Day Service'] },
+      { key: 'main_goal', label: 'Main Goal', placeholder: 'Select main goal', type: 'select', options: ['Generate Leads', 'Book Appointments', 'Sales'] },
+      { key: 'target_audience', label: 'Target Audience', placeholder: 'Select target audience', type: 'multiselect', options: ['Homeowners', 'Business Owners', 'Local Customers', 'High-End Clients'] },
+      { key: 'brand_style', label: 'Brand Style', placeholder: 'Select brand style', type: 'multiselect', options: ['Luxury', 'Modern', 'Trustworthy', 'Professional', 'Friendly'] },
+      { key: 'main_cta', label: 'Main CTA', placeholder: 'Select main CTA', type: 'select', options: ['Book Now', 'Get Quote', 'Call Now', 'Schedule Consultation'] },
+      { key: 'business_hours', label: 'Business Hours', placeholder: 'Insert hours', type: 'text' },
+      { key: 'communication_channels', label: 'Communication Channels', placeholder: 'Select channels', type: 'multiselect', options: ['SMS', 'Email', 'Phone', 'Web Chat', 'Facebook', 'Instagram'] },
+      { key: 'seo_location', label: 'SEO Location', placeholder: 'Main city + state', type: 'text' },
+      { key: 'seo_service_1', label: 'Main SEO Service 1', placeholder: 'Main service 1', type: 'text' },
+      { key: 'seo_service_2', label: 'Main SEO Service 2', placeholder: 'Main service 2', type: 'text' },
+      { key: 'seo_service_3', label: 'Main SEO Service 3', placeholder: 'Main service 3', type: 'text' },
+      { key: 'special_details', label: 'Special Business Details', placeholder: 'Anything important about the business', type: 'textarea' },
+    ],
+    conditionalLogic: [
+      { condition: 'All business information captured', result: 'Move to Strategy Session' },
+    ],
+    nextActionPrompt: 'Fill in the full business profile, then move to the Strategy Session.',
+  },
+  {
     key: 'strategy',
     num: '4',
     name: 'Strategy Session',
@@ -664,17 +705,20 @@ export function getActiveStagesForPackage(pkg: string): string[] {
   // project-strategy (Project Strategy, 4D) appears for everyone — it's the
   // client-facing kickoff deck and consolidates whatever strategy docs exist.
   const core = ADS_PACKAGES.has(pkg)
-    ? ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'strategy', 'funnel-strategy', 'strategy-brief', 'project-strategy', 'implementation-plan']
-    : ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'strategy', 'funnel-strategy', 'project-strategy', 'implementation-plan']
+    ? ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'business-info', 'strategy', 'funnel-strategy', 'strategy-brief', 'project-strategy', 'implementation-plan']
+    : ['discovery', 'proposal', 'awaiting-review', 'onboarding', 'tech-onboarding', 'business-info', 'strategy', 'funnel-strategy', 'project-strategy', 'implementation-plan']
   const closing = ['internal-check', 'handover']
   const branches = PACKAGE_BRANCHES[pkg] || []
 
   const retainerPackages = ['content-day', 'ads-email-social']
   const hasRetainer = retainerPackages.includes(pkg)
 
-  // Ghutte Only: just core stages + onboarding-focused, no production branches
+  // Ghutte Only: starts at Client Onboarding — no discovery/proposal/awaiting-review,
+  // no production branches.
   if (pkg === 'ghutte-only') {
-    return [...core, ...closing, 'wrapup']
+    const preOnboarding = new Set(['discovery', 'proposal', 'awaiting-review'])
+    const ghutteCore = core.filter(s => !preOnboarding.has(s))
+    return [...ghutteCore, ...closing, 'wrapup']
   }
 
   // Full Build: funnel map, copy bible, brand bible, production, no retainer
@@ -708,6 +752,7 @@ const TIMELINE_TOTAL_DAYS = 14
 const STAGE_DAY_ALLOCATION: Record<string, number> = {
   'onboarding': 1,         // Day 1
   'tech-onboarding': 2,    // Day 2
+  'business-info': 2,      // Day 2 (business profile, alongside tech onboarding)
   'strategy': 3,           // Day 3
   'funnel-strategy': 4,    // Day 4
   'strategy-brief': 4,     // Day 4 (paid media brief, parallel to funnel-strategy)

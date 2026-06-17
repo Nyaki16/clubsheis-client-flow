@@ -7453,9 +7453,15 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
   const stageKeyMap: Record<string, string> = { 'page-build': 'copy-bible' }
   let resolvedStage = stageKeyMap[client.current_stage] || client.current_stage
 
-  // If the stage doesn't exist in active stages, reset to Implementation Plan
+  // If the stage doesn't exist in active stages, recover gracefully. A client
+  // sitting on a pre-onboarding stage whose package skips them (e.g. Ghutte Only,
+  // which starts at Client Onboarding) jumps to the first active stage; any other
+  // stale stage falls back to Implementation Plan.
   if (!activeStageKeys.includes(resolvedStage)) {
-    resolvedStage = 'implementation-plan'
+    const PRE_ONBOARDING = ['discovery', 'proposal', 'awaiting-review']
+    resolvedStage = PRE_ONBOARDING.includes(resolvedStage)
+      ? activeStageKeys[0]
+      : 'implementation-plan'
   }
 
   const currentIdx = activeStageKeys.indexOf(resolvedStage)
