@@ -6,6 +6,7 @@ import { getClient, getCompletions, getStageData, updateClient, toggleSubstep, s
 import { Client, StageCompletion, StageFieldValue } from '@/lib/types'
 import { STAGES, getActiveStagesForPackage, PACKAGES, ADS_EMAIL_SOCIAL_TRACKS, getStageDueDate, formatDueDate, isStageOverdue, getDaysRemaining, getDeadlineDate } from '@/lib/stages'
 import { StageDefinition, DataField } from '@/lib/types'
+import { decodeTaskNotes, TRACKER_STATUS_META, TRACKER_TASK_STATUSES, TRACKER_CLOSED_STATUSES, type TrackerTaskStatus } from '@/lib/tracker'
 
 // ── Data field input component ──
 function FieldInput({
@@ -583,7 +584,7 @@ function AwaitingReviewActions({
   const [archived, setArchived] = useState(false)
 
   const [driveResult, setDriveResult] = useState('')
-  const [clickupResult, setClickupResult] = useState('')
+  const [trackerResult, setTrackerResult] = useState('')
 
   const handleAcceptAndSetup = async () => {
     setCreating(true)
@@ -606,27 +607,24 @@ function AwaitingReviewActions({
       setDriveResult('https://drive.google.com/drive/folders/13opmLtB2CkiJQtKpxMPrtfza8C0FaJk6')
     }
 
-    // 2. Try creating ClickUp task
+    // 2. Try creating the client in the Tracker
     try {
-      const cuRes = await fetch('/api/create-clickup-client', {
+      const trRes = await fetch('/api/create-tracker-client', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientName: client.name,
           brandName: client.brand,
-          email: client.email,
-          phone: client.phone,
-          package: client.package,
+          clientFlowClientId: client.id,
         }),
       })
-      const cuData = await cuRes.json()
-      if (cuRes.ok && cuData.taskUrl) {
-        setClickupResult(cuData.taskUrl)
-      } else {
-        setClickupResult('https://app.clickup.com/90121487936/v/li/901215945043')
+      const trData = await trRes.json()
+      if (trRes.ok && trData.trackerUrl) {
+        setTrackerResult(trData.trackerUrl)
       }
     } catch {
-      setClickupResult('https://app.clickup.com/90121487936/v/li/901215945043')
+      // Tracker client wasn't created — leave the link empty rather than
+      // pointing at a client that doesn't exist.
     }
 
     setDone(true)
@@ -696,7 +694,7 @@ function AwaitingReviewActions({
             <span className="text-green-500">📁</span> Open Google Drive to create client folder
           </li>
           <li className="flex items-center gap-2">
-            <span className="text-green-500">✅</span> Create a client task in ClickUp
+            <span className="text-green-500">✅</span> Create the client in the Tracker
           </li>
           <li className="flex items-center gap-2">
             <span className="text-green-500">→</span> Move to Client Onboarding
@@ -720,10 +718,10 @@ function AwaitingReviewActions({
                   📁 Open Drive Folder
                 </a>
               )}
-              {clickupResult && (
-                <a href={clickupResult} target="_blank" rel="noopener noreferrer"
+              {trackerResult && (
+                <a href={trackerResult} target="_blank" rel="noopener noreferrer"
                   className="flex-1 text-center bg-white border border-green-200 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-50 transition-colors">
-                  ✅ Open ClickUp Task
+                  ✅ Open in Tracker
                 </a>
               )}
             </div>
@@ -1646,10 +1644,10 @@ function StrategyActions({
 
   const handleUploadAll = async () => {
     setUploading(true)
-    // For now, mark as uploaded — Drive + ClickUp integration can be added
+    // For now, mark as uploaded — Drive + Tracker integration can be added
     await onSaveField('strategy', 'docs_uploaded', 'true')
     setUploading(false)
-    alert('Documents marked as uploaded. Open Google Drive and ClickUp to link them.')
+    alert('Documents marked as uploaded. Open Google Drive and the Tracker to link them.')
   }
 
   const profileDocUrl = fieldValues.get('strategy:client_profile_doc_url') || ''
@@ -4312,23 +4310,32 @@ type FunnelElement = {
   priority: number
 }
 
-// ── ClickUp types ──
-interface ClickUpTask {
+// ── Tracker types ──
+// Raw task row as returned by /api/tracker-tasks. Subtasks are stored as their
+// own rows with a `parent` value encoded in `notes` (see lib/tracker).
+interface TrackerTaskRow {
+  id: string
+  job_id: string
+  title: string
+  notes: string
+  status: TrackerTaskStatus
+  assignee_id: string | null
+  due_date: string | null // YYYY-MM-DD
+  created_at: string
+  updated_at: string
+}
+interface TrackerJob {
   id: string
   name: string
-  status: { status: string; color: string }
-  assignees: { username: string; profilePicture: string | null; initials: string }[]
+  stage: string
   due_date: string | null
-  date_created: string
-  date_updated: string
-  url: string
-  priority: { priority: string; color: string } | null
-  tags: { name: string; tag_bg: string; tag_fg: string }[]
-  parent: string | null
+  created_at: string
 }
-interface ClickUpList { id: string; name: string }
-interface ClickUpFolder { id: string; name: string; lists: ClickUpList[] }
-interface ClickUpSpace { id: string; name: string; folders: ClickUpFolder[]; lists: ClickUpList[] }
+interface TrackerMember { id: string; name: string; email: string }
+
+// Public tracker app base — only used to build "Open in Tracker" links.
+const TRACKER_APP_URL =
+  process.env.NEXT_PUBLIC_TRACKER_APP_URL || 'https://clubsheis-tracker.vercel.app'
 
 // ── Production Task Generation ──
 type TeamRole = 'designer' | 'developer' | 'copywriter' | 'account_manager'
@@ -4495,22 +4502,32 @@ function ProductionActions({
   fieldValues: Map<string, string>
   onSaveField: (stageKey: string, fieldKey: string, value: string) => void
 }) {
-  const [tasks, setTasks] = useState<ClickUpTask[]>([])
+  const [tasks, setTasks] = useState<TrackerTaskRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [spaces, setSpaces] = useState<ClickUpSpace[]>([])
-  const [loadingSpaces, setLoadingSpaces] = useState(false)
+  const [jobs, setJobs] = useState<TrackerJob[]>([])
+  const [loadingJobs, setLoadingJobs] = useState(false)
   const [showPicker, setShowPicker] = useState(false)
+  const [newJobName, setNewJobName] = useState('')
+  const [creatingJob, setCreatingJob] = useState(false)
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set())
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [taskSearch, setTaskSearch] = useState('')
   const [taskSort, setTaskSort] = useState<'name' | 'status' | 'due'>('name')
   const [deletingTask, setDeletingTask] = useState<string | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
+
+  // Tracker client id — set during onboarding (create-tracker-client persists it
+  // to production:tracker_client_id). Resolved/created lazily if missing.
+  const [trackerClientId, setTrackerClientId] = useState<string>(
+    fieldValues.get('production:tracker_client_id') || ''
+  )
+  const [resolvingClient, setResolvingClient] = useState(false)
 
   // Section collapse state
   const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({
     taskBreakdown: true,
-    clickupBoard: true,
+    trackerBoard: true,
     progress: true,
     tasks: true,
   })
@@ -4520,17 +4537,17 @@ function ProductionActions({
   const [generatedTasks, setGeneratedTasks] = useState<ProductionTask[]>([])
   const [showGenerated, setShowGenerated] = useState(false)
   const [sending, setSending] = useState(false)
-  const [sendResult, setSendResult] = useState<{ total: number; created: { name: string; url: string }[] } | null>(null)
+  const [sendResult, setSendResult] = useState<{ total: number; created: { name: string }[] } | null>(null)
   const [expandedGenTasks, setExpandedGenTasks] = useState<Set<number>>(new Set())
   const [removedTasks, setRemovedTasks] = useState<Set<number>>(new Set())
   const [viewMode, setViewMode] = useState<'by-element' | 'by-role'>('by-element')
-  const [clickupMembers, setClickupMembers] = useState<{ id: number; username: string; email: string; profilePicture: string | null }[]>([])
-  const [roleMap, setRoleMap] = useState<Record<string, number | null>>(() => {
+  const [members, setMembers] = useState<TrackerMember[]>([])
+  const [roleMap, setRoleMap] = useState<Record<string, string | null>>(() => {
     try { return JSON.parse(fieldValues.get('production:role_assignees') || '{}') } catch { return {} }
   })
 
-  const linkedListId = fieldValues.get('production:clickup_list_id') || ''
-  const linkedListName = fieldValues.get('production:clickup_list_name') || ''
+  const linkedJobId = fieldValues.get('production:tracker_job_id') || ''
+  const linkedJobName = fieldValues.get('production:tracker_job_name') || ''
 
   // Load funnel elements for task generation
   const funnelStrategyJson = fieldValues.get('funnel-strategy:funnel_elements_json') || ''
@@ -4567,9 +4584,36 @@ function ProductionActions({
 
   const activeTasks_gen = generatedTasks.filter((_, i) => !removedTasks.has(i))
 
-  const handleSendToClickUp = async () => {
-    if (!linkedListId) {
-      setError('Link a ClickUp list first before sending tasks.')
+  // Ensure a tracker client exists for this client-flow client. Returns the id
+  // (resolving/creating it on first use if onboarding didn't already).
+  const resolveTrackerClientId = useCallback(async (): Promise<string> => {
+    if (trackerClientId) return trackerClientId
+    setResolvingClient(true)
+    try {
+      const res = await fetch('/api/create-tracker-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: client.name,
+          brandName: client.brand,
+          clientFlowClientId: client.id,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.trackerClientId) {
+        throw new Error(data.error || 'Failed to resolve tracker client')
+      }
+      setTrackerClientId(data.trackerClientId)
+      onSaveField('production', 'tracker_client_id', data.trackerClientId)
+      return data.trackerClientId
+    } finally {
+      setResolvingClient(false)
+    }
+  }, [trackerClientId, client.name, client.brand, client.id, onSaveField])
+
+  const handleSendToTracker = async () => {
+    if (!linkedJobId) {
+      setError('Link a job first before sending tasks.')
       return
     }
     setSending(true)
@@ -4578,45 +4622,43 @@ function ProductionActions({
       // Calculate due date: project deadline - 3 days
       // Deadline = start_date + 14 days, so task due = start_date + 11 days
       const timelineStart = fieldValues.get('timeline:start_date') || null
-      let dueTimestamp: number | undefined
+      let dueDateMs: number | undefined
       if (timelineStart) {
         const start = new Date(timelineStart)
         const taskDue = new Date(start)
         taskDue.setDate(taskDue.getDate() + 11) // 14 - 3 = 11 days from start
         taskDue.setHours(17, 0, 0, 0) // 5pm deadline
-        dueTimestamp = taskDue.getTime()
+        dueDateMs = taskDue.getTime()
       }
 
-      const getAssignees = (role: TeamRole): number[] => {
-        const memberId = roleMap[role]
-        return memberId ? [memberId] : []
-      }
+      const assigneeFor = (role: TeamRole): string | null => roleMap[role] || null
 
       const tasksToSend = activeTasks_gen.map(t => ({
         name: t.name,
         description: t.description,
-        tags: [t.tag, ROLE_META[t.role].label.toLowerCase()],
-        priority: 3,
-        due_date: dueTimestamp,
-        assignees: getAssignees(t.role),
+        role: ROLE_META[t.role].label,
+        tag: t.tag,
+        status: 'planning' as TrackerTaskStatus,
+        assigneeId: assigneeFor(t.role),
+        dueDateMs,
         subtasks: t.subtasks.map(s => ({
-          name: `[${ROLE_META[s.role].label}] ${s.name}`,
+          name: s.name,
           description: s.description,
-          assignees: getAssignees(s.role),
-          due_date: dueTimestamp,
+          role: ROLE_META[s.role].label,
+          assigneeId: assigneeFor(s.role),
+          dueDateMs,
         })),
       }))
 
-      const res = await fetch('/api/clickup-tasks', {
+      const res = await fetch('/api/tracker-tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listId: linkedListId, tasks: tasksToSend }),
+        body: JSON.stringify({ jobId: linkedJobId, tasks: tasksToSend }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setSendResult({ total: data.total, created: data.created })
-      // Refresh the ClickUp task list
-      fetchTasks(linkedListId)
+      fetchTasks(linkedJobId)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to send tasks')
     } finally {
@@ -4624,13 +4666,13 @@ function ProductionActions({
     }
   }
 
-  // Fetch tasks when list is linked
-  const fetchTasks = useCallback(async (listId: string) => {
-    if (!listId) return
+  // Fetch tasks when a job is linked
+  const fetchTasks = useCallback(async (jobId: string) => {
+    if (!jobId) return
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/clickup-tasks?listId=${listId}`)
+      const res = await fetch(`/api/tracker-tasks?jobId=${jobId}`)
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setTasks(data.tasks || [])
@@ -4642,53 +4684,95 @@ function ProductionActions({
   }, [])
 
   useEffect(() => {
-    if (linkedListId) fetchTasks(linkedListId)
-  }, [linkedListId, fetchTasks])
+    if (linkedJobId) fetchTasks(linkedJobId)
+  }, [linkedJobId, fetchTasks])
 
-  // Fetch ClickUp workspace members
+  // Fetch tracker team members for assignee dropdowns
   useEffect(() => {
     const fetchMembers = async () => {
       try {
-        const res = await fetch('/api/clickup-tasks?members=true')
+        const res = await fetch('/api/tracker-tasks?members=true')
         const data = await res.json()
-        if (data.members) setClickupMembers(data.members)
+        if (data.members) setMembers(data.members)
       } catch {}
     }
     fetchMembers()
   }, [])
 
-  // Fetch workspace hierarchy for picker
-  const openPicker = async () => {
-    setShowPicker(true)
-    if (spaces.length > 0) return
-    setLoadingSpaces(true)
+  // Load this client's jobs for the picker
+  const fetchJobs = useCallback(async (clientId: string) => {
+    setLoadingJobs(true)
     try {
-      const res = await fetch('/api/clickup-tasks')
+      const res = await fetch(`/api/tracker-jobs?clientId=${clientId}`)
       const data = await res.json()
       if (data.error) throw new Error(data.error)
-      setSpaces(data.spaces || [])
+      setJobs(data.jobs || [])
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load ClickUp workspace')
+      setError(e instanceof Error ? e.message : 'Failed to load jobs')
     } finally {
-      setLoadingSpaces(false)
+      setLoadingJobs(false)
+    }
+  }, [])
+
+  const openPicker = async () => {
+    setShowPicker(true)
+    try {
+      const id = await resolveTrackerClientId()
+      await fetchJobs(id)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load tracker')
     }
   }
 
-  const linkList = (listId: string, listName: string) => {
-    onSaveField('production', 'clickup_list_id', listId)
-    onSaveField('production', 'clickup_list_name', listName)
+  const linkJob = (jobId: string, jobName: string) => {
+    onSaveField('production', 'tracker_job_id', jobId)
+    onSaveField('production', 'tracker_job_name', jobName)
     setShowPicker(false)
-    fetchTasks(listId)
+    fetchTasks(jobId)
   }
 
-  // Delete a task from ClickUp
+  const createJob = async () => {
+    const name = newJobName.trim()
+    if (!name) return
+    setCreatingJob(true)
+    setError('')
+    try {
+      const id = await resolveTrackerClientId()
+      const res = await fetch('/api/tracker-jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: id, name }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.job) throw new Error(data.error || 'Failed to create job')
+      setNewJobName('')
+      await fetchJobs(id)
+      linkJob(data.job.id, data.job.name)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create job')
+    } finally {
+      setCreatingJob(false)
+    }
+  }
+
+  // Decode notes meta (role / tag / parent / description) for a task row
+  const taskMeta = (t: TrackerTaskRow) => decodeTaskNotes(t.notes)
+
+  // Delete a task (and its flattened subtask rows) from the tracker
   const handleDeleteTask = async (taskId: string) => {
     setDeletingTask(taskId)
     try {
-      const res = await fetch(`/api/clickup-tasks?taskId=${taskId}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      setTasks(prev => prev.filter(t => t.id !== taskId && t.parent !== taskId))
+      const target = tasks.find(t => t.id === taskId)
+      const childIds = target
+        ? tasks.filter(t => taskMeta(t).parent === target.title).map(t => t.id)
+        : []
+      const idsToDelete = [taskId, ...childIds]
+      await Promise.all(
+        idsToDelete.map(id =>
+          fetch(`/api/tracker-tasks?taskId=${id}`, { method: 'DELETE' })
+        )
+      )
+      setTasks(prev => prev.filter(t => !idsToDelete.includes(t.id)))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to delete task')
     } finally {
@@ -4696,37 +4780,52 @@ function ProductionActions({
     }
   }
 
-  // Task stats
-  const parentTasks = tasks.filter(t => !t.parent)
-  const closedStatuses = ['complete', 'closed', 'done', 'approved', 'delivered']
-  const completedTasks = parentTasks.filter(t => closedStatuses.includes(t.status.status.toLowerCase()))
-  const activeTasks = parentTasks.filter(t => !closedStatuses.includes(t.status.status.toLowerCase()))
+  // Change a task's status
+  const handleStatusChange = async (taskId: string, status: TrackerTaskStatus) => {
+    setUpdatingStatus(taskId)
+    try {
+      const res = await fetch('/api/tracker-tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: taskId, status }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, status } : t)))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update status')
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
+  // Task stats — parents are rows with no `parent` meta; subtasks reference a parent title
+  const isClosed = (s: TrackerTaskStatus) => TRACKER_CLOSED_STATUSES.includes(s)
+  const parentTasks = tasks.filter(t => !taskMeta(t).parent)
+  const completedTasks = parentTasks.filter(t => isClosed(t.status))
+  const activeTasks = parentTasks.filter(t => !isClosed(t.status))
 
   // Get unique statuses for filter
-  const allStatuses = [...new Set(parentTasks.map(t => t.status.status))]
+  const allStatuses = [...new Set(parentTasks.map(t => t.status))]
 
-  // Get role from tags
-  const ROLE_TAGS = ['designer', 'developer', 'copywriter', 'account manager']
-  const getTaskRole = (task: ClickUpTask): string | null => {
-    const roleTag = task.tags.find(t => ROLE_TAGS.includes(t.name.toLowerCase()))
-    return roleTag ? roleTag.name : null
-  }
+  // Get role from notes meta
+  const getTaskRole = (task: TrackerTaskRow): string | null => taskMeta(task).role || null
 
   // Search + filter + sort
   const filteredTasks = parentTasks
-    .filter(t => filterStatus === 'all' || t.status.status === filterStatus)
+    .filter(t => filterStatus === 'all' || t.status === filterStatus)
     .filter(t => {
       if (!taskSearch) return true
       const q = taskSearch.toLowerCase()
-      return t.name.toLowerCase().includes(q) || (getTaskRole(t) || '').toLowerCase().includes(q)
+      return t.title.toLowerCase().includes(q) || (getTaskRole(t) || '').toLowerCase().includes(q)
     })
     .sort((a, b) => {
       switch (taskSort) {
-        case 'name': return a.name.localeCompare(b.name)
-        case 'status': return a.status.status.localeCompare(b.status.status)
+        case 'name': return a.title.localeCompare(b.title)
+        case 'status': return a.status.localeCompare(b.status)
         case 'due': {
-          const aD = a.due_date ? parseInt(a.due_date) : Infinity
-          const bD = b.due_date ? parseInt(b.due_date) : Infinity
+          const aD = a.due_date ? new Date(a.due_date).getTime() : Infinity
+          const bD = b.due_date ? new Date(b.due_date).getTime() : Infinity
           return aD - bD
         }
         default: return 0
@@ -4993,20 +5092,20 @@ function ProductionActions({
             )}
 
             {/* Role → Assignee Mapping */}
-            {!sendResult && clickupMembers.length > 0 && (
+            {!sendResult && members.length > 0 && (
               <div className="bg-stone-50 border border-stone-200 rounded-lg p-4">
                 <h5 className="text-xs font-bold text-stone-600 uppercase tracking-wider mb-3">Assign Roles to Team Members</h5>
                 <div className="grid grid-cols-2 gap-2">
                   {(Object.keys(ROLE_META) as TeamRole[]).map(role => {
-                    const meta = ROLE_META[role]
+                    const roleMeta = ROLE_META[role]
                     return (
                       <div key={role} className="flex items-center gap-2">
-                        <span className="text-sm">{meta.icon}</span>
-                        <span className="text-xs font-medium text-stone-700 w-24">{meta.label}</span>
+                        <span className="text-sm">{roleMeta.icon}</span>
+                        <span className="text-xs font-medium text-stone-700 w-24">{roleMeta.label}</span>
                         <select
                           value={roleMap[role] || ''}
                           onChange={async (e) => {
-                            const val = e.target.value ? Number(e.target.value) : null
+                            const val = e.target.value || null
                             const updated = { ...roleMap, [role]: val }
                             setRoleMap(updated)
                             await onSaveField('production', 'role_assignees', JSON.stringify(updated))
@@ -5014,8 +5113,8 @@ function ProductionActions({
                           className="flex-1 border border-stone-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:border-rose-400"
                         >
                           <option value="">Unassigned</option>
-                          {clickupMembers.map(m => (
-                            <option key={m.id} value={m.id}>{m.username || m.email}</option>
+                          {members.map(m => (
+                            <option key={m.id} value={m.id}>{m.name || m.email}</option>
                           ))}
                         </select>
                       </div>
@@ -5025,28 +5124,28 @@ function ProductionActions({
               </div>
             )}
 
-            {/* Send to ClickUp button */}
+            {/* Send to Tracker button */}
             {!sendResult && (
               <div className="flex items-center gap-3 pt-2">
                 <button
-                  onClick={handleSendToClickUp}
-                  disabled={sending || !linkedListId || activeTasks_gen.length === 0}
+                  onClick={handleSendToTracker}
+                  disabled={sending || !linkedJobId || activeTasks_gen.length === 0}
                   className="flex-1 bg-rose-600 hover:bg-rose-700 text-white px-5 py-3 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {sending ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Sending {activeTasks_gen.length} tasks to ClickUp...
+                      Sending {activeTasks_gen.length} tasks to the Tracker...
                     </>
                   ) : (
                     <>
-                      Send {activeTasks_gen.length} Tasks to ClickUp
+                      Send {activeTasks_gen.length} Tasks to the Tracker
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                     </>
                   )}
                 </button>
-                {!linkedListId && (
-                  <p className="text-xs text-amber-600">Link a ClickUp list first</p>
+                {!linkedJobId && (
+                  <p className="text-xs text-amber-600">Link a job first</p>
                 )}
               </div>
             )}
@@ -5056,16 +5155,13 @@ function ProductionActions({
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">✓</span>
-                  <span className="font-semibold text-green-700 text-sm">{sendResult.total} tasks created in ClickUp</span>
+                  <span className="font-semibold text-green-700 text-sm">{sendResult.total} tasks created in the Tracker</span>
                 </div>
                 <div className="space-y-1 ml-8">
                   {sendResult.created.map((c, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs">
                       <span className="text-green-600">✓</span>
                       <span className="text-stone-600">{c.name}</span>
-                      <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-rose-600 hover:text-rose-700 font-medium ml-auto">
-                        Open
-                      </a>
                     </div>
                   ))}
                 </div>
@@ -5081,27 +5177,27 @@ function ProductionActions({
           </div>
         )}
 
-      {/* ClickUp Link Section */}
+      {/* Tracker Link Section */}
       <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
         <div
           className="flex items-center justify-between p-5 cursor-pointer hover:bg-stone-50/50 transition-colors"
-          onClick={() => toggleSection('clickupBoard')}
+          onClick={() => toggleSection('trackerBoard')}
         >
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center">
               <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
             </div>
             <div>
-              <h3 className="font-semibold text-stone-800">ClickUp Production Board</h3>
-              {linkedListName && (
-                <p className="text-xs text-stone-500">Linked to: <span className="font-medium text-rose-600">{linkedListName}</span></p>
+              <h3 className="font-semibold text-stone-800">Tracker Production Board</h3>
+              {linkedJobName && (
+                <p className="text-xs text-stone-500">Linked to: <span className="font-medium text-rose-600">{linkedJobName}</span></p>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {linkedListId && (
+            {linkedJobId && (
               <button
-                onClick={e => { e.stopPropagation(); fetchTasks(linkedListId) }}
+                onClick={e => { e.stopPropagation(); fetchTasks(linkedJobId) }}
                 className="text-xs px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 transition-colors cursor-pointer"
               >
                 Refresh
@@ -5111,82 +5207,79 @@ function ProductionActions({
               onClick={e => { e.stopPropagation(); openPicker() }}
               className="text-xs px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg font-medium transition-colors cursor-pointer"
             >
-              {linkedListId ? 'Change List' : 'Link ClickUp List'}
+              {linkedJobId ? 'Change Job' : 'Link Job'}
             </button>
-            <svg className={`w-4 h-4 text-stone-400 transition-transform ${sectionOpen.clickupBoard ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            <svg className={`w-4 h-4 text-stone-400 transition-transform ${sectionOpen.trackerBoard ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </div>
         </div>
 
-        {sectionOpen.clickupBoard && (<>
-        {/* List Picker Modal */}
+        {sectionOpen.trackerBoard && (<>
+        {/* Job Picker */}
         {showPicker && (
-          <div className="border border-stone-200 rounded-lg bg-stone-50 p-4 mb-4">
+          <div className="border border-stone-200 rounded-lg bg-stone-50 p-4 mb-4 mx-5">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="font-medium text-sm text-stone-700">Select a ClickUp List</h4>
+              <h4 className="font-medium text-sm text-stone-700">Select or create a job</h4>
               <button onClick={() => setShowPicker(false)} className="text-stone-400 hover:text-stone-600">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            {loadingSpaces ? (
+            {(loadingJobs || resolvingClient) ? (
               <div className="flex items-center gap-2 text-sm text-stone-500 py-4 justify-center">
                 <div className="w-4 h-4 border-2 border-rose-300 border-t-rose-600 rounded-full animate-spin" />
-                Loading workspace...
+                Loading jobs...
               </div>
             ) : (
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {spaces.map(space => (
-                  <div key={space.id}>
-                    <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1">{space.name}</p>
-                    {/* Folders */}
-                    {space.folders.map(folder => (
-                      <div key={folder.id} className="ml-2 mb-2">
-                        <p className="text-xs font-medium text-stone-600 mb-1">{folder.name}</p>
-                        <div className="ml-2 space-y-0.5">
-                          {folder.lists.map(list => (
-                            <button
-                              key={list.id}
-                              onClick={() => linkList(list.id, `${space.name} / ${folder.name} / ${list.name}`)}
-                              className={`w-full text-left text-sm px-3 py-1.5 rounded hover:bg-rose-50 hover:text-rose-700 transition-colors ${linkedListId === list.id ? 'bg-rose-100 text-rose-700 font-medium' : 'text-stone-700'}`}
-                            >
-                              {list.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+              <div className="space-y-3">
+                {jobs.length > 0 ? (
+                  <div className="space-y-0.5 max-h-64 overflow-y-auto">
+                    {jobs.map(job => (
+                      <button
+                        key={job.id}
+                        onClick={() => linkJob(job.id, job.name)}
+                        className={`w-full text-left text-sm px-3 py-2 rounded hover:bg-rose-50 hover:text-rose-700 transition-colors flex items-center justify-between ${linkedJobId === job.id ? 'bg-rose-100 text-rose-700 font-medium' : 'text-stone-700'}`}
+                      >
+                        <span>{job.name}</span>
+                        {job.stage && <span className="text-[10px] text-stone-400">{job.stage}</span>}
+                      </button>
                     ))}
-                    {/* Folderless lists */}
-                    {space.lists.length > 0 && (
-                      <div className="ml-2 space-y-0.5">
-                        {space.lists.map(list => (
-                          <button
-                            key={list.id}
-                            onClick={() => linkList(list.id, `${space.name} / ${list.name}`)}
-                            className={`w-full text-left text-sm px-3 py-1.5 rounded hover:bg-rose-50 hover:text-rose-700 transition-colors ${linkedListId === list.id ? 'bg-rose-100 text-rose-700 font-medium' : 'text-stone-700'}`}
-                          >
-                            {list.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                ))}
+                ) : (
+                  <p className="text-xs text-stone-400 py-2">No jobs yet for this client. Create one below.</p>
+                )}
+                <div className="flex items-center gap-2 pt-2 border-t border-stone-200">
+                  <input
+                    type="text"
+                    value={newJobName}
+                    onChange={e => setNewJobName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') createJob() }}
+                    placeholder="New job name…"
+                    className="flex-1 border border-stone-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-rose-400"
+                  />
+                  <button
+                    onClick={createJob}
+                    disabled={creatingJob || !newJobName.trim()}
+                    className="text-xs px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-medium transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {creatingJob ? 'Creating…' : 'Create job'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {!linkedListId && !showPicker && (
-          <div className="text-center py-8 border border-dashed border-stone-300 rounded-lg bg-stone-50">
+        {!linkedJobId && !showPicker && (
+          <div className="text-center py-8 border border-dashed border-stone-300 rounded-lg bg-stone-50 mx-5 mb-5">
             <svg className="w-10 h-10 text-stone-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-            <p className="text-sm text-stone-500 mb-1">No ClickUp list linked yet</p>
-            <p className="text-xs text-stone-400">Link a ClickUp list to track production tasks for this client</p>
+            <p className="text-sm text-stone-500 mb-1">No job linked yet</p>
+            <p className="text-xs text-stone-400">Link a job to track production tasks for this client</p>
           </div>
         )}
         </>)}
       </div>
 
       {/* Progress & Tasks */}
-      {linkedListId && (
+      {linkedJobId && (
         <>
           {/* Progress Bar */}
           <div className="bg-white border border-stone-200 rounded-xl p-5">
@@ -5256,7 +5349,7 @@ function ProductionActions({
               >
                 <option value="all">All statuses ({parentTasks.length})</option>
                 {allStatuses.map(s => (
-                  <option key={s} value={s}>{s} ({parentTasks.filter(t => t.status.status === s).length})</option>
+                  <option key={s} value={s}>{TRACKER_STATUS_META[s]?.label || s} ({parentTasks.filter(t => t.status === s).length})</option>
                 ))}
               </select>
               <select
@@ -5282,11 +5375,13 @@ function ProductionActions({
             ) : (
               <div className="space-y-1.5">
                 {filteredTasks.map(task => {
-                  const isComplete = closedStatuses.includes(task.status.status.toLowerCase())
+                  const m = taskMeta(task)
+                  const isComplete = isClosed(task.status)
                   const isExpanded = expandedTasks.has(task.id)
-                  const subtasks = tasks.filter(t => t.parent === task.id)
-                  const dueDate = task.due_date ? new Date(parseInt(task.due_date)) : null
+                  const subtasks = tasks.filter(t => taskMeta(t).parent === task.title)
+                  const dueDate = task.due_date ? new Date(task.due_date) : null
                   const isOverdue = dueDate && !isComplete && dueDate < new Date()
+                  const statusColor = TRACKER_STATUS_META[task.status]?.color || '#94a3b8'
 
                   return (
                     <div key={task.id} className="border border-stone-100 rounded-lg overflow-hidden">
@@ -5301,18 +5396,15 @@ function ProductionActions({
                         {/* Status dot */}
                         <span
                           className="w-3 h-3 rounded-full flex-shrink-0 border"
-                          style={{
-                            backgroundColor: task.status.color || '#94a3b8',
-                            borderColor: task.status.color || '#94a3b8',
-                          }}
+                          style={{ backgroundColor: statusColor, borderColor: statusColor }}
                         />
 
-                        {/* Task name */}
+                        {/* Task title */}
                         <span className={`text-sm flex-1 ${isComplete ? 'line-through text-stone-400' : 'text-stone-700'}`}>
-                          {task.name}
+                          {task.title}
                         </span>
 
-                        {/* Role badge from tags */}
+                        {/* Role badge from notes meta */}
                         {(() => {
                           const role = getTaskRole(task)
                           if (!role) return null
@@ -5336,13 +5428,19 @@ function ProductionActions({
                           </span>
                         )}
 
-                        {/* Status label */}
-                        <span
-                          className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                          style={{ backgroundColor: (task.status.color || '#94a3b8') + '20', color: task.status.color || '#64748b' }}
+                        {/* Status dropdown */}
+                        <select
+                          value={task.status}
+                          disabled={updatingStatus === task.id}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => handleStatusChange(task.id, e.target.value as TrackerTaskStatus)}
+                          className="text-[10px] px-2 py-0.5 rounded-full font-medium border-0 cursor-pointer focus:outline-none disabled:opacity-50"
+                          style={{ backgroundColor: statusColor + '20', color: statusColor }}
                         >
-                          {task.status.status}
-                        </span>
+                          {TRACKER_TASK_STATUSES.map(s => (
+                            <option key={s} value={s}>{TRACKER_STATUS_META[s].label}</option>
+                          ))}
+                        </select>
 
                         {/* Delete button */}
                         <button
@@ -5366,22 +5464,21 @@ function ProductionActions({
                       {isExpanded && (
                         <div className="px-3 pb-3 pt-1 border-t border-stone-100 bg-stone-50/50">
                           <div className="flex items-center gap-3 text-xs text-stone-500 mb-2">
-                            <span>Created: {new Date(parseInt(task.date_created)).toLocaleDateString('en-ZA')}</span>
-                            <span>Updated: {new Date(parseInt(task.date_updated)).toLocaleDateString('en-ZA')}</span>
+                            <span>Created: {new Date(task.created_at).toLocaleDateString('en-ZA')}</span>
+                            <span>Updated: {new Date(task.updated_at).toLocaleDateString('en-ZA')}</span>
                           </div>
 
-                          {/* Tags */}
-                          {task.tags.length > 0 && (
+                          {/* Description */}
+                          {m.description && (
+                            <p className="text-xs text-stone-500 mb-2">{m.description}</p>
+                          )}
+
+                          {/* Funnel-stage tag */}
+                          {m.tag && (
                             <div className="flex flex-wrap gap-1 mb-2">
-                              {task.tags.map(tag => (
-                                <span
-                                  key={tag.name}
-                                  className="text-[10px] px-2.5 py-1 rounded-md font-bold whitespace-nowrap"
-                                  style={{ backgroundColor: tag.tag_bg, color: tag.tag_bg === tag.tag_fg ? '#ffffff' : tag.tag_fg, border: `1px solid ${tag.tag_fg}30` }}
-                                >
-                                  {tag.name}
-                                </span>
-                              ))}
+                              <span className="text-[10px] px-2.5 py-1 rounded-md font-bold whitespace-nowrap bg-stone-200 text-stone-700 border border-stone-300">
+                                {m.tag.toUpperCase()}
+                              </span>
                             </div>
                           )}
 
@@ -5390,32 +5487,39 @@ function ProductionActions({
                             <div className="mt-2">
                               <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1">Subtasks ({subtasks.length})</p>
                               <div className="space-y-0.5 ml-2">
-                                {subtasks.map(sub => (
-                                  <div key={sub.id} className="flex items-center gap-2 text-xs">
-                                    <span
-                                      className="w-2 h-2 rounded-full flex-shrink-0"
-                                      style={{ backgroundColor: sub.status.color || '#94a3b8' }}
-                                    />
-                                    <span className={closedStatuses.includes(sub.status.status.toLowerCase()) ? 'line-through text-stone-400' : 'text-stone-600'}>
-                                      {sub.name}
-                                    </span>
-                                    <span className="text-stone-400 ml-auto">{sub.status.status}</span>
-                                  </div>
-                                ))}
+                                {subtasks.map(sub => {
+                                  const subColor = TRACKER_STATUS_META[sub.status]?.color || '#94a3b8'
+                                  const prefix = `${task.title} — `
+                                  const subName = sub.title.startsWith(prefix) ? sub.title.slice(prefix.length) : sub.title
+                                  return (
+                                    <div key={sub.id} className="flex items-center gap-2 text-xs">
+                                      <span
+                                        className="w-2 h-2 rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: subColor }}
+                                      />
+                                      <span className={isClosed(sub.status) ? 'line-through text-stone-400' : 'text-stone-600'}>
+                                        {subName}
+                                      </span>
+                                      <span className="text-stone-400 ml-auto">{TRACKER_STATUS_META[sub.status]?.label || sub.status}</span>
+                                    </div>
+                                  )
+                                })}
                               </div>
                             </div>
                           )}
 
-                          {/* Open in ClickUp */}
-                          <a
-                            href={task.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 mt-2 text-xs text-rose-600 hover:text-rose-700 font-medium"
-                          >
-                            Open in ClickUp
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                          </a>
+                          {/* Open in Tracker */}
+                          {trackerClientId && (
+                            <a
+                              href={`${TRACKER_APP_URL}/clients/${trackerClientId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 mt-2 text-xs text-rose-600 hover:text-rose-700 font-medium"
+                            >
+                              Open in Tracker
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
