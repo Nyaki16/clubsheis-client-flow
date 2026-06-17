@@ -7557,15 +7557,20 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
   const stageKeyMap: Record<string, string> = { 'page-build': 'copy-bible' }
   let resolvedStage = stageKeyMap[client.current_stage] || client.current_stage
 
-  // If the stage doesn't exist in active stages, recover gracefully. A client
-  // sitting on a pre-onboarding stage whose package skips them (e.g. Ghutte Only,
-  // which starts at Client Onboarding) jumps to the first active stage; any other
-  // stale stage falls back to Implementation Plan.
+  // If the stage doesn't exist in active stages, recover gracefully by clamping
+  // to the nearest valid stage. This matters for packages that trim the flow —
+  // e.g. Ghutte Only stops at Business Information, so a client parked on a now-
+  // removed later stage (Strategy, Implementation Plan, …) snaps back to the last
+  // active stage; one sitting before the flow starts snaps to the first.
   if (!activeStageKeys.includes(resolvedStage)) {
-    const PRE_ONBOARDING = ['discovery', 'proposal', 'awaiting-review']
-    resolvedStage = PRE_ONBOARDING.includes(resolvedStage)
-      ? activeStageKeys[0]
-      : 'implementation-plan'
+    const globalIdx = (k: string) => STAGES.findIndex(s => s.key === k)
+    const storedIdx = globalIdx(resolvedStage)
+    if (storedIdx === -1) {
+      resolvedStage = activeStageKeys[0]
+    } else {
+      const preceding = activeStageKeys.filter(k => globalIdx(k) <= storedIdx)
+      resolvedStage = preceding.length ? preceding[preceding.length - 1] : activeStageKeys[0]
+    }
   }
 
   const currentIdx = activeStageKeys.indexOf(resolvedStage)

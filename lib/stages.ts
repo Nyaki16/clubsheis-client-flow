@@ -713,12 +713,11 @@ export function getActiveStagesForPackage(pkg: string): string[] {
   const retainerPackages = ['content-day', 'ads-email-social']
   const hasRetainer = retainerPackages.includes(pkg)
 
-  // Ghutte Only: starts at Client Onboarding — no discovery/proposal/awaiting-review,
-  // no production branches.
+  // Ghutte Only: onboarding-focused only. Runs Client Onboarding → Technical
+  // Onboarding → Business Information and stops there — no strategy, planning,
+  // production, or delivery/hand-over stages.
   if (pkg === 'ghutte-only') {
-    const preOnboarding = new Set(['discovery', 'proposal', 'awaiting-review'])
-    const ghutteCore = core.filter(s => !preOnboarding.has(s))
-    return [...ghutteCore, ...closing, 'wrapup']
+    return ['onboarding', 'tech-onboarding', 'business-info']
   }
 
   // Full Build: funnel map, copy bible, brand bible, production, no retainer
