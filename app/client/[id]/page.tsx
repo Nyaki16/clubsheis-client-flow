@@ -760,6 +760,7 @@ function OnboardingActions({
   const [copiedIntake, setCopiedIntake] = useState(false)
   useEffect(() => { setOrigin(window.location.origin) }, [])
 
+  const isGhutte = client.package === 'ghutte-only'
   const intakeUrl = origin ? `${origin}/intake/${client.id}` : ''
   const intakeSubmittedAt = fieldValues.get('business-info:intake_submitted_at')
 
@@ -780,7 +781,7 @@ function OnboardingActions({
           clientPhone: client.phone,
           brandName: client.brand,
           packageName: pkgLabel,
-          intakeUrl,
+          intakeUrl: isGhutte ? intakeUrl : undefined,
         }),
       })
       const data = await res.json()
@@ -864,11 +865,12 @@ function OnboardingActions({
       <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
         <h4 className="text-sm font-bold text-green-800">2. Trigger Welcome Workflow</h4>
         <p className="text-sm text-green-700">
-          Add {client.name} as a contact in your Ghutte and trigger the welcome email workflow. Their
-          business information form link is sent along so the welcome email can include it.
+          Add {client.name} as a contact in your Ghutte and trigger the welcome email workflow.
+          {isGhutte && ' Their business information form link is sent along so the welcome email can include it.'}
         </p>
 
-        {/* Intake form link passed into the workflow */}
+        {/* Intake form link passed into the workflow — Ghutte Only package */}
+        {isGhutte && (
         <div className="bg-white/70 border border-green-200 rounded-lg p-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-green-800 uppercase tracking-wide">Business Info Form</span>
@@ -903,6 +905,7 @@ function OnboardingActions({
             <code className="bg-green-100 px-1 rounded mx-1">{'{{ contact.intake_form_url }}'}</code>to the welcome email template to include it.
           </p>
         </div>
+        )}
 
         {!sent ? (
           <button
@@ -1290,6 +1293,9 @@ function BusinessInfoActions({
 
   const link = origin ? `${origin}/intake/${client.id}` : ''
   const submittedAt = fieldValues.get('business-info:intake_submitted_at')
+
+  // The client-facing intake form is only used for the Ghutte Only package.
+  if (client.package !== 'ghutte-only') return null
 
   const copy = async () => {
     try {
