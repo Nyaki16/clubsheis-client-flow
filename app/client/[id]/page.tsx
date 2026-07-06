@@ -756,6 +756,12 @@ function OnboardingActions({
   const [creatingSubaccount, setCreatingSubaccount] = useState(false)
   const [subaccountCreated, setSubaccountCreated] = useState(!!fieldValues.get('onboarding:ghl_location_id'))
   const [ghlUrl, setGhlUrl] = useState(fieldValues.get('onboarding:ghl_url') || '')
+  const [origin, setOrigin] = useState('')
+  const [copiedIntake, setCopiedIntake] = useState(false)
+  useEffect(() => { setOrigin(window.location.origin) }, [])
+
+  const intakeUrl = origin ? `${origin}/intake/${client.id}` : ''
+  const intakeSubmittedAt = fieldValues.get('business-info:intake_submitted_at')
 
   const handleSendWelcome = async () => {
     if (!client.email) {
@@ -774,6 +780,7 @@ function OnboardingActions({
           clientPhone: client.phone,
           brandName: client.brand,
           packageName: pkgLabel,
+          intakeUrl,
         }),
       })
       const data = await res.json()
@@ -857,8 +864,46 @@ function OnboardingActions({
       <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
         <h4 className="text-sm font-bold text-green-800">2. Trigger Welcome Workflow</h4>
         <p className="text-sm text-green-700">
-          Add {client.name} as a contact in your Ghutte and trigger the welcome email workflow.
+          Add {client.name} as a contact in your Ghutte and trigger the welcome email workflow. Their
+          business information form link is sent along so the welcome email can include it.
         </p>
+
+        {/* Intake form link passed into the workflow */}
+        <div className="bg-white/70 border border-green-200 rounded-lg p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-green-800 uppercase tracking-wide">Business Info Form</span>
+            {intakeSubmittedAt ? (
+              <span className="text-xs font-medium text-green-700 bg-green-100 border border-green-200 rounded-full px-2.5 py-0.5">
+                ✓ Submitted {new Date(intakeSubmittedAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}
+              </span>
+            ) : (
+              <span className="text-xs font-medium text-stone-500 bg-white border border-stone-200 rounded-full px-2.5 py-0.5">
+                Awaiting client
+              </span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <input
+              readOnly
+              value={intakeUrl}
+              onFocus={e => e.target.select()}
+              className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-xs text-stone-600 bg-white font-mono"
+            />
+            <button
+              onClick={async () => {
+                try { await navigator.clipboard.writeText(intakeUrl); setCopiedIntake(true); setTimeout(() => setCopiedIntake(false), 2000) } catch {}
+              }}
+              className="border border-green-300 text-green-700 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-green-100 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              {copiedIntake ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+          <p className="text-[11px] text-green-700/80 leading-snug">
+            Sent to Ghutte as the <code className="bg-green-100 px-1 rounded">intake_form_url</code> contact field — add
+            <code className="bg-green-100 px-1 rounded mx-1">{'{{ contact.intake_form_url }}'}</code>to the welcome email template to include it.
+          </p>
+        </div>
+
         {!sent ? (
           <button
             onClick={handleSendWelcome}

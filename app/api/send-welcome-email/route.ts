@@ -20,7 +20,7 @@ async function ghlFetch(path: string, method: string, body?: Record<string, unkn
 
 export async function POST(req: NextRequest) {
   try {
-    const { clientName, clientEmail, clientPhone, brandName, packageName } = await req.json()
+    const { clientName, clientEmail, clientPhone, brandName, packageName, intakeUrl } = await req.json()
 
     if (!clientEmail) {
       return NextResponse.json({ error: 'Client email is required' }, { status: 400 })
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
         tags: ['client-onboarding', packageName || 'client'],
         customFields: [
           { key: 'company', field_value: brandName || '' },
+          ...(intakeUrl ? [{ key: 'intake_form_url', field_value: intakeUrl }] : []),
         ],
       })
     } else {
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
         source: 'ClubSheIs Client Flow',
         customFields: [
           { key: 'company', field_value: brandName || '' },
+          ...(intakeUrl ? [{ key: 'intake_form_url', field_value: intakeUrl }] : []),
         ],
       })
 
