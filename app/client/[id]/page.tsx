@@ -1232,6 +1232,80 @@ type WordpassEntry = {
   notes: string
 }
 
+function BusinessInfoActions({
+  client,
+  fieldValues,
+}: {
+  client: Client
+  fieldValues: Map<string, string>
+}) {
+  const [origin, setOrigin] = useState('')
+  const [copied, setCopied] = useState(false)
+  useEffect(() => { setOrigin(window.location.origin) }, [])
+
+  const link = origin ? `${origin}/intake/${client.id}` : ''
+  const submittedAt = fieldValues.get('business-info:intake_submitted_at')
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {}
+  }
+
+  const firstName = (client.name || 'there').split(' ')[0]
+  const mailto = `mailto:${client.email || ''}?subject=${encodeURIComponent(
+    `A few quick questions about ${client.brand || 'your business'}`,
+  )}&body=${encodeURIComponent(
+    `Hi ${firstName},\n\nTo get everything set up for ${client.brand || 'your business'}, please fill in this short business information form (about 5 minutes):\n\n${link}\n\nThanks!\nNyaki & Kopano — ClubSheIs`,
+  )}`
+
+  return (
+    <div className="border border-stone-200 rounded-lg p-4 bg-stone-50/50">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-sm font-semibold text-stone-700">Send this form to the client</h4>
+        {submittedAt ? (
+          <span className="text-xs font-medium text-green-700 bg-green-50 border border-green-100 rounded-full px-2.5 py-0.5">
+            ✓ Submitted {new Date(submittedAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}
+          </span>
+        ) : (
+          <span className="text-xs font-medium text-stone-500 bg-white border border-stone-200 rounded-full px-2.5 py-0.5">
+            Awaiting client
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-stone-500 mb-3">
+        Share this link and the client fills in their own business profile — their answers save straight into the fields above.
+      </p>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          readOnly
+          value={link}
+          onFocus={e => e.target.select()}
+          className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-xs text-stone-600 bg-white font-mono"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={copy}
+            className="bg-[#B45309] text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-[#92400E] transition-colors cursor-pointer whitespace-nowrap"
+          >
+            {copied ? 'Copied!' : 'Copy link'}
+          </button>
+          {client.email && (
+            <a
+              href={mailto}
+              className="border border-stone-200 text-stone-600 px-4 py-2 rounded-lg text-xs font-medium hover:bg-white transition-colors cursor-pointer whitespace-nowrap"
+            >
+              Email client
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function WordpassActions({
   fieldValues,
   onSaveField,
@@ -7982,6 +8056,11 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                       fieldValues={fieldValues}
                       onSaveField={handleSaveField}
                     />
+                  ) : stage.key === 'business-info' ? (
+                    <BusinessInfoActions
+                      client={client}
+                      fieldValues={fieldValues}
+                    />
                   ) : stage.key === 'strategy' ? (
                     <StrategyActions
                       client={client}
@@ -8060,7 +8139,7 @@ export default function ClientFlowPage({ params }: { params: Promise<{ id: strin
                     />
                   ) : undefined
                 }
-                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'tech-onboarding' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'strategy-brief' || stage.key === 'project-strategy' || stage.key === 'pre-production' || stage.key === 'production' || stage.key === 'internal-check' || stage.key === 'handover'}
+                actionSlotFullWidth={stage.key === 'proposal' || stage.key === 'awaiting-review' || stage.key === 'onboarding' || stage.key === 'tech-onboarding' || stage.key === 'business-info' || stage.key === 'strategy' || stage.key === 'funnel-strategy' || stage.key === 'implementation-plan' || stage.key === 'funnel-map' || stage.key === 'copy-bible' || stage.key === 'brand-bible' || stage.key === 'strategy-brief' || stage.key === 'project-strategy' || stage.key === 'pre-production' || stage.key === 'production' || stage.key === 'internal-check' || stage.key === 'handover'}
               />
               {idx < activeStageKeys.length - 1 && (
                 <div className="flex justify-center">
