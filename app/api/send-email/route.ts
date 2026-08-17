@@ -7,7 +7,11 @@ export const maxDuration = 30
 
 export async function POST(req: NextRequest) {
   try {
-    const { to, subject, body, attachAboutUs, trackingId } = await req.json()
+    const {
+      to, subject, body, attachAboutUs, trackingId,
+      // When set, the rendered proposal PDF for this client is attached.
+      attachProposalFor, proposalFilename,
+    } = await req.json()
 
     if (!to || !subject || !body) {
       return NextResponse.json({ error: 'Missing required fields: to, subject, body' }, { status: 400 })
@@ -60,6 +64,28 @@ export async function POST(req: NextRequest) {
 
     // Build attachments
     const attachments: { filename: string; content: Buffer }[] = []
+
+    // The proposal PDF is rendered by its own route, which already owns reading
+    // the structured data out of Supabase — fetch it rather than duplicating that.
+    if (attachProposalFor) {
+      // Resolve against this request's own origin rather than the configured app
+      // URL: on a preview deployment the latter points at production, which would
+      // attach a PDF built from production's data.
+      const origin = new URL(req.url).origin
+      const pdfRes = await fetch(`${origin}/proposal/${attachProposalFor}/pdf`, { cache: 'no-store' })
+      if (!pdfRes.ok) {
+        const detail = await pdfRes.text()
+        return NextResponse.json(
+          { error: `Could not build the proposal PDF (${pdfRes.status}): ${detail.slice(0, 200)}` },
+          { status: 502 },
+        )
+      }
+      attachments.push({
+        filename: proposalFilename || 'proposal.pdf',
+        content: Buffer.from(await pdfRes.arrayBuffer()),
+      })
+    }
+
     if (attachAboutUs) {
       try {
         const pdfPath = join(process.cwd(), 'public', 'ClubSheIs-About-Us.pdf')

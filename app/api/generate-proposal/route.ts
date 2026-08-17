@@ -1,38 +1,10 @@
 import { NextRequest } from 'next/server'
+import { PROPOSAL_JSON_SCHEMA } from '@/lib/proposal-template'
 
 export const runtime = 'edge'
 
-export async function POST(req: NextRequest) {
-  try {
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-      return Response.json({ error: 'ANTHROPIC_API_KEY not set.' }, { status: 500 })
-    }
-
-    const { clientName, brandName, email, needs, transcriptNotes, budgetRange, overridePackage, additionalNotes } = await req.json()
-
-    // Trim transcript to avoid huge payloads
-    const transcript = (transcriptNotes || '').slice(0, 5000)
-    const clientNeeds = (needs || '').slice(0, 3000)
-
-    const prompt = `You are writing a client proposal for ClubSheIs, a digital marketing and content production agency in South Africa run by Nyaki and Kopano.
-
-CLIENT INFO:
-- Name: ${clientName}
-- Brand: ${brandName || 'Not specified'}
-- Budget: ${budgetRange || 'Not discussed'}
-
-DISCOVERY CALL NOTES:
-${clientNeeds || 'No notes provided'}
-
-CALL TRANSCRIPT/LINK:
-${transcript || 'Not provided'}
-
-IMPORTANT: Do NOT just copy the transcript or notes. Analyse what the client needs and write a professional, personalised proposal. Reference specific things from the call to show you listened.
-
-OUR PACKAGES (choose the most suitable based on the discovery call):
-
-1. SMALL BUSINESS - BRONZE (R3,800/month)
+/** The price list is the source of truth — the model copies from it, never invents. */
+const PACKAGES = `1. SMALL BUSINESS - BRONZE (R3,800/month)
    - Monthly access to Ghutte (our all-in-one marketing platform)
    - Video tutorials and monthly 1-hour strategy sessions
    - Best for: clients who want to run their own marketing with guidance
@@ -81,45 +53,69 @@ OUR PACKAGES (choose the most suitable based on the discovery call):
 7. CUSTOM FULL FUNNEL BUILD (from R32,500 once-off)
    - Sales pages, email automation, ads setup
    - Personalised pricing based on scope
-   - Best for: clients launching a new product/offer who need a complete funnel
+   - Best for: clients launching a new product/offer who need a complete funnel`
+
+export async function POST(req: NextRequest) {
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+      return Response.json({ error: 'ANTHROPIC_API_KEY not set.' }, { status: 500 })
+    }
+
+    const { clientName, brandName, needs, transcriptNotes, budgetRange, overridePackage, additionalNotes } = await req.json()
+
+    // Trim transcript to avoid huge payloads
+    const transcript = (transcriptNotes || '').slice(0, 5000)
+    const clientNeeds = (needs || '').slice(0, 3000)
+
+    const prompt = `You are writing a client proposal for Club She Is, a digital marketing and content production agency in South Africa run by Kopano Shimange and Nyaki Tshabangu.
+
+CLIENT INFO:
+- Name: ${clientName}
+- Brand: ${brandName || 'Not specified'}
+- Budget: ${budgetRange || 'Not discussed'}
+
+DISCOVERY CALL NOTES:
+${clientNeeds || 'No notes provided'}
+
+CALL TRANSCRIPT/LINK:
+${transcript || 'Not provided'}
+
+IMPORTANT: Do NOT copy the transcript or notes back. Analyse what the client needs and write a personalised proposal. Reference specific things from the call so it is obvious you listened.
+
+OUR PACKAGES (choose the most suitable based on the discovery call):
+
+${PACKAGES}
 
 PACKAGES & PAYMENT LINK: https://www.clubsheis.com/products
-${overridePackage ? `\nIMPORTANT — USE THIS PACKAGE: The team has specifically chosen "${overridePackage}" for this client. Recommend this package in the proposal and explain why it fits.\n` : ''}${additionalNotes ? `\nADDITIONAL INSTRUCTIONS FROM THE TEAM:\n${additionalNotes}\n\nFollow these instructions carefully when writing the proposal.\n` : ''}
-Write in this structure:
+${overridePackage ? `\nIMPORTANT — USE THIS PACKAGE: The team has specifically chosen "${overridePackage}" for this client. Recommend this package and explain why it fits.\n` : ''}${additionalNotes ? `\nADDITIONAL INSTRUCTIONS FROM THE TEAM:\n${additionalNotes}\n\nFollow these instructions carefully.\n` : ''}
+HOW TO FILL THE FIELDS:
 
-# Proposal for [Brand]
+- headlineLead / headlineAccent: the cover headline, split in two. The lead is the setup and must end with a trailing space, e.g. "A strategy for launching ". The accent is normally the brand name. Keep the whole headline under about eight words.
 
-## Hi [Name],
-Opening — reference something specific from the call. Show you listened. Make it personal and warm.
+- opportunityLead + opportunityParagraphs: a recap of the discovery call in our words, so the client can see we understood them. Three to five substantial paragraphs. Name the specific things they told us — their role, their audience, what they have tried, what they said they are stuck on, the number or goal that matters to them. Be direct about the gap between where they are and where they want to be, without being unkind about it. This section is the reason the proposal lands, so give it real weight.
 
-## Understanding Your Needs
-Summarise what they need IN YOUR OWN WORDS. Show you understand their business, challenges, and goals. Do not paste their notes.
+- planLead + phases: what we will actually do. Use two phases only when the engagement genuinely splits (build first, then grow). Otherwise use a single phase. Each phase body is one full paragraph of concrete work, not a bullet summary.
 
-## What We Recommend
-Recommend the right package(s) and explain WHY it fits their specific situation. Reference their goals and how this package addresses them. If two packages could work, present both as options.
+- investmentLead + investmentNote + cards: one card per package or phase.
+  * price and name MUST be copied exactly from the price list above. Never invent, round, discount, or blend prices.
+  * totalNote: only when a minimum term applies. It must contain the computed rand total, in the form "3 months · R22,500 total" — multiply the monthly price by the number of months. Never write a bare term like "minimum 3 months" with no total. When no minimum term applies, use an empty string.
+  * eyebrow: when phased, the full label in the form "Phase One · Foundation · Months 1 to 3" — the phase number, a short name for the phase, and the month range, separated by middots. Never just "Phase One". When there is only one card, use an empty string.
+  * features: the deliverables for that package, written for this client rather than copied verbatim from the list.
 
-## Scope & Deliverables
-Bullet list of exactly what they receive with the recommended package.
+- nextSteps: five to seven concrete steps in order, starting with signing and ending with the work being underway.
 
-## Investment
-- Package name and exact price from the list above
-- Payment terms: 50% deposit, 50% on completion for once-off builds. Monthly packages billed monthly via EFT or Paystack.
-- ALWAYS include this line: "View packages and pay here: https://www.clubsheis.com/products"
+- closingLines: two or three short lines that build to a point. Each has a lead (ending in a space) and an accent tail carrying the emphasis, e.g. lead "Build the " accent "system." Use their actual goal where you can.
 
-## Timeline
-When we start and key milestones. Be specific (e.g. "Week 1: Onboarding and strategy session. Week 2-3: Build. Week 4: Review and launch.")
+- closingParagraph: two or three sentences, under 45 words in total. Warm, confident, no hard sell.
 
-## Next Steps
-1. Review this proposal
-2. Choose your package at https://www.clubsheis.com/products
-3. Once payment is confirmed, we'll send your onboarding form within 24 hours
+TONE: Professional but human — like a smart friend who is great at marketing. Not corporate, not salesy. Confident and clear. South African English (organise, optimise, programme). Use the rand symbol as R with a thousands separator.
 
-TONE: Professional but human — like a smart friend who's great at marketing. Not corporate. Not salesy. Confident and clear. South African context.
+Do not write any section about who Club She Is is, our services, our results, or the terms and conditions — those are fixed and added automatically. Only produce the client-specific fields.`
 
-Keep it under 600 words. Output ONLY the proposal in clean markdown. No preamble or explanation.`
-
-    // Stream to avoid Vercel Edge timeout (25s) — a blocking generation can
-    // exceed the limit on longer transcripts and kill the function.
+    // Streaming keeps the first byte well inside Vercel Edge's 25s limit; a
+    // blocking request on a proposal this size would die in production.
+    // The response is a single JSON object shaped by PROPOSAL_JSON_SCHEMA.
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -129,12 +125,12 @@ Keep it under 600 words. Output ONLY the proposal in clean markdown. No preamble
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        // Sonnet 5 runs adaptive thinking by default and max_tokens caps
-        // thinking + response together, so leave headroom above the ~600-word
-        // proposal. Low effort keeps this short, formulaic generation quick.
-        max_tokens: 4000,
+        max_tokens: 16000,
         thinking: { type: 'adaptive' },
-        output_config: { effort: 'low' },
+        output_config: {
+          effort: 'medium',
+          format: { type: 'json_schema', schema: PROPOSAL_JSON_SCHEMA },
+        },
         stream: true,
         messages: [{ role: 'user', content: prompt }],
       }),

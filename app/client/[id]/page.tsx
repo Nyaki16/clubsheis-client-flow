@@ -7,6 +7,8 @@ import { Client, StageCompletion, StageFieldValue } from '@/lib/types'
 import { STAGES, getActiveStagesForPackage, PACKAGES, ADS_EMAIL_SOCIAL_TRACKS, getStageDueDate, formatDueDate, isStageOverdue, getDaysRemaining, getDeadlineDate } from '@/lib/stages'
 import { StageDefinition, DataField } from '@/lib/types'
 import { decodeTaskNotes, TRACKER_STATUS_META, TRACKER_TASK_STATUSES, TRACKER_CLOSED_STATUSES, type TrackerTaskStatus } from '@/lib/tracker'
+import { proposalToMarkdown, type ProposalData } from '@/lib/proposal-template'
+import ProposalEditor from './ProposalEditor'
 
 // ── Data field input component ──
 function FieldInput({
@@ -458,8 +460,9 @@ function DiscoveryActions({
             try {
               const parsed = JSON.parse(data)
               if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                // Accumulate silently — the payload is now a JSON object, so
+                // streaming it into the review box would just show braces.
                 fullText += parsed.delta.text
-                setProposal(fullText)
               } else if (parsed.type === 'message_stop') {
                 streamDone = true
               }
@@ -470,9 +473,24 @@ function DiscoveryActions({
       reader.cancel().catch(() => {})
 
       if (fullText) {
-        console.log('Proposal received, saving...')
-        setProposal(fullText)
-        await onSaveField('proposal', 'generated_text', fullText)
+        // The model now returns a single JSON object matching ProposalData, so
+        // the PDF can render pricing cards from real fields instead of parsing
+        // prose. Store the markdown alongside it — the public proposal page and
+        // the plain-text part of the email still read `generated_text`.
+        let data: ProposalData
+        try {
+          data = JSON.parse(fullText)
+        } catch {
+          console.error('Proposal JSON did not parse:', fullText.slice(0, 400))
+          alert('The proposal came back in an unexpected format. Please generate again.')
+          setGenerating(false)
+          return
+        }
+
+        const markdown = proposalToMarkdown(data, client.name, client.brand)
+        setProposal(markdown)
+        await onSaveField('proposal', 'proposal_data', JSON.stringify(data))
+        await onSaveField('proposal', 'generated_text', markdown)
         await onSaveField('proposal', 'proposal_status', 'Draft')
         await onSaveField('proposal', 'email_type', 'proposal')
         console.log('Proposal saved successfully')
@@ -7176,6 +7194,28 @@ function ProposalReview({
   const savedThankYou = fieldValues.get('proposal:thankyou_text') || ''
   const savedContent = isThankYou ? savedThankYou : savedProposal
 
+  // Structured proposal data drives the PDF. Proposals generated before this
+  // existed only have `generated_text`, so the editor is shown when the JSON is
+  // present and the old markdown box remains the fallback when it is not.
+  const [savingData, setSavingData] = useState(false)
+  const proposalData: ProposalData | null = (() => {
+    const raw = fieldValues.get('proposal:proposal_data')
+    if (!raw) return null
+    try { return JSON.parse(raw) as ProposalData } catch { return null }
+  })()
+
+  const handleSaveProposalData = async (next: ProposalData) => {
+    setSavingData(true)
+    try {
+      // Keep the markdown in step — the hosted proposal page and the plain-text
+      // part of the email both read `generated_text`.
+      await onSaveField('proposal', 'proposal_data', JSON.stringify(next))
+      await onSaveField('proposal', 'generated_text', proposalToMarkdown(next, client.name, client.brand))
+    } finally {
+      setSavingData(false)
+    }
+  }
+
   // Only use local state when editing — otherwise always read from fieldValues
   const [editDraft, setEditDraft] = useState('')
   const [editing, setEditing] = useState(false)
@@ -7218,12 +7258,45 @@ function ProposalReview({
           additionalNotes: regenNotes || '',
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      if (data.proposal) {
-        await onSaveField('proposal', 'generated_text', data.proposal)
-        await onSaveField('proposal', 'proposal_status', 'Draft')
+      if (!res.ok) {
+        let msg = await res.text()
+        try { msg = JSON.parse(msg).error } catch {}
+        throw new Error(msg.slice(0, 300))
       }
+
+      // The route streams SSE — reading it as JSON silently failed before, which
+      // is why regenerate never updated anything.
+      const reader = res.body?.getReader()
+      if (!reader) throw new Error('No response stream')
+      const decoder = new TextDecoder()
+      let fullText = ''
+      let buffer = ''
+      let streamDone = false
+      while (!streamDone) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed.startsWith('data: ')) continue
+          const payload = trimmed.slice(6)
+          if (payload === '[DONE]') { streamDone = true; continue }
+          try {
+            const parsed = JSON.parse(payload)
+            if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
+            else if (parsed.type === 'message_stop') streamDone = true
+          } catch {}
+        }
+      }
+      reader.cancel().catch(() => {})
+
+      if (!fullText) throw new Error('The AI returned an empty proposal.')
+      const regenerated: ProposalData = JSON.parse(fullText)
+      await onSaveField('proposal', 'proposal_data', JSON.stringify(regenerated))
+      await onSaveField('proposal', 'generated_text', proposalToMarkdown(regenerated, client.name, client.brand))
+      await onSaveField('proposal', 'proposal_status', 'Draft')
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to regenerate')
     }
@@ -7242,11 +7315,19 @@ function ProposalReview({
       const isPublished = fieldValues.get('proposal:published') === 'true'
       const proposalLink = isPublished ? `${window.location.origin}/proposal/${client.id}` : ''
 
+      // With structured data available the proposal travels as a designed PDF,
+      // so the body becomes a short cover note rather than the whole document.
+      const sendAsPdf = !isThankYou && !!proposalData
+
       const body = isThankYou
         ? emailContent
-        : isPublished
-          ? `Hi ${client.name},\n\nThank you again for taking the time to meet with us. We're looking forward to helping you build the systems that will move the needle forward in your business.\n\n**What happens next?**\nYou'll review the proposal below, which is a summary of our conversation and the package we suggest based on your needs. If all looks good, please accept the proposal — you will then get directed to the packages page where you can confirm and pay for your package. As soon as that's done you'll receive confirmation and a request to book your onboarding Strategy Session with the team.\n\n${proposalLink}\n\nWe've also attached our About Us document for your reference.\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
-          : `Hi ${client.name},\n\nPlease find our proposal below. We've also attached our About Us document for your reference.\n\n---\n\n${emailContent}\n\n---\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
+        : sendAsPdf
+          ? `Hi ${client.name},\n\nThank you again for taking the time to meet with us. Your proposal is attached — it covers what we took away from our call, what we would do together, and what it costs.\n\n**What happens next?**\nHave a read through, and if it looks right${isPublished ? ', accept the proposal at the link below and you will be directed to the packages page to confirm and pay' : ', reply to this email to confirm and we will send your invoice'}. As soon as that is done you will receive confirmation and a request to book your onboarding Strategy Session with the team.\n${isPublished ? `\n${proposalLink}\n` : ''}\nWe've also attached our About Us document for your reference.\n\nAny questions at all, just reply here.\n\nWarm regards,\nNyaki & Kopano\nClub She Is`
+          : isPublished
+            ? `Hi ${client.name},\n\nThank you again for taking the time to meet with us. We're looking forward to helping you build the systems that will move the needle forward in your business.\n\n**What happens next?**\nYou'll review the proposal below, which is a summary of our conversation and the package we suggest based on your needs. If all looks good, please accept the proposal — you will then get directed to the packages page where you can confirm and pay for your package. As soon as that's done you'll receive confirmation and a request to book your onboarding Strategy Session with the team.\n\n${proposalLink}\n\nWe've also attached our About Us document for your reference.\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
+            : `Hi ${client.name},\n\nPlease find our proposal below. We've also attached our About Us document for your reference.\n\n---\n\n${emailContent}\n\n---\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
+
+      const pdfName = `${(client.brand || client.name).replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-proposal.pdf`
 
       const res = await fetch('/api/send-email', {
         method: 'POST',
@@ -7256,6 +7337,8 @@ function ProposalReview({
           subject,
           body,
           attachAboutUs: !isThankYou,
+          attachProposalFor: sendAsPdf ? client.id : undefined,
+          proposalFilename: sendAsPdf ? pdfName : undefined,
           trackingId: !isThankYou ? client.id : undefined,
         }),
       })
@@ -7317,6 +7400,56 @@ function ProposalReview({
         <span className="text-xs text-stone-400 ml-auto">To: {client.email || 'No email set'}</span>
       </div>
 
+      {/* Structured proposal editor — drives the PDF */}
+      {!isThankYou && proposalData && (
+        <div className="border border-stone-200 rounded-lg overflow-hidden">
+          <div className="bg-stone-50 px-4 py-3 border-b border-stone-200 flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-semibold text-stone-900">Proposal content</h4>
+              <p className="text-xs text-stone-500">Edit the fields that build the PDF</p>
+            </div>
+            <button
+              onClick={() => setShowRegenModal(true)}
+              disabled={regenerating}
+              className="text-xs border border-amber-300 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {regenerating ? 'Generating…' : '↻ Regenerate'}
+            </button>
+          </div>
+          <div className="p-4">
+            <ProposalEditor
+              data={proposalData}
+              onSave={handleSaveProposalData}
+              saving={savingData}
+              pdfUrl={`/proposal/${client.id}/pdf`}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Proposal PDF attachment */}
+      {!isThankYou && proposalData && (
+        <div className="flex items-center gap-3 bg-stone-50 border border-stone-200 rounded-lg px-4 py-3">
+          <span className="text-lg">📄</span>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-stone-700">
+              {(client.brand || client.name)} — Proposal
+            </p>
+            <p className="text-xs text-stone-400">
+              Designed PDF — attached to the email instead of pasting the proposal into the body
+            </p>
+          </div>
+          <a
+            href={`/proposal/${client.id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+          >
+            Preview / Download
+          </a>
+        </div>
+      )}
+
       {/* Email content card */}
       <div className="border border-stone-200 rounded-lg overflow-hidden">
         <div className="bg-stone-50 px-4 py-3 flex items-center justify-between border-b border-stone-200">
@@ -7324,10 +7457,17 @@ function ProposalReview({
             <h4 className="text-sm font-semibold text-stone-900">
               {isThankYou ? 'Thank You Email' : `Proposal for ${client.brand || client.name}`}
             </h4>
-            <p className="text-xs text-stone-500">Review and edit before sending</p>
+            <p className="text-xs text-stone-500">
+              {isThankYou
+                ? 'Review and edit before sending'
+                : proposalData
+                  ? 'Plain-text version — used for the hosted proposal page and email fallback'
+                  : 'Review and edit before sending'}
+            </p>
           </div>
           <div className="flex gap-2">
-            {!isThankYou && (
+            {/* Regenerate lives in the structured editor's header when it is shown. */}
+            {!isThankYou && !proposalData && (
               <button
                 onClick={() => setShowRegenModal(true)}
                 disabled={regenerating || editing}
