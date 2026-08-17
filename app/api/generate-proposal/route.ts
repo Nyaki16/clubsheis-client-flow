@@ -128,8 +128,13 @@ Keep it under 600 words. Output ONLY the proposal in clean markdown. No preamble
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
+        model: 'claude-sonnet-5',
+        // Sonnet 5 runs adaptive thinking by default and max_tokens caps
+        // thinking + response together, so leave headroom above the ~600-word
+        // proposal. Low effort keeps this short, formulaic generation quick.
+        max_tokens: 4000,
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'low' },
         stream: true,
         messages: [{ role: 'user', content: prompt }],
       }),

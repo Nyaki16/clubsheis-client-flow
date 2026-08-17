@@ -1337,11 +1337,15 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'output-128k-2025-02-19',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: documentType === 'brand-voice' ? 4000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email' || documentType === 'copy-element-ad' || documentType === 'copy-element-social' || documentType === 'copy-element-newsletter') ? 32000 : documentType === 'funnel-strategy-ads' ? 16000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map' || documentType === 'qa-report' || documentType === 'handover-doc') ? 8000 : 16000,
+        model: 'claude-sonnet-5',
+        // Budgets raised ~50% over the Sonnet 4 values: Sonnet 5's tokenizer
+        // produces ~30% more tokens for the same text, and max_tokens caps
+        // adaptive thinking + response together.
+        max_tokens: documentType === 'brand-voice' ? 8000 : (documentType === 'copy-bible' || documentType === 'copy-element-page' || documentType === 'copy-element-email' || documentType === 'copy-element-ad' || documentType === 'copy-element-social' || documentType === 'copy-element-newsletter') ? 48000 : documentType === 'funnel-strategy-ads' ? 24000 : (documentType === 'funnel-strategy' || documentType === 'funnel-map' || documentType === 'qa-report' || documentType === 'handover-doc') ? 12000 : 24000,
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'medium' },
         stream: true,
         messages: [{ role: 'user', content: `${systemPrompt}\n\n---\n\n${userMessage}` }],
       }),
