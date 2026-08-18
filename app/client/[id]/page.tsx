@@ -7,7 +7,7 @@ import { Client, StageCompletion, StageFieldValue } from '@/lib/types'
 import { STAGES, getActiveStagesForPackage, PACKAGES, ADS_EMAIL_SOCIAL_TRACKS, getStageDueDate, formatDueDate, isStageOverdue, getDaysRemaining, getDeadlineDate } from '@/lib/stages'
 import { StageDefinition, DataField } from '@/lib/types'
 import { decodeTaskNotes, TRACKER_STATUS_META, TRACKER_TASK_STATUSES, TRACKER_CLOSED_STATUSES, type TrackerTaskStatus } from '@/lib/tracker'
-import { proposalToMarkdown, type ProposalData } from '@/lib/proposal-template'
+import { proposalToMarkdown, buildProposalEmailBody, type ProposalData } from '@/lib/proposal-template'
 import ProposalEditor from './ProposalEditor'
 
 // ── Data field input component ──
@@ -7227,6 +7227,27 @@ function ProposalReview({
   // The content to display — use edit draft when editing, otherwise always the saved value
   const emailContent = editing ? editDraft : savedContent
 
+  const isPublished = fieldValues.get('proposal:published') === 'true'
+
+  // When the proposal travels as a PDF the email is a short covering note, not
+  // the proposal again. It is derived from the same structured data so the
+  // package and price quoted here can never drift from the attachment, but the
+  // team can override it and that edit wins.
+  const proposalLink = isPublished && typeof window !== 'undefined'
+    ? `${window.location.origin}/proposal/${client.id}`
+    : ''
+  const defaultEmailBody = proposalData
+    ? buildProposalEmailBody(proposalData, {
+        clientName: client.name,
+        brandName: client.brand,
+        proposalLink,
+      })
+    : ''
+  const savedEmailBody = fieldValues.get('proposal:email_body') || ''
+  const coverNote = savedEmailBody || defaultEmailBody
+  const [editingCover, setEditingCover] = useState(false)
+  const [coverDraft, setCoverDraft] = useState('')
+
   const handleSave = async () => {
     const key = isThankYou ? 'thankyou_text' : 'generated_text'
     await onSaveField('proposal', key, editDraft)
@@ -7312,17 +7333,15 @@ function ProposalReview({
         ? `Thank you for chatting with ClubSheIs`
         : `ClubSheIs Proposal for ${client.brand || client.name}`
 
-      const isPublished = fieldValues.get('proposal:published') === 'true'
-      const proposalLink = isPublished ? `${window.location.origin}/proposal/${client.id}` : ''
-
       // With structured data available the proposal travels as a designed PDF,
-      // so the body becomes a short cover note rather than the whole document.
+      // so the body is the covering note shown in the review card — never the
+      // proposal restated.
       const sendAsPdf = !isThankYou && !!proposalData
 
       const body = isThankYou
         ? emailContent
         : sendAsPdf
-          ? `Hi ${client.name},\n\nThank you again for taking the time to meet with us. Your proposal is attached — it covers what we took away from our call, what we would do together, and what it costs.\n\n**What happens next?**\nHave a read through, and if it looks right${isPublished ? ', accept the proposal at the link below and you will be directed to the packages page to confirm and pay' : ', reply to this email to confirm and we will send your invoice'}. As soon as that is done you will receive confirmation and a request to book your onboarding Strategy Session with the team.\n${isPublished ? `\n${proposalLink}\n` : ''}\nWe've also attached our About Us document for your reference.\n\nAny questions at all, just reply here.\n\nWarm regards,\nNyaki & Kopano\nClub She Is`
+          ? coverNote
           : isPublished
             ? `Hi ${client.name},\n\nThank you again for taking the time to meet with us. We're looking forward to helping you build the systems that will move the needle forward in your business.\n\n**What happens next?**\nYou'll review the proposal below, which is a summary of our conversation and the package we suggest based on your needs. If all looks good, please accept the proposal — you will then get directed to the packages page where you can confirm and pay for your package. As soon as that's done you'll receive confirmation and a request to book your onboarding Strategy Session with the team.\n\n${proposalLink}\n\nWe've also attached our About Us document for your reference.\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
             : `Hi ${client.name},\n\nPlease find our proposal below. We've also attached our About Us document for your reference.\n\n---\n\n${emailContent}\n\n---\n\nLooking forward to hearing from you.\n\nWarm regards,\nNyaki & Kopano\nClubSheIs`
@@ -7450,18 +7469,70 @@ function ProposalReview({
         </div>
       )}
 
+      {/* The actual email body — a covering note, not the proposal restated */}
+      {!isThankYou && proposalData && (
+        <div className="border border-stone-200 rounded-lg overflow-hidden">
+          <div className="bg-stone-50 px-4 py-3 flex items-center justify-between border-b border-stone-200">
+            <div>
+              <h4 className="text-sm font-semibold text-stone-900">Email to {client.name}</h4>
+              <p className="text-xs text-stone-500">
+                Summary only — the full proposal goes as the attached PDF
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {savedEmailBody && !editingCover && (
+                <button
+                  onClick={async () => { await onSaveField('proposal', 'email_body', '') }}
+                  className="text-xs border border-stone-200 text-stone-500 px-3 py-1.5 rounded-lg hover:bg-white transition-colors cursor-pointer"
+                  title="Go back to the summary generated from the proposal"
+                >
+                  Reset
+                </button>
+              )}
+              {!editingCover ? (
+                <button
+                  onClick={() => { setCoverDraft(coverNote); setEditingCover(true) }}
+                  className="text-xs border border-stone-200 text-stone-600 px-3 py-1.5 rounded-lg hover:bg-white transition-colors cursor-pointer"
+                >
+                  Edit
+                </button>
+              ) : (
+                <button
+                  onClick={async () => { await onSaveField('proposal', 'email_body', coverDraft); setEditingCover(false) }}
+                  className="text-xs bg-[#B45309] text-white px-3 py-1.5 rounded-lg hover:bg-amber-800 transition-colors cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              )}
+            </div>
+          </div>
+          <EmailContentEditor
+            content={editingCover ? coverDraft : coverNote}
+            onChange={setCoverDraft}
+            readOnly={!editingCover}
+          />
+          <div className="px-4 py-2 bg-stone-50 border-t border-stone-200 text-[11px] text-stone-400">
+            Attachments: {(client.brand || client.name)} proposal PDF + ClubSheIs About Us
+          </div>
+        </div>
+      )}
+
       {/* Email content card */}
       <div className="border border-stone-200 rounded-lg overflow-hidden">
         <div className="bg-stone-50 px-4 py-3 flex items-center justify-between border-b border-stone-200">
           <div>
             <h4 className="text-sm font-semibold text-stone-900">
-              {isThankYou ? 'Thank You Email' : `Proposal for ${client.brand || client.name}`}
+              {isThankYou
+                ? 'Thank You Email'
+                : proposalData
+                  ? 'Hosted proposal page content'
+                  : `Proposal for ${client.brand || client.name}`}
             </h4>
             <p className="text-xs text-stone-500">
               {isThankYou
                 ? 'Review and edit before sending'
                 : proposalData
-                  ? 'Plain-text version — used for the hosted proposal page and email fallback'
+                  ? 'Not emailed — this is the text version behind the shareable proposal link'
                   : 'Review and edit before sending'}
             </p>
           </div>

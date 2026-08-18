@@ -247,3 +247,60 @@ export function proposalToMarkdown(data: ProposalData, clientName: string, brand
 
   return out.join('\n\n')
 }
+
+/**
+ * Build the covering email for a proposal that travels as a PDF.
+ *
+ * The email must not restate the proposal — it summarises the recommendation
+ * and points at the attachment. Derived from the same structured data rather
+ * than generated separately, so the package and price in the email can never
+ * drift from the ones in the PDF.
+ */
+export function buildProposalEmailBody(
+  data: ProposalData,
+  opts: { clientName: string; brandName?: string | null; proposalLink?: string },
+): string {
+  const { clientName, proposalLink } = opts
+  const out: string[] = [`Hi ${clientName},`]
+
+  out.push('Thank you again for taking the time to meet with us. Your full proposal is attached as a PDF.')
+
+  // One line per package so the money is visible without opening the attachment.
+  if (data.cards.length) {
+    const lines = data.cards.map(c => {
+      // The card eyebrow is set in letterspaced caps for the PDF; the email is
+      // prose, so take just the phase name and give it sentence casing.
+      const phase = c.eyebrow
+        ? `${c.eyebrow.split('·')[0].trim().replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase())}: `
+        : ''
+      const total = c.totalNote ? ` (${c.totalNote})` : ''
+      return `- ${phase}**${c.name}** — ${c.price} ${c.cadence}${total}`
+    })
+    out.push(
+      data.cards.length > 1
+        ? 'In short, we are recommending a phased engagement:'
+        : 'In short, here is what we are recommending:',
+    )
+    out.push(lines.join('\n'))
+  }
+
+  out.push(
+    'The attached PDF covers what we took away from our call, what we would do together, the full scope of each phase, and our terms.',
+  )
+
+  // First few steps only — the rest are in the PDF.
+  if (data.nextSteps.length) {
+    out.push('**What happens next?**')
+    out.push(data.nextSteps.slice(0, 3).map((s, i) => `${i + 1}. ${s}`).join('\n'))
+  }
+
+  if (proposalLink) {
+    out.push('You can also review and accept the proposal online here:')
+    out.push(proposalLink)
+  }
+
+  out.push('Any questions at all, just reply to this email.')
+  out.push('Warm regards,\nKopano & Nyaki\nClub She Is')
+
+  return out.join('\n\n')
+}
