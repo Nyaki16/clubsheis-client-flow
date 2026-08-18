@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import PDFDocument from 'pdfkit'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import {
   PALETTE, WHO_WE_ARE, TERMS, FOOTER, SECTION_LABELS,
   type ProposalData, type PricingCard,
@@ -224,18 +226,39 @@ function pricingCard(doc: Doc, card: PricingCard) {
   doc.y = top + total
 }
 
+/**
+ * The CSI logo, cropped to its artwork so the drawn box is the artwork.
+ * Read from public/ the same way the About Us attachment is; if it is ever
+ * missing the caller falls back to setting the brand as type rather than
+ * failing the whole document.
+ */
+const LOGO_RATIO = 441 / 259
+function logoBuffer(): Buffer | null {
+  try {
+    return readFileSync(join(process.cwd(), 'public', 'csi-logo.png'))
+  } catch {
+    return null
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Pages
  * ------------------------------------------------------------------ */
 
 function renderCover(doc: Doc, data: ProposalData, clientName: string, dateLabel: string) {
-  // Wordmark. The CSI logo mark itself is not in the repo, so the brand is set
-  // as type; drop a PNG in public/ and draw it here to match the template exactly.
-  doc.font('Helvetica-Bold').fontSize(19).fillColor(PALETTE.ink)
-    .text(FOOTER.brandName, MARGIN, MARGIN, { width: CONTENT })
-  doc.moveDown(0.15)
+  // The logo already carries the wordmark, so only the tagline is set as type.
+  const logo = logoBuffer()
+  if (logo) {
+    const w = 132
+    doc.image(logo, MARGIN, MARGIN, { width: w })
+    doc.y = MARGIN + w / LOGO_RATIO + 10
+  } else {
+    doc.font('Helvetica-Bold').fontSize(19).fillColor(PALETTE.ink)
+      .text(FOOTER.brandName, MARGIN, MARGIN, { width: CONTENT })
+    doc.moveDown(0.15)
+  }
   doc.font('Helvetica').fontSize(8).fillColor(PALETTE.accent)
-    .text(FOOTER.tagline, { width: CONTENT, characterSpacing: 2 })
+    .text(FOOTER.tagline, MARGIN, doc.y, { width: CONTENT, characterSpacing: 2 })
 
   // Headline block, positioned in the lower-middle third like the template.
   doc.y = A4_HEIGHT * 0.36
@@ -420,7 +443,7 @@ function renderReadyToBegin(doc: Doc, data: ProposalData) {
 
   // Closing statement — centred, two-tone, then the credits block. Measured as
   // one unit so the statement and the credits never split across a page break.
-  doc.moveDown(1.6)
+  doc.moveDown(1.0)
   doc.font('Helvetica').fontSize(11)
   const hClosingPara = doc.heightOfString(data.closingParagraph, {
     width: CONTENT * 0.8, lineGap: 4,
@@ -431,10 +454,10 @@ function renderReadyToBegin(doc: Doc, data: ProposalData) {
   const hClosingBlock =
     16 +                                 // hairline + gap
     22 +                                 // eyebrow + gap
-    data.closingLines.length * 26 +      // statement lines
+    data.closingLines.length * 24 +      // statement lines
     9 + hClosingPara +                   // gap + closing paragraph
     18 + 16 +                            // gap + hairline + gap
-    25 +                                 // logo mark + gap
+    (logoBuffer() ? 46 / LOGO_RATIO + 10 : 25) + // logo mark (or its type fallback) + gap
     42                                   // three credit lines
 
   // Whether this fits under the steps panel depends on how long the generated
@@ -460,7 +483,7 @@ function renderReadyToBegin(doc: Doc, data: ProposalData) {
     const startX = MARGIN + (CONTENT - (wLead + wAccent)) / 2
     doc.fillColor(PALETTE.ink).text(line.lead, startX, y, { continued: true, lineBreak: false })
     doc.fillColor(PALETTE.accent).text(line.accent, { continued: false, lineBreak: false })
-    doc.y = y + 26
+    doc.y = y + 24
   }
 
   doc.moveDown(0.8)
@@ -473,9 +496,16 @@ function renderReadyToBegin(doc: Doc, data: ProposalData) {
   hairline(doc)
   doc.moveDown(1.4)
 
-  doc.font('Helvetica-Bold').fontSize(11).fillColor(PALETTE.accent)
-    .text('CSI', MARGIN, doc.y, { width: CONTENT, align: 'center', characterSpacing: 1 })
-  doc.moveDown(1)
+  const footLogo = logoBuffer()
+  if (footLogo) {
+    const w = 46
+    doc.image(footLogo, MARGIN + (CONTENT - w) / 2, doc.y, { width: w })
+    doc.y += w / LOGO_RATIO + 12
+  } else {
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(PALETTE.accent)
+      .text('CSI', MARGIN, doc.y, { width: CONTENT, align: 'center', characterSpacing: 1 })
+    doc.moveDown(1)
+  }
   doc.font('Helvetica').fontSize(10).fillColor(PALETTE.ink)
     .text(FOOTER.preparedBy, MARGIN, doc.y, { width: CONTENT, align: 'center' })
   doc.moveDown(0.3)
